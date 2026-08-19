@@ -56,6 +56,11 @@ def seed():
         ('ROLE-WARP-BEAM-PREPARATION', 'warp.beam@factory.com', 'Warp Beam Preparation Specialist', 'EMP-022'),
         ('ROLE-WARP-JOINER', 'warp.joiner@factory.com', 'Warp Joiner', 'EMP-023'),
         ('ROLE-ZARI-INSPECTOR', 'zari.inspector@factory.com', 'Zari Inspector', 'EMP-024'),
+        ('ROLE-DESIGN-GENERATOR', 'design.generator@factory.com', 'Design Generator', 'EMP-025'),
+        ('ROLE-BUY-BACK-MANAGER', 'buyback.manager@factory.com', 'Buy-Back Manager', 'EMP-026'),
+        ('ROLE-GUILD-MANAGER', 'guild.manager@factory.com', 'Guild Manager', 'EMP-027'),
+        ('ROLE-IOT-DEVICE-MANAGER', 'iot.device@factory.com', 'IoT Device Manager', 'EMP-028'),
+        ('ROLE-LOCALIZATION-MANAGER', 'localization.manager@factory.com', 'Localization Manager', 'EMP-029'),
     ]
 
     for role_id, email, name, emp_id in roles:

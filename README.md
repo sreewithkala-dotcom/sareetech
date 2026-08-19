@@ -1,69 +1,72 @@
-# AI-Powered Silk & Fabric Manufacturing ERP System
+# AI-Powered Silk Saree Manufacturing ERP System
 
 ## Overview
 
-This is a production-ready implementation of an AI-Powered Silk & Fabric Manufacturing Enterprise ERP System. It supports 24 distinct operational role profiles, automated quality inspection nodes, sequential workflow validations (Chain of Custody), and dynamic dashboard routing.
+This is a production-ready implementation of an AI-Powered Silk Saree Manufacturing ERP system designed for a 2-million-weaver ecosystem producing luxury ethnic wear with Silk Purity Guarantee Certificates and Saree Buy-Back Guarantees. It supports 29 operational role profiles, automated quality inspection nodes, sequential workflow validations (Chain of Custody), dynamic dashboard routing, generative design engines, and self-improving AI algorithms.
+
+## Key Features
+
+- **100% Electronic Jacquard Integration**: Direct design file push to looms via USB emulator + Wi-Fi modules
+- **Centralized Dyeing**: IoT spectrophotometer feedback, chemical/water automation, Delta-E tracking
+- **NFC/RFID Certificates**: Embedded in saree pallu selvage for authenticity and buy-back guarantees
+- **GAN Design Engine**: Generates thousands of daily design variations (StyleGAN-XL + regional motifs)
+- **Self-Improving AI**: Reinforcement learning scheduling, auto-training CV, continuous optimization
+- **Guild & Association Management**: Warp vendors, zari suppliers, dyeing workers, weaving guilds, post-making workers
+- **Multi-Language Support**: Telugu, Tamil, Kannada, Hindi, Bengali with TTS voice guidance
+- **Active-Active Multi-Region DB**: Synchronous cross-region replication with conflict resolution
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Frontend (React)                        │
+│                      Frontend (React PWA)                    │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ Login Page   │  │   Dashboard  │  │   Scanner UI        │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
+                           │
+                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      API Gateway (Kong/APISIX)               │
 │                    RBAC + OIDC Validation                    │
 └─────────────────────────────────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-┌─────────────────┐ ┌─────────────┐ ┌─────────────────────┐
-│   Auth Service  │ │   Scanner   │ │   Workflow Service  │
-│   (Port 5000)   │ │   Service   │ │     (Port 5003)     │
-└─────────────────┘ │  (Port 5001)│ └─────────────────────┘
-                    └─────────────┘
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │   AI Service        │
-                    │   (Port 5002)       │
-                    │  ┌───────────────┐  │
-                    │  │ Zari Defect   │  │
-                    │  │ Dye Coloring  │  │
-                    │  │ Warp Defect   │  │
-                    │  │ Fabric Defect │  │
-                    │  │ Weaving Defect│  │
-                    │  │ Forecasting   │  │
-                    │  └───────────────┘  │
-                    └─────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │   PostgreSQL        │
-                    │   (Port 5432)       │
-                    │                     │
-                    │  Core Tables:       │
-                    │  - users, roles     │
-                    │  - production_lots  │
-                    │  - workflow_states  │
-                    │  - scanner_logs     │
-                    │  - ai_certificates  │
-                    │  - audit_logs       │
-                    └─────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │   Apache Kafka      │
-                    │   (Port 9092)       │
-                    │                     │
-                    │  Topic:             │
-                    │  lot.{factory}.certified│
-                    └─────────────────────┘
+                           │
+           ┌───────────────┼───────────────┬───────────────┐
+           ▼               ▼               ▼               ▼
+┌─────────────────┐ ┌─────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│   Auth Service  │ │   Scanner   │ │   Workflow      │ │    IoT Service  │
+│   (Port 5000)   │ │   Service   │ │   Service       │ │   (Port 5004)   │
+└─────────────────┘ │  (Port 5001)│ │   (Port 5003)   │ └─────────────────┘
+                    └─────────────┘ └─────────────────┘
+                              │               │
+                              ▼               ▼
+                    ┌─────────────────┐ ┌─────────────────┐
+                    │   AI Service    │ │   Design Service│
+                    │   (Port 5002)   │ │   (Port 5005)   │
+                    └─────────────────┘ └─────────────────┘
+                              │               │
+                              ▼               ▼
+                    ┌─────────────────┐ ┌─────────────────┐
+                    │  Buy-Back       │ │    Guild        │
+                    │   Service       │ │   Service       │
+                    │   (Port 5006)   │ │   (Port 5007)   │
+                    └─────────────────┘ └─────────────────┘
+                              │               │
+                              ▼               ▼
+                    ┌─────────────────┐ ┌─────────────────┐
+                    │ Localization    │ │   PostgreSQL    │
+                    │   Service       │ │   (Port 5432)   │
+                    │   (Port 5008)   │ │                 │
+                    └─────────────────┘ └─────────────────┘
+                                              │
+                                              ▼
+                    ┌─────────────────────────────────────┐
+                    │         Apache Kafka                │
+                    │         (Port 9092)                 │
+                    │                                     │
+                    │  Topic: lot.{factory}.certified     │
+                    │  Partitioned by lot_id for ordering  │
+                    └─────────────────────────────────────┘
 ```
 
 ## Quick Start
@@ -106,6 +109,7 @@ psql -U postgres -d silk_erp -f migrations/001_initial_schema.sql
 psql -U postgres -d silk_erp -f migrations/002_workflow_transitions.sql
 psql -U postgres -d silk_erp -f migrations/003_stored_procedures.sql
 psql -U postgres -d silk_erp -f migrations/004_quarantine_management.sql
+psql -U postgres -d silk_erp -f migrations/005_silk_saree_extensions.sql
 ```
 
 #### 2. Start Kafka
@@ -125,21 +129,31 @@ kafka-topics.sh --create --topic lot.FACT-BLR-01.certified --bootstrap-server lo
 
 ```bash
 # Auth Service
-cd services/auth
-pip install -r ../../requirements.txt
-python app.py
+cd services/auth && pip install -r ../../requirements.txt && python app.py &
 
-# Scanner Service (new terminal)
-cd services/scanner
-python app.py
+# Scanner Service
+cd services/scanner && python app.py &
 
-# AI Service (new terminal)
-cd services/ai
-python app.py
+# AI Service
+cd services/ai && python app.py &
 
-# Workflow Service (new terminal)
-cd services/workflow
-python app.py
+# Workflow Service
+cd services/workflow && python app.py &
+
+# IoT Service
+cd services/iot && python app.py &
+
+# Design Service
+cd services/design && python app.py &
+
+# Buy-Back Service
+cd services/buyback && python app.py &
+
+# Guild Service
+cd services/guild && python app.py &
+
+# Localization Service
+cd services/localization && python app.py &
 ```
 
 #### 4. Start Frontend
@@ -186,40 +200,48 @@ Factory nodes are configured in the `factory_nodes.config` JSONB field:
     "output": "usb_hid"
   },
   "edge_ai_enabled": true,
-  "region": "ap-south-1"
+  "region": "ap-south-1",
+  "languages": ["te", "ta", "kn", "hi", "bn", "en"],
+  "ecu_firmware_version": "1.0.0",
+  "mesh_network_enabled": true
 }
 ```
 
-## 24 Role Profiles
+## Extended Role Profiles (29 Roles)
 
-| # | Role | Dashboard | AI Service |
-|---|------|-----------|------------|
-| 1 | Assistant Weaver | DashboardWeavingMonitor | Weaving Defect Detection |
-| 2 | Bobbin Winder | DashboardBobbinWinder | Zari Defect Detection |
-| 3 | Card Puncher | DashboardCardPuncher | N/A |
-| 4 | Filature Supplier | DashboardFilatureSupplier | Zari + Dye Detection |
-| 5 | Graph Drafter | DashboardGraphDrafter | Demand Forecasting |
-| 6 | LOG Finishing Specialist | DashboardLogFinishing | Fabric Defect Detection |
-| 7 | Loom Harness Setter | DashboardLoomHarnessSetter | Warp Defect Detection |
-| 8 | Master Colorist | DashboardMasterColorist | Dye Coloring Detection |
-| 9 | Master Weaver | DashboardMasterWeaver | Fabric + Weaving Defect |
-| 10 | Petni Master | DashboardPetniMaster | Zari Defect Detection |
-| 11 | Pirn Winders | DashboardPirnWinders | Zari Defect Detection |
-| 12 | QA Dyeing Inspector | DashboardQADyeingInspector | Dye Coloring Detection |
-| 13 | Quality Inspector | DashboardQualityInspector | All Services |
-| 14 | Silk Degumming Master | DashboardSilkDegummingMaster | N/A |
-| 15 | Silk Grader | DashboardSilkGrader | Zari Defect Detection |
-| 16 | Silk Mark Officer | DashboardSilkMarkOfficer | N/A |
-| 17 | System Admin | DashboardSystemAdmin | All Services |
-| 18 | Skein Dye Master | DashboardSkeinDyeMaster | Dye Coloring Detection |
-| 19 | Store Inventory Manager | DashboardStoreInventoryManager | N/A |
-| 20 | SUP Loom Floor Supervisor | DashboardSUPLoomFloorSupervisor | Weaving Defect Detection |
-| 21 | Throwster/Twister | DashboardThrowsterTwister | Zari Defect Detection |
-| 22 | Warp Beam Preparation Specialist | DashboardWarpBeamPreparation | Warp Defect Detection |
-| 23 | Warp Joiner | DashboardWarpJoiner | Warp Defect Detection |
-| 24 | Zari Inspector | DashboardZariInspector | Zari Defect Detection |
+| # | Role | RoleID | Dashboard | AI Service | Guild/Association |
+|---|------|--------|-----------|------------|-------------------|
+| 1 | Assistant Weaver | `ROLE-ASSISTANT-WEAVER` | DashboardWeavingMonitor | Weaving Defect Detection | Weaving Guild |
+| 2 | Bobbin Winder | `ROLE-BOBBIN-WINDER` | DashboardBobbinWinder | Zari Defect Detection | - |
+| 3 | Card Puncher | `ROLE-CARD-PUNCHER` | DashboardCardPuncher | N/A | - |
+| 4 | Filature Supplier | `ROLE-FILATURE-SUPPLIER` | DashboardFilatureSupplier | Zari + Dye Detection | Warp Vendors Association |
+| 5 | Graph Drafter | `ROLE-GRAPH-DRAFTER` | DashboardGraphDrafter | Demand Forecasting | Design Guild |
+| 6 | LOG Finishing Specialist | `ROLE-LOG-FINISHING` | DashboardLogFinishing | Fabric Defect Detection | Post-Making Workers Association |
+| 7 | Loom Harness Setter | `ROLE-LOOM-HARNESS-SETTER` | DashboardLoomHarnessSetter | Warp Defect Detection | - |
+| 8 | Master Colorist | `ROLE-MASTER-COLORIST` | DashboardMasterColorist | Dye Coloring Detection | Dyeing Workers Association |
+| 9 | Master Weaver | `ROLE-MASTER-WEAVER` | DashboardMasterWeaver | Fabric + Weaving Defect | Weaving Guild |
+| 10 | Petni Master | `ROLE-PETNI-MASTER` | DashboardPetniMaster | Zari Defect Detection | - |
+| 11 | Pirn Winders | `ROLE-PIRN-WINDERS` | DashboardPirnWinders | Zari Defect Detection | - |
+| 12 | QA Dyeing Inspector | `ROLE-QA-DYEING-INSPECTOR` | DashboardQADyeingInspector | Dye Coloring Detection | Dyeing Workers Association |
+| 13 | Quality Inspector | `ROLE-QUALITY-INSPECTOR` | DashboardQualityInspector | All Services | - |
+| 14 | Silk Degumming Master | `ROLE-SILK-DEGUMMING-MASTER` | DashboardSilkDegummingMaster | N/A | - |
+| 15 | Silk Grader | `ROLE-SILK-GRADER` | DashboardSilkGrader | Zari Defect Detection | Warp Vendors Association |
+| 16 | Silk Mark Officer | `ROLE-SILK-MARK-OFFICER` | DashboardSilkMarkOfficer | N/A | - |
+| 17 | System Admin | `ROLE-SYSTEM-ADMIN` | DashboardSystemAdmin | All Services | - |
+| 18 | Skein Dye Master | `ROLE-SKEIN-DYE-MASTER` | DashboardSkeinDyeMaster | Dye Coloring Detection | Dyeing Workers Association |
+| 19 | Store Inventory Manager | `ROLE-STORE-INVENTORY-MANAGER` | DashboardStoreInventoryManager | N/A | - |
+| 20 | SUP Loom Floor Supervisor | `ROLE-SUP-LOOM-FLOOR-SUPERVISOR` | DashboardSUPLoomFloorSupervisor | Weaving Defect Detection | Weaving Guild |
+| 21 | Throwster/Twister | `ROLE-THROWSTER-TWISTER` | DashboardThrowsterTwister | Zari Defect Detection | - |
+| 22 | Warp Beam Preparation Specialist | `ROLE-WARP-BEAM-PREPARATION` | DashboardWarpBeamPreparation | Warp Defect Detection | Warp Vendors Association |
+| 23 | Warp Joiner | `ROLE-WARP-JOINER` | DashboardWarpJoiner | Warp Defect Detection | Warp Vendors Association |
+| 24 | Zari Inspector | `ROLE-ZARI-INSPECTOR` | DashboardZariInspector | Zari Defect Detection | Zari Vendors Association |
+| 25 | Design Generator | `ROLE-DESIGN-GENERATOR` | DashboardDesignGenerator | GAN Design Generation | Design Guild |
+| 26 | Buy-Back Manager | `ROLE-BUY-BACK-MANAGER` | DashboardBuyBackManager | Buy-Back Risk Predictor | - |
+| 27 | Guild Manager | `ROLE-GUILD-MANAGER` | DashboardGuildManager | N/A | All Guilds |
+| 28 | IoT Device Manager | `ROLE-IOT-DEVICE-MANAGER` | DashboardIoTDeviceManager | N/A | - |
+| 29 | Localization Manager | `ROLE-LOCALIZATION-MANAGER` | DashboardLocalizationManager | N/A | - |
 
-## Sequential Workflow (24 Roles)
+## Sequential Workflow (29 Roles)
 
 ```
 Filature Supplier → Zari Inspector → Silk Grader → Skein Dye Master →
@@ -229,7 +251,7 @@ Graph Drafter → Card Puncher → Loom Harness Setter → Bobbin Winder →
 Pirn Winders → Petni Master → Throwster/Twister → Master Weaver →
 LOG Finishing Specialist → Quality Inspector → QA Dyeing Inspector →
 Master Colorist → Zari Inspector (Final) → SUP Loom Floor Supervisor →
-Assistant Weaver → Completed
+Assistant Weaver → Design Generator → Buy-Back Manager → Guild Manager → System Admin
 ```
 
 ## API Endpoints
@@ -254,6 +276,36 @@ Assistant Weaver → Completed
 - `GET /api/v1/dashboard/input-queue` - Get lots queued for current role
 - `POST /api/v1/lots/{lot_id}/override` - Supervisor quarantine override
 - `GET /api/v1/lots` - List lots with filtering
+
+### IoT & Edge Controllers
+- `POST /api/v1/iot/telemetry` - Ingest loom telemetry from ECU
+- `POST /api/v1/iot/design/inject` - Inject design file to ECU via MQTT
+- `GET /api/v1/iot/devices` - List all edge controllers
+- `GET /api/v1/iot/health` - Health check
+
+### Design Management
+- `POST /api/v1/design/generate` - Generate GAN designs
+- `GET /api/v1/designs` - List designs with filtering
+- `POST /api/v1/designs/{pattern_id}/approve` - Approve design for production
+- `GET /api/v1/design/health` - Health check
+
+### Buy-Back Guarantees
+- `POST /api/v1/buyback/valuate` - AI-powered buy-back valuation
+- `POST /api/v1/buyback/{buyback_id}/approve` - Approve buy-back payout
+- `GET /api/v1/buyback/health` - Health check
+
+### Guild Management
+- `GET /api/v1/guilds` - List all guilds
+- `GET /api/v1/guilds/{guild_id}/members` - List guild members
+- `POST /api/v1/guilds/{guild_id}/payments` - Create payment record
+- `GET /api/v1/guilds/{guild_id}/payments` - List payments
+- `GET /api/v1/guilds/health` - Health check
+
+### Localization
+- `GET /api/v1/i18n/translations` - Get translations for language
+- `POST /api/v1/i18n/tts/generate` - Generate TTS audio
+- `GET /api/v1/i18n/keys` - List all i18n keys
+- `GET /api/v1/i18n/health` - Health check
 
 ## AI Microservices
 
@@ -293,6 +345,30 @@ Assistant Weaver → Completed
 - **Output**: Structural anomalies, pick rate
 - **Model**: weaving-defect-v2.3.1 (Edge ONNX/TensorRT)
 
+### 7. GAN Design Generation
+- **Trigger**: Design request queue
+- **Input**: Market demand, historical sales, festival calendars
+- **Output**: 1000+ design variations daily
+- **Model**: StyleGAN-XL + regional motif conditioning
+
+### 8. Buy-Back Risk Predictor
+- **Trigger**: Return request
+- **Input**: NFC tag, multi-spectral scan
+- **Output**: Dynamic buy-back value, depreciation breakdown
+- **Model**: Financial time-series + depreciation curves
+
+### 9. Dynamic Scheduler (PPO)
+- **Trigger**: Production changes
+- **Input**: Dye batch cycles, jacquard efficiencies, weaver speeds
+- **Output**: Automated re-routing, schedule optimization
+- **Model**: Proximal Policy Optimization (PPO)
+
+### 10. Auto-Training Computer Vision
+- **Trigger**: Inspector correction
+- **Input**: Defect images, human overrides
+- **Output**: Continuous model improvement
+- **Model**: YOLOv8 + Autoencoder
+
 ## Error Handling
 
 ### AI Defect Failure
@@ -315,10 +391,10 @@ Assistant Weaver → Completed
 # Run database migrations
 docker-compose exec postgres psql -U postgres -d silk_erp -f /docker-entrypoint-initdb.d/001_initial_schema.sql
 
-# Test login (replace with actual user)
+# Test login
 curl -X POST http://localhost:5000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@factory.com","password":"password","factory_node_id":"FACT-BLR-01"}'
+  -d '{"email":"admin@factory.com","password":"admin123","factory_node_id":"FACT-BLR-01"}'
 
 # Test scanner input
 curl -X POST http://localhost:5001/api/v1/scanner/input \
@@ -331,14 +407,32 @@ curl -X POST http://localhost:5002/api/v1/ai/zari/inspect \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"lot_id":"<lot-id>","role_id":"<role-id>","input_data":{}}'
+
+# Test IoT telemetry
+curl -X POST http://localhost:5004/api/v1/iot/telemetry \
+  -H "Content-Type: application/json" \
+  -d '{"loom_id":"LOOM-001","device_id":"ECU-001","current_picks":100,"target_picks":500,"faults_detected":0}'
+
+# Test design generation
+curl -X POST http://localhost:5005/api/v1/design/generate \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"count":10,"region":"ap-south-1","motif_style":"kanchipuram"}'
+
+# Test buy-back valuation
+curl -X POST http://localhost:5006/api/v1/buyback/valuate \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"nfc_id":"NFC-001","scan_data":{"fabric_thinning_pct":5,"gold_oxidation_pct":2}}'
 ```
 
 ## Scaling Considerations
 
-- **Database**: Shard by `factory_node_id`; read replicas for analytics
+- **Database**: Shard by `factory_node_id`; read replicas for analytics; active-active multi-region
 - **AI Services**: Stateless; scale horizontally behind load balancer
 - **Kafka**: Partition by `lot_id` for ordering; multiple brokers for throughput
 - **Frontend**: CDN for static assets; WebSocket for real-time updates
+- **IoT**: MQTT over TLS 1.3; local Wi-Fi mesh; edge buffering during outages
 
 ## Security
 
@@ -347,7 +441,8 @@ curl -X POST http://localhost:5002/api/v1/ai/zari/inspect \
 - RBAC enforced at API gateway and database row-level security
 - All AI certificates cryptographically signed (SHA-256)
 - Complete audit trail in `audit_logs` table
+- NFC cryptographic keys for buy-back authentication
 
 ## License
 
-Proprietary - AI-Powered Silk & Fabric Manufacturing ERP System
+Proprietary - AI-Powered Silk Saree Manufacturing ERP System

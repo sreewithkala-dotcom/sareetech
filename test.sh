@@ -94,8 +94,48 @@ else
     echo -e "${RED}✗${NC} Workflow Service is not ready"
 fi
 
-# Test 11: Check Frontend
-echo "Test 11: Checking Frontend..."
+# Test 11: Check IoT Service
+echo "Test 11: Checking IoT Service..."
+if curl -s http://localhost:5004/api/v1/iot/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} IoT Service is ready"
+else
+    echo -e "${RED}✗${NC} IoT Service is not ready"
+fi
+
+# Test 12: Check Design Service
+echo "Test 12: Checking Design Service..."
+if curl -s http://localhost:5005/api/v1/design/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Design Service is ready"
+else
+    echo -e "${RED}✗${NC} Design Service is not ready"
+fi
+
+# Test 13: Check Buy-Back Service
+echo "Test 13: Checking Buy-Back Service..."
+if curl -s http://localhost:5006/api/v1/buyback/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Buy-Back Service is ready"
+else
+    echo -e "${RED}✗${NC} Buy-Back Service is not ready"
+fi
+
+# Test 14: Check Guild Service
+echo "Test 14: Checking Guild Service..."
+if curl -s http://localhost:5007/api/v1/guilds/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Guild Service is ready"
+else
+    echo -e "${RED}✗${NC} Guild Service is not ready"
+fi
+
+# Test 15: Check Localization Service
+echo "Test 15: Checking Localization Service..."
+if curl -s http://localhost:5008/api/v1/i18n/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Localization Service is ready"
+else
+    echo -e "${RED}✗${NC} Localization Service is not ready"
+fi
+
+# Test 16: Check Frontend
+echo "Test 16: Checking Frontend..."
 if curl -s http://localhost:3000 > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} Frontend is ready"
 else
@@ -110,8 +150,13 @@ echo "  Auth API: http://localhost:5000"
 echo "  Scanner API: http://localhost:5001"
 echo "  AI API: http://localhost:5002"
 echo "  Workflow API: http://localhost:5003"
+echo "  IoT API: http://localhost:5004"
+echo "  Design API: http://localhost:5005"
+echo "  Buy-Back API: http://localhost:5006"
+echo "  Guild API: http://localhost:5007"
+echo "  Localization API: http://localhost:5008"
 echo ""
 echo "Default login (if seeded):"
 echo "  Email: admin@factory.com"
-echo "  Password: password"
+echo "  Password: admin123"
 echo "  Factory: FACT-BLR-01"

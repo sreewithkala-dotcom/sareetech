@@ -1,24 +1,37 @@
 # Silk & Fabric Manufacturing ERP — Implementation Plan
 
 ## Objective
-Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 role profiles, scanner-driven sequential workflow, AI inspection nodes, and dynamic dashboard routing.
+Deliver an AI-Powered Silk Saree Manufacturing ERP system for a 2-million-weaver ecosystem producing luxury ethnic wear with Silk Purity Guarantee Certificates and Saree Buy-Back Guarantees. The system supports 29 role profiles, 100% electronic jacquard integration, centralized dyeing, NFC/RFID certificates, generative design engines, self-improving AI, guild management, and multi-language support.
 
 ## Scope
 - Unified auth with JWT role claims
-- 24 role-specific dashboards
-- Sequential state machine for production lots
-- 6 AI inspection microservices
-- PostgreSQL schema + rollback/edge-case rules
-- Real-time event propagation between roles
+- 29 role-specific dashboards (24 original + 5 new: Design Generator, Buy-Back Manager, Guild Manager, IoT Device Manager, Localization Manager)
+- Sequential state machine for production lots through 24+ roles
+- 12 AI microservices (6 original + 6 new: GAN Design, Buy-Back Risk, Dynamic Scheduler PPO, Auto-Training CV, TTS, Festival Forecasting)
+- PostgreSQL schema with supply chain, guild, buy-back, IoT, design, localization tables
+- Real-time event propagation between roles via Apache Kafka
+- Self-improving AI with reinforcement learning and continuous training loops
+- Multi-language support (Telugu, Tamil, Kannada, Hindi, Bengali) with TTS
+- NFC/RFID embedded certificates with blockchain-style ledger
+- Active-active multi-region database
 
 ## Out of Scope
 - Physical scanner hardware procurement
 - AI model training (assume pre-trained models provided)
-- Mobile app (web-only in this phase)
+- Native mobile apps (PWA-only in this phase)
+- ESP32 ECU hardware manufacturing ($1M budget allocated for prototyping)
 
 ## Key Decisions
 
-### 1. Authentication & Authorization
+### 1. Hardware & IoT Infrastructure
+- **Loom Type**: 100% electronic jacquards with USB emulators + Wi-Fi modules
+- **Edge Controller**: Custom ESP32-S3 based industrial ECU with 4GB eMMC storage
+- **Connectivity**: Local Wi-Fi mesh + MQTT over TLS 1.3 to cloud
+- **Power**: Local power lines with isolation transformers and surge protection
+- **Budget**: $1M allocated for hardware prototyping
+- **NFC**: Embedded in saree pallu selvage during final weaving picks
+
+### 2. Authentication & Authorization
 - **Single login endpoint**: `POST /api/v1/auth/login`
 - **Multi-tenant OAuth2/OIDC**: Use Keycloak or IdentityServer per factory node
 - **JWT claims**: `RoleID`, `FactoryNodeID`, `PermittedOperations[]`
@@ -33,6 +46,7 @@ Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 
 
 ### 3. Sequential Workflow State Machine
 - **24-step linear pipeline**: Filature Supplier → Zari Inspector → ... → Assistant Weaver → Completed
+- **New extended roles**: Design Generator, Buy-Back Manager, Guild Manager, IoT Device Manager, Localization Manager
 - **State enforced in DB**: `production_lots.status` uses CHECK constraint with all valid states
 - **Pre-step validation**: Input scan must match exact precursor `Certified:*` or `Queued` status
 - **Locking**: Asset locked to operator workstation during `InProgress:*`
@@ -53,7 +67,7 @@ Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 
 - **Replication**: Synchronous cross-region replication for critical tables; eventual consistency for analytics
 - **Failover**: Automatic redirect to secondary region if primary becomes unavailable
 
-### 6. AI Inspection Microservices (6)
+### 6. AI Model Deployment Strategy
 | Service | Trigger Step | Model Input | Output |
 |---|---|---|---|
 | Zari Defect Detection | Zari processing | Thread image/sensor data | Defect classes, confidence, purity score |
@@ -65,6 +79,7 @@ Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 
 
 - **Edge services**: Zari Defect Detection, Dye Coloring Defect Detection, Warp Defect Detection, Fabric Defect Detection, Automated Weaving Defect Detection deployed as ONNX/TensorRT models on local edge hardware per workstation
 - **Cloud service**: Demand Forecasting & Smart Cutting Optimization deployed centrally on GPU servers; batch async processing
+- **Self-improving services**: GAN Design Generation, Buy-Back Risk Predictor, Dynamic Scheduler (PPO), Auto-Training CV (YOLOv8) deployed centrally with edge fallback
 - **Fallback**: If edge hardware unavailable, cloud fallback with cached model; degraded mode with manual inspection prompts
 
 ### 7. Database Schema (PostgreSQL)
@@ -78,6 +93,12 @@ Core tables:
 - `pending_sync_queue` (offline resilience)
 - `quarantined_lots`
 - `materials`, `inventory_movements`
+- `yarn_batches`, `zari_batches`, `dye_vats`, `loom_assignments`, `finished_sarees`, `buyback_guarantees`
+- `design_files`, `design_generations`, `design_sales_feedback`
+- `guilds`, `guild_members`, `guild_payments`, `guild_incentives`
+- `edge_controllers`, `loom_telemetry`, `design_injections`
+- `i18n_keys`, `i18n_translations`, `voice_audio_cache`
+- `certificate_ledger`, `nfc_registry`
 
 Key constraints:
 - UUID primary keys
@@ -85,6 +106,7 @@ Key constraints:
 - `production_lots.status` CHECK constraint
 - Triggers auto-update `updated_at`
 - Indexes on all foreign keys and frequently queried columns
+- Blockchain-style immutability via cryptographic signatures on certificates
 
 ### 8. Edge-Case Error Handling
 | Scenario | Detection | Action | Recovery |
@@ -94,7 +116,7 @@ Key constraints:
 | Network loss at factory node | Sync queue backlog | Buffer locally, retry with backoff | Replay when online; conflict resolution by server timestamp |
 | Duplicate scan | `fn_check_duplicate_scan` | HTTP 409 | Wait 5 min or supervisor override |
 
-## Implementation Tasks
+### 9. Implementation Tasks
 
 ### Task 1: Database Schema & Migrations
 - Create `migrations/001_initial_schema.sql` with all tables, indexes, triggers, and sample role data
@@ -145,18 +167,50 @@ Key constraints:
 - Dynamic component injection based on `DASHBOARD_REGISTRY`
 - Each dashboard subscribes to Kafka topic for its role's input queue
 - Scanner UI with input/output scan buttons and real-time status
-- Validation: Manual QA for each of the 24 role dashboards
+- Multi-language support with TTS audio playback
+- Validation: Manual QA for each of the 29 role dashboards
 
-### Task 8: Offline Resilience & Sync
+### Task 8: IoT Service
+- `POST /api/v1/iot/telemetry` — ingest MQTT telemetry from ECU edge controllers
+- `POST /api/v1/iot/design/inject` — inject design files to ECU via MQTT
+- `GET /api/v1/iot/devices` — list all edge controllers
+- Validates loom availability and device online status before injection
+
+### Task 9: Design Service
+- `POST /api/v1/design/generate` — GAN design generation
+- `GET /api/v1/designs` — list designs with filtering
+- `POST /api/v1/designs/{pattern_id}/approve` — approve design for production
+- Stores design files with hook count, segment mapping, and file metadata
+
+### Task 10: Buy-Back Service
+- `POST /api/v1/buyback/valuate` — AI-powered buy-back valuation
+- `POST /api/v1/buyback/{buyback_id}/approve` — approve buy-back payout
+- Calculates depreciation based on fabric thinning, gold oxidation, stains
+- Links to NFC registry for cryptographic authentication
+
+### Task 11: Guild Service
+- `GET /api/v1/guilds` — list all guilds
+- `GET /api/v1/guilds/{guild_id}/members` — list guild members
+- `POST /api/v1/guilds/{guild_id}/payments` — create payment record
+- `GET /api/v1/guilds/{guild_id}/payments` — list payments
+- Manages piece-rate calculations, escrow releases, performance scores
+
+### Task 12: Localization Service
+- `GET /api/v1/i18n/translations` — get translations for language
+- `POST /api/v1/i18n/tts/generate` — generate TTS audio
+- `GET /api/v1/i18n/keys` — list all i18n keys
+- Supports Telugu, Tamil, Kannada, Hindi, Bengali, English
+
+### Task 13: Offline Resilience & Sync
 - Local PostgreSQL at each factory node
 - `pending_sync_queue` for buffering during network loss
 - Background sync service with exponential backoff
 - Conflict resolution: server timestamp authoritative
 - Validation: Simulate network partition, verify data consistency after restore
 
-### Task 9: Monitoring & Observability
-- Metrics: lot throughput, AI latency, certification pass/fail rates, scanner success rates
-- Alerts: quarantine events, sync failures, high error rates
+### Task 14: Monitoring & Observability
+- Metrics: lot throughput, AI latency, certification pass/fail rates, scanner success rates, ECU telemetry
+- Alerts: quarantine events, sync failures, high error rates, loom faults
 - Audit log for all state transitions
 - Validation: Load test with 1000+ concurrent users
 
@@ -165,9 +219,10 @@ Key constraints:
 2. **Phase 2** (Week 3-4): Auth service, API gateway, RBAC
 3. **Phase 3** (Week 5-6): Scanner service, workflow service, Kafka integration
 4. **Phase 4** (Week 7-8): AI service stubs, digital certification
-5. **Phase 5** (Week 9-10): Frontend dashboards, scanner UI
-6. **Phase 6** (Week 11-12): Offline resilience, sync, monitoring
-7. **Phase 7** (Week 13-14): Load testing, security audit, pilot deployment
+5. **Phase 5** (Week 9-10): IoT service, design service, buy-back service
+6. **Phase 6** (Week 11-12): Guild service, localization service, frontend dashboards
+7. **Phase 7** (Week 13-14): Offline resilience, sync, monitoring
+8. **Phase 8** (Week 15-16): Load testing, security audit, pilot deployment
 
 ## Risks & Mitigations
 | Risk | Mitigation |
@@ -179,14 +234,19 @@ Key constraints:
 | 24-role state machine complexity | DB CHECK constraints + stored procedures enforce valid transitions |
 
 ## Validation Checklist
-- [ ] All 24 roles can log in and see their dashboard
-- [ ] Full lot progression through all 24 roles without manual intervention
+- [ ] All 29 roles can log in and see their dashboard
+- [ ] Full lot progression through all 24+ roles without manual intervention
 - [ ] AI service returns PASS/FAIL and triggers correct state transition
 - [ ] Quarantine workflow functions correctly with supervisor override
 - [ ] Network loss simulation: data persists locally and syncs correctly
 - [ ] Load test: 1000 concurrent users, <200ms API latency P95
 - [ ] Security audit: no cross-role data access, JWT properly validated
 - [ ] Database rollback tested for all failure scenarios
+- [ ] IoT telemetry ingestion and design injection work correctly
+- [ ] Buy-back valuation engine returns accurate depreciation values
+- [ ] Guild payment calculations match piece-rate formulas
+- [ ] TTS generates audio in all 5 regional dialects
+- [ ] NFC certificate ledger links to finished sarees correctly
 
 ## Open Questions for Implementation Team
 1. **Kafka vs RabbitMQ**: ~~Which message broker is preferred for event streaming?~~ → **Decided: Apache Kafka** (log retention supports offline replay, partitioned by `lot_id` for ordering)
@@ -194,3 +254,6 @@ Key constraints:
 3. **Scanner Hardware**: Specific models/vendors already selected, or need recommendation?
 4. **Multi-region Strategy**: Active-active or active-passive for central DB?
 5. **Compliance**: Any specific textile industry regulations (e.g., GOTS, Oeko-Tex) that require certification tracking?
+6. **ESP32 ECU**: Custom PCB design vendor selected, or need recommendation?
+7. **NFC Tag Vendor**: Specific NFC tag manufacturer for embedding in saree selvage?
+8. **GAN Design Engine**: StyleGAN-XL training data source and compute budget?

@@ -158,6 +158,117 @@ services:
       timeout: 10s
       retries: 3
 
+  iot-service:
+    build:
+      context: ./services/iot
+      dockerfile: Dockerfile
+    container_name: silk-erp-iot
+    ports:
+      - "5004:5004"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5004/api/v1/iot/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  design-service:
+    build:
+      context: ./services/design
+      dockerfile: Dockerfile
+    container_name: silk-erp-design
+    ports:
+      - "5005:5005"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/api/v1/design/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  buyback-service:
+    build:
+      context: ./services/buyback
+      dockerfile: Dockerfile
+    container_name: silk-erp-buyback
+    ports:
+      - "5006:5006"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5006/api/v1/buyback/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  guild-service:
+    build:
+      context: ./services/guild
+      dockerfile: Dockerfile
+    container_name: silk-erp-guild
+    ports:
+      - "5007:5007"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5007/api/v1/guilds/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  localization-service:
+    build:
+      context: ./services/localization
+      dockerfile: Dockerfile
+    container_name: silk-erp-localization
+    ports:
+      - "5008:5008"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5008/api/v1/i18n/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
   frontend:
     build:
       context: ./frontend

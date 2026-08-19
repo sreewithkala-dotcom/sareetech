@@ -186,10 +186,17 @@ Key constraints:
 ### Task 7.5: SKU Product Catalog Service
 - Create `migrations/006_sku_catalog.sql` with `sku_catalog` and `sku_production_mapping` tables
 - Implement FastAPI service on port 5009 with filtering, pagination, and filter-options endpoints
-- Seed 480 SKUs via CSV (`services/sku/sku_catalog.csv`) + `seed_sku.py`
+- Seed 480 SKUs via CSV (`services/sku/sku_catalog.csv`) + `seed_sku.py` — CSV populated with all 480 rows
 - Add `DashboardSKUManager` frontend with advanced filters and stats
 - Integrate SKU selection into Design Generator dashboard and backend generate endpoint
-- Validation: Verify 480 SKUs load correctly, filters return expected subsets, design generation accepts SKU reference
+- Add `sku_id` linkage from `finished_sarees` to `sku_catalog` via `migrations/007_sku_buyback_link.sql`
+- Update Buy-Back valuation engine to use SKU `selling_price_inr` as base value
+- Update Buy-Back dashboard to display SKU reference and weight category in valuation result
+- Add optional `sku_ref_id` to IoT design injection with hook-count compatibility check against SKU jacquard capacity
+- Update IoT Device Manager dashboard with design injection form including SKU selector
+- Add `DashboardSKUComparison` frontend tool for side-by-side design feasibility analysis
+- Add `/sku-comparison` route accessible to SKU Manager and System Admin roles
+- Validation: Verify 480 SKUs load correctly, filters return expected subsets, design generation accepts SKU reference, buyback valuation uses SKU pricing when linked, IoT injection validates SKU-hook compatibility, comparison tool displays accurate differential metrics
 
 ### Task 8: IoT Service
 - `POST /api/v1/iot/telemetry` — ingest MQTT telemetry from ECU edge controllers

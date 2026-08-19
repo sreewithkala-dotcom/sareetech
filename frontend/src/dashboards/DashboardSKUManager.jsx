@@ -119,6 +119,9 @@ export default function DashboardSKUManager() {
             Factory: {user?.factory_node_id} | Operator: {user?.full_name}
           </Typography>
         </div>
+        <Button variant="outlined" onClick={() => navigate('/sku-comparison')}>
+          Compare SKUs
+        </Button>
       </Box>
 
       {/* Filters */}

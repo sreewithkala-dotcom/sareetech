@@ -33,6 +33,7 @@ import DashboardWarpBeamPreparation from './dashboards/DashboardWarpBeamPreparat
 import DashboardWarpJoiner from './dashboards/DashboardWarpJoiner'
 import DashboardZariInspector from './dashboards/DashboardZariInspector'
 import DashboardSKUManager from './dashboards/DashboardSKUManager'
+import DashboardSKUComparison from './dashboards/DashboardSKUComparison'
 import DashboardDesignGenerator from './dashboards/DashboardDesignGenerator'
 import DashboardBuyBackManager from './dashboards/DashboardBuyBackManager'
 import DashboardGuildManager from './dashboards/DashboardGuildManager'
@@ -96,6 +97,11 @@ function App() {
       <Route path="/scanner" element={
         <ProtectedRoute>
           <Scanner />
+        </ProtectedRoute>
+      } />
+      <Route path="/sku-comparison" element={
+        <ProtectedRoute>
+          {user?.role?.role_id === 'ROLE-SKU-MANAGER' || user?.role?.role_id === 'ROLE-SYSTEM-ADMIN' ? <DashboardSKUComparison /> : <Navigate to="/dashboard" />}
         </ProtectedRoute>
       } />
       <Route path="/" element={<Navigate to="/dashboard" />} />

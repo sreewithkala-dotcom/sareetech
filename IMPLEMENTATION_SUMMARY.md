@@ -25,7 +25,6 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 | guild | 5007 | Guild management, member tracking, payment distribution |
 | localization | 5008 | i18n translations, TTS audio generation |
 | sku | 5009 | 480-SKU product catalog, pricing, production mapping |
-| sku | 5009 | 480-SKU product catalog, pricing, production mapping |
 
 ### 3. Frontend (React PWA)
 - Login page with factory node selection
@@ -50,7 +49,10 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - NFC/RFID embedded certificates with blockchain-style ledger
 - Buy-back guarantee engine with AI depreciation
 - GAN design generation with viability filtering
-- SKU product catalog: 480 variants across 18 hubs, 14 weave categories
+- SKU product catalog: 480 variants across 18 hubs, 14 weave categories (CSV fully populated)
+- Buy-Back valuation engine uses SKU selling price as base value
+- IoT design injection validates SKU-hook compatibility
+- SKU comparison tool for design feasibility analysis
 - Self-improving AI architecture (PPO, YOLOv8 auto-training)
 - Multi-language support (Telugu, Tamil, Kannada, Hindi, Bengali)
 - TTS voice guidance for weavers

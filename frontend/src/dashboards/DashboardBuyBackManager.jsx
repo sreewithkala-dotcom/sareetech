@@ -1,4 +1,4 @@
-import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Avatar } from '@mui/material'
+import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Avatar, Alert } from '@mui/material'
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useDashboard } from '../contexts/DashboardContext'
@@ -7,6 +7,7 @@ export default function DashboardBuyBackManager() {
   const { user } = useAuth()
   const { addNotification } = useDashboard()
   const [selectedGuarantee, setSelectedGuarantee] = useState(null)
+  const [valuationResult, setValuationResult] = useState(null)
 
   const buybackRequests = [
     {
@@ -50,8 +51,9 @@ export default function DashboardBuyBackManager() {
         body: JSON.stringify({ nfc_id: nfcId, scan_data: scanData })
       })
       
-      const data = await response.data
+      const data = await response.json()
       if (response.ok) {
+        setValuationResult(data)
         addNotification(`Buy-back value: ₹${data.buyback_value_inr}`, 'success')
       } else {
         addNotification(data.error || 'Valuation failed', 'error')
@@ -83,6 +85,36 @@ export default function DashboardBuyBackManager() {
           </Typography>
         </div>
       </Box>
+
+      {valuationResult && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          <Typography variant="subtitle1" gutterBottom>
+            Valuation Result for {valuationResult.nfc_id}
+          </Typography>
+          <Typography variant="body2">
+            <strong>Base Value:</strong> ₹{valuationResult.base_value_inr?.toLocaleString()}
+          </Typography>
+          <Typography variant="body2">
+            <strong>Buy-Back Value:</strong> ₹{valuationResult.buyback_value_inr?.toLocaleString()}
+          </Typography>
+          {valuationResult.sku_ref_id && (
+            <>
+              <Typography variant="body2">
+                <strong>SKU:</strong> {valuationResult.sku_ref_id}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Weight Category:</strong> {valuationResult.weight_category_profile}
+              </Typography>
+            </>
+          )}
+          <Typography variant="body2">
+            <strong>Fabric Thinning:</strong> {valuationResult.depreciation_breakdown?.fabric_thinning_pct}%
+          </Typography>
+          <Typography variant="body2">
+            <strong>Gold Oxidation:</strong> {valuationResult.depreciation_breakdown?.gold_oxidation_pct}%
+          </Typography>
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* Buy-Back Requests */}

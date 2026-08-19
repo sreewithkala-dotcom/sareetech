@@ -98,6 +98,7 @@ def inject_design():
     """
     Injects design files to ECU edge controllers via MQTT.
     Streams 1GB files in blocks to avoid memory overflow.
+    Validates SKU compatibility and loom capacity.
     """
     try:
         data = request.get_json()
@@ -105,6 +106,7 @@ def inject_design():
         pattern_id = data.get('pattern_id')
         file_hash = data.get('file_hash')
         binary_url = data.get('binary_url')
+        sku_ref_id = data.get('sku_ref_id')
         
         if not all([loom_id, pattern_id, file_hash, binary_url]):
             return jsonify({'error': 'Missing required fields'}), 400
@@ -132,13 +134,42 @@ def inject_design():
         if not device:
             return jsonify({'error': 'No online ECU found for this loom'}), 404
         
+        # SKU validation if provided
+        sku = None
+        if sku_ref_id:
+            cur.execute("""
+                SELECT id, jacquard_capacity, total_saree_weight_g, weight_category_profile
+                FROM sku_catalog
+                WHERE sku_ref_id = %s AND is_active = TRUE
+            """, (sku_ref_id,))
+            sku = cur.fetchone()
+            if not sku:
+                cur.close()
+                conn.close()
+                return jsonify({'error': f'SKU {sku_ref_id} not found'}), 404
+            
+            # Validate design file hook count matches SKU jacquard capacity
+            cur.execute("""
+                SELECT hook_count FROM design_files 
+                WHERE pattern_id = %s
+            """, (pattern_id,))
+            design = cur.fetchone()
+            if design:
+                sku_hooks = int(sku['jacquard_capacity'].split()[0])
+                if design['hook_count'] != sku_hooks:
+                    cur.close()
+                    conn.close()
+                    return jsonify({
+                        'error': f'Design hook count {design["hook_count"]} does not match SKU capacity {sku_hooks}'
+                    }), 400
+        
         # Create design injection record
         cur.execute("""
             INSERT INTO design_injections 
-            (loom_id, device_id, pattern_id, file_hash, injection_status)
-            VALUES (%s, %s, %s, %s, 'QUEUED')
+            (loom_id, device_id, pattern_id, file_hash, injection_status, sku_ref_id)
+            VALUES (%s, %s, %s, %s, 'QUEUED', %s)
             RETURNING id
-        """, (loom_id, device['device_id'], pattern_id, file_hash))
+        """, (loom_id, device['device_id'], pattern_id, file_hash, sku_ref_id))
         
         injection_id = cur.fetchone()['id']
         
@@ -154,6 +185,7 @@ def inject_design():
             'injection_id': str(injection_id),
             'loom_id': loom_id,
             'pattern_id': pattern_id,
+            'sku_ref_id': sku_ref_id,
             'message': 'Design file injection queued for MQTT delivery'
         }), 200
         

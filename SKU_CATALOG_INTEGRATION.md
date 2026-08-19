@@ -138,7 +138,7 @@ The SKU Manager dashboard (`DashboardSKUManager`) provides:
 ## 7. Integration with Production Workflow
 
 ```
-[Design Generator] → Creates design file
+[Design Generator] → Creates design file with SKU reference
          ↓
 [SKU Selection] → Selects appropriate SKU based on design parameters
          ↓
@@ -151,13 +151,15 @@ The SKU Manager dashboard (`DashboardSKUManager`) provides:
 [Quality] → Validates final product against SKU specs
          ↓
 [Certificate] → Issues certificate with SKU reference
+         ↓
+[Buy-Back] → Uses SKU selling price as base value for depreciation calculation
 ```
 
 ## 8. Seeding the SKU Data
 
 ### Option A: CSV-based seeding (recommended)
 
-The seed script reads from `services/sku/sku_catalog.csv`. The CSV currently contains the first 24 SKU rows as a template.
+The seed script reads from `services/sku/sku_catalog.csv`. The CSV currently contains all **480 SKU rows** ready for seeding.
 
 To complete the full 480-SKU dataset:
 1. Open `services/sku/sku_catalog.csv`
@@ -227,9 +229,10 @@ sku-service:
 
 ## 10. Next Steps
 
-1. Populate the full 480-SKU dataset in `services/sku/sku_catalog.csv`
-2. Run `python seed_sku.py` to load data into PostgreSQL
-3. Add SKU selection API to Design Generator service
-4. Implement SKU-based cost calculation in Buy-Back valuation engine
-5. Add SKU filtering to IoT design injection validation
-6. Create SKU comparison tool for design feasibility analysis
+1. Run `python seed_sku.py` to load 480 SKUs into PostgreSQL
+2. Verify SKU service health endpoint returns correct count
+3. Test filters in DashboardSKUManager with full dataset
+4. Test SKU selection in Design Generator dashboard
+5. Verify Buy-Back valuation uses SKU pricing
+6. Test IoT design injection with SKU validation
+7. Test SKU comparison tool at `/sku-comparison`

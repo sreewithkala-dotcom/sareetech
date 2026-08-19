@@ -44,6 +44,7 @@ def valuate_buyback():
         # Find saree by NFC ID
         cur.execute("""
             SELECT fs.id, fs.lot_id, fs.grade, fs.buyback_value, fs.certificate_hash,
+                   fs.sku_id, fs.nfc_id,
                    pl.lot_number, pl.factory_node_id
             FROM finished_sarees fs
             JOIN production_lots pl ON fs.lot_id = pl.id
@@ -54,8 +55,23 @@ def valuate_buyback():
         if not saree:
             return jsonify({'error': 'Saree not found or invalid NFC tag'}), 404
         
-        # AI depreciation calculation
-        base_value = float(saree['buyback_value'] or 50000)  # Base value in INR
+        # SKU-based base value lookup
+        base_value = None
+        sku_info = None
+        if saree.get('sku_id'):
+            cur.execute("""
+                SELECT sku_ref_id, total_mfg_cost_inr, selling_price_inr, mrp_inr,
+                       min_floor_price_inr, weight_category_profile
+                FROM sku_catalog
+                WHERE id = %s AND is_active = TRUE
+            """, (saree['sku_id'],))
+            sku_info = cur.fetchone()
+            if sku_info:
+                base_value = float(sku_info['selling_price_inr'])
+        
+        # Fallback to stored buyback value or default
+        if base_value is None:
+            base_value = float(saree['buyback_value'] or 50000)
         
         # Depreciation factors
         fabric_thinning = scan_data.get('fabric_thinning_pct', 0) / 100
@@ -89,6 +105,13 @@ def valuate_buyback():
                 'silver_inr_per_gram': silver_rate_per_gram
             }
         }
+        
+        # Include SKU info if available
+        if sku_info:
+            depreciation_breakdown['sku_ref_id'] = sku_info['sku_ref_id']
+            depreciation_breakdown['weight_category_profile'] = sku_info['weight_category_profile']
+            depreciation_breakdown['mrp_inr'] = round(float(sku_info['mrp_inr']), 2)
+            depreciation_breakdown['min_floor_price_inr'] = round(float(sku_info['min_floor_price_inr']), 2)
         
         # Create buyback guarantee record
         cur.execute("""

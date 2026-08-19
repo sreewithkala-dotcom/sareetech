@@ -45,7 +45,15 @@ Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 
 - **Retention**: Log-based retention supports replay for offline factory nodes
 - **Ordering**: Partitioned by `lot_id` to preserve sequential workflow order
 
-### 5. AI Inspection Microservices (6)
+### 5. Multi-Region Database Strategy
+- **Architecture**: Active-active multi-region
+- **Regions**: At least 2 geographic regions with writable primaries
+- **Factory node routing**: Each factory node assigned to nearest region via `factory_nodes.config`
+- **Conflict resolution**: Last-write-wins with server timestamp authority
+- **Replication**: Synchronous cross-region replication for critical tables; eventual consistency for analytics
+- **Failover**: Automatic redirect to secondary region if primary becomes unavailable
+
+### 6. AI Inspection Microservices (6)
 | Service | Trigger Step | Model Input | Output |
 |---|---|---|---|
 | Zari Defect Detection | Zari processing | Thread image/sensor data | Defect classes, confidence, purity score |
@@ -59,7 +67,7 @@ Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 
 - **Cloud service**: Demand Forecasting & Smart Cutting Optimization deployed centrally on GPU servers; batch async processing
 - **Fallback**: If edge hardware unavailable, cloud fallback with cached model; degraded mode with manual inspection prompts
 
-### 5. Database Schema (PostgreSQL)
+### 7. Database Schema (PostgreSQL)
 Core tables:
 - `users`, `roles`, `user_sessions`
 - `factory_nodes`
@@ -78,7 +86,7 @@ Key constraints:
 - Triggers auto-update `updated_at`
 - Indexes on all foreign keys and frequently queried columns
 
-### 6. Edge-Case Error Handling
+### 8. Edge-Case Error Handling
 | Scenario | Detection | Action | Recovery |
 |---|---|---|---|
 | AI verdict FAIL | Certificate inserted with FAIL | Lot → `Quarantined`, lock released | Supervisor override or rework |

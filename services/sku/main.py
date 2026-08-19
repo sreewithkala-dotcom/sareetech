@@ -62,6 +62,10 @@ def get_db():
     finally:
         conn.close()
 
+@app.get('/api/v1/sku/health')
+def health():
+    return {'status': 'ok', 'service': 'sku-catalog', 'version': '1.0.0'}
+
 @app.get('/api/v1/sku', response_model=List[SKUResponse])
 def list_skus(
     skip: int = 0,

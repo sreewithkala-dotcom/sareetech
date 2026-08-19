@@ -155,20 +155,36 @@ The SKU Manager dashboard (`DashboardSKUManager`) provides:
 
 ## 8. Seeding the SKU Data
 
-To seed the 480 SKUs into the database:
+### Option A: CSV-based seeding (recommended)
+
+The seed script reads from `services/sku/sku_catalog.csv`. The CSV currently contains the first 24 SKU rows as a template.
+
+To complete the full 480-SKU dataset:
+1. Open `services/sku/sku_catalog.csv`
+2. Append the remaining 456 rows from your source data, following the same column order
+3. Run the seed script:
 
 ```bash
-# Ensure PostgreSQL is running
-docker-compose up -d postgres
-
-# Run the seed script
 python seed_sku.py
 ```
 
-The seed script will:
-1. Clear existing SKU data
-2. Insert all 480 SKU rows with accurate metrics
-3. Commit the transaction
+### Option B: Bulk SQL import
+
+For faster bulk loading, generate a SQL insert file and execute it directly:
+
+```bash
+# Generate SQL from CSV
+python -c "
+import csv
+with open('services/sku/sku_catalog.csv') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        print(f\"INSERT INTO sku_catalog (sku_ref_id, geographic_hub, weave_category, jacquard_capacity, zari_configuration, warp_denier, weft_denier, zari_wire_denier, warp_net_weight_g, weft_net_weight_g, zari_net_weight_g, bobbin_waste_weight_g, total_saree_weight_g, yarn_raw_cost_inr, zari_raw_cost_inr, labor_surcharge_inr, total_mfg_cost_inr, mrp_inr, selling_price_inr, min_floor_price_inr, weight_category_profile) VALUES ('{row['sku_ref_id']}', '{row['geographic_hub']}', '{row['weave_category']}', '{row['jacquard_capacity']}', '{row['zari_configuration']}', '{row['warp_denier']}', '{row['weft_denier']}', '{row['zari_wire_denier']}', {row['warp_net_weight_g']}, {row['weft_net_weight_g']}, {row['zari_net_weight_g']}, {row['bobbin_waste_weight_g']}, {row['total_saree_weight_g']}, {row['yarn_raw_cost_inr']}, {row['zari_raw_cost_inr']}, {row['labor_surcharge_inr']}, {row['total_mfg_cost_inr']}, {row['mrp_inr']}, {row['selling_price_inr']}, {row['min_floor_price_inr']}, '{row['weight_category_profile']}');\")
+" > migrations/007_sku_catalog_data.sql
+
+# Run against PostgreSQL
+psql -U postgres -d silk_erp -f migrations/007_sku_catalog_data.sql
+```
 
 ## 9. Service Configuration
 
@@ -211,8 +227,9 @@ sku-service:
 
 ## 10. Next Steps
 
-1. Complete remaining 460 SKU rows in seed script (currently showing 16 sample rows)
-2. Add SKU selection API to Design Generator service
-3. Implement SKU-based cost calculation in Buy-Back valuation engine
-4. Add SKU filtering to IoT design injection validation
-5. Create SKU comparison tool for design feasibility analysis
+1. Populate the full 480-SKU dataset in `services/sku/sku_catalog.csv`
+2. Run `python seed_sku.py` to load data into PostgreSQL
+3. Add SKU selection API to Design Generator service
+4. Implement SKU-based cost calculation in Buy-Back valuation engine
+5. Add SKU filtering to IoT design injection validation
+6. Create SKU comparison tool for design feasibility analysis

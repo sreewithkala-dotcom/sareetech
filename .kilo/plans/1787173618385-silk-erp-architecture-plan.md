@@ -183,6 +183,13 @@ Key constraints:
 - Frontend: SKU Manager dashboard with advanced filters, stats, and pagination
 - Validation: Seed 480 SKUs, verify filters return correct results
 
+### Task 7.5: SKU Product Catalog Service
+- Create `migrations/006_sku_catalog.sql` with `sku_catalog` and `sku_production_mapping` tables
+- Implement FastAPI service on port 5009 with filtering, pagination, and filter-options endpoints
+- Seed 480 SKUs via CSV (`services/sku/sku_catalog.csv`) + `seed_sku.py`
+- Add `DashboardSKUManager` frontend with advanced filters and stats
+- Validation: Verify 480 SKUs load correctly, filters return expected subsets
+
 ### Task 8: IoT Service
 - `POST /api/v1/iot/telemetry` — ingest MQTT telemetry from ECU edge controllers
 - `POST /api/v1/iot/design/inject` — inject design files to ECU via MQTT

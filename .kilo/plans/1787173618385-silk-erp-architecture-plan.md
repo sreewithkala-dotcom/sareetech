@@ -36,9 +36,16 @@ Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 
 - **State enforced in DB**: `production_lots.status` uses CHECK constraint with all valid states
 - **Pre-step validation**: Input scan must match exact precursor `Certified:*` or `Queued` status
 - **Locking**: Asset locked to operator workstation during `InProgress:*`
-- **Post-step propagation**: Digital certification required before status advances; Kafka/RabbitMQ event notifies next role dashboard
+- **Post-step propagation**: Digital certification required before status advances; Kafka topic `lot.{factory}.certified` notifies next role dashboard
 
-### 4. AI Inspection Microservices (6)
+### 4. Event Streaming
+- **Message broker**: Apache Kafka
+- **Topic naming**: `lot.{factory_node_id}.certified` for certification events
+- **Consumer groups**: Each role's dashboard subscribes to its factory's topic
+- **Retention**: Log-based retention supports replay for offline factory nodes
+- **Ordering**: Partitioned by `lot_id` to preserve sequential workflow order
+
+### 5. AI Inspection Microservices (6)
 | Service | Trigger Step | Model Input | Output |
 |---|---|---|---|
 | Zari Defect Detection | Zari processing | Thread image/sensor data | Defect classes, confidence, purity score |
@@ -174,8 +181,8 @@ Key constraints:
 - [ ] Database rollback tested for all failure scenarios
 
 ## Open Questions for Implementation Team
-1. **Kafka vs RabbitMQ**: Which message broker is preferred for event streaming?
-2. **AI Model Deployment**: ONNX on edge devices or cloud-hosted TensorRT? (Impacts latency and connectivity requirements)
+1. **Kafka vs RabbitMQ**: ~~Which message broker is preferred for event streaming?~~ → **Decided: Apache Kafka** (log retention supports offline replay, partitioned by `lot_id` for ordering)
+2. **AI Model Deployment**: ONNX on edge devices or cloud-hosted TensorRT? (Impacts latency, connectivity requirements, and hardware costs)
 3. **Scanner Hardware**: Specific models/vendors already selected, or need recommendation?
 4. **Multi-region Strategy**: Active-active or active-passive for central DB?
 5. **Compliance**: Any specific textile industry regulations (e.g., GOTS, Oeko-Tex) that require certification tracking?

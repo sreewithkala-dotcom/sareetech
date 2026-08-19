@@ -1,7 +1,9 @@
-import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, TextField, Slider, Switch, FormControlLabel } from '@mui/material'
-import { useState } from 'react'
+import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, TextField, Slider, Switch, FormControlLabel, FormControl, InputLabel, Select, MenuItem, Chip } from '@mui/material'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useDashboard } from '../contexts/DashboardContext'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5009/api/v1'
 
 export default function DashboardDesignGenerator() {
   const { user } = useAuth()
@@ -9,6 +11,25 @@ export default function DashboardDesignGenerator() {
   const [generating, setGenerating] = useState(false)
   const [designCount, setDesignCount] = useState(10)
   const [motifStyle, setMotifStyle] = useState('kanchipuram')
+  const [selectedSku, setSelectedSku] = useState('')
+  const [skus, setSkus] = useState([])
+  const [loadingSkus, setLoadingSkus] = useState(true)
+
+  useEffect(() => {
+    fetchSkus()
+  }, [])
+
+  const fetchSkus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/sku?limit=100`)
+      const data = await response.json()
+      setSkus(data)
+    } catch (error) {
+      console.error('Failed to fetch SKUs:', error)
+    } finally {
+      setLoadingSkus(false)
+    }
+  }
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -23,7 +44,8 @@ export default function DashboardDesignGenerator() {
         body: JSON.stringify({
           count: designCount,
           region: 'ap-south-1',
-          motif_style: motifStyle
+          motif_style: motifStyle,
+          sku_ref_id: selectedSku || null
         })
       })
       
@@ -39,6 +61,8 @@ export default function DashboardDesignGenerator() {
       setGenerating(false)
     }
   }
+
+  const selectedSkuData = skus.find(s => s.sku_ref_id === selectedSku)
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -82,6 +106,36 @@ export default function DashboardDesignGenerator() {
                 <option value="paithani">Paithani</option>
               </TextField>
 
+              <FormControl fullWidth disabled={loadingSkus}>
+                <InputLabel>SKU Reference (Optional)</InputLabel>
+                <Select
+                  value={selectedSku}
+                  label="SKU Reference (Optional)"
+                  onChange={(e) => setSelectedSku(e.target.value)}
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {skus.map((sku) => (
+                    <MenuItem key={sku.sku_ref_id} value={sku.sku_ref_id}>
+                      {sku.sku_ref_id} - {sku.geographic_hub} - {sku.jacquard_capacity}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {selectedSkuData && (
+                <Box sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Hooks:</strong> {selectedSkuData.jacquard_capacity}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Weight:</strong> {selectedSkuData.total_saree_weight_g}g
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Category:</strong> {selectedSkuData.weight_category_profile}
+                  </Typography>
+                </Box>
+              )}
+
               <Button
                 variant="contained"
                 fullWidth
@@ -111,7 +165,7 @@ export default function DashboardDesignGenerator() {
                           DESIGN-20260819-{10000 + item}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Motif: Kanchipuram | Hooks: 2400 | Size: 1.2GB
+                          Motif: {motifStyle} | Hooks: {selectedSku ? selectedSkuData?.jacquard_capacity : '2400'} | Size: 1.2GB
                         </Typography>
                       </div>
                       <Chip label="Pending" color="warning" size="small" />

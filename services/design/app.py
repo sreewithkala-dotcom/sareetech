@@ -34,12 +34,23 @@ def generate_design():
         count = data.get('count', 10)
         region = data.get('region', 'ap-south-1')
         motif_style = data.get('motif_style', 'kanchipuram')  # kanchipuram, banarasi, paithani
+        sku_ref_id = data.get('sku_ref_id')
         
         if count > 100:
             return jsonify({'error': 'Maximum 100 designs per batch'}), 400
         
         conn = get_db()
         cur = conn.cursor()
+        
+        # Validate SKU if provided
+        sku = None
+        if sku_ref_id:
+            cur.execute("SELECT id, sku_ref_id, jacquard_capacity, weight_category_profile FROM sku_catalog WHERE sku_ref_id = %s AND is_active = TRUE", (sku_ref_id,))
+            sku = cur.fetchone()
+            if not sku:
+                cur.close()
+                conn.close()
+                return jsonify({'error': f'SKU {sku_ref_id} not found'}), 404
         
         designs = []
         for i in range(count):
@@ -49,14 +60,22 @@ def generate_design():
             viability_score = round(random.uniform(0.6, 0.95), 2)
             cost_margin = round(random.uniform(15, 45), 2)
             
+            # Use SKU metrics if provided
+            hook_count = 2400
+            file_size_gb = round(random.uniform(0.8, 1.2), 2)
+            if sku:
+                hook_count = int(sku['jacquard_capacity'].split()[0])
+                file_size_gb = round(hook_count / 2400 * 1.0, 2)
+            
             design = {
                 'pattern_id': pattern_id,
                 'region': region,
                 'motif_style': motif_style,
+                'sku_ref_id': sku_ref_id,
                 'viability_score': viability_score,
                 'cost_margin': cost_margin,
-                'hook_count': 2400,
-                'file_size_gb': round(random.uniform(0.8, 1.2), 2),
+                'hook_count': hook_count,
+                'file_size_gb': file_size_gb,
                 'segments': {
                     'border_top': {'hooks': '1-400', 'length_m': 5.5},
                     'body': {'hooks': '401-1800', 'repeats': random.randint(8, 20)},
@@ -69,9 +88,17 @@ def generate_design():
             # Store in database
             cur.execute("""
                 INSERT INTO design_generations 
-                (pattern_id, factory_node_id, generation_type, viability_score, cost_margin, status)
-                VALUES (%s, %s, 'GAN', %s, %s, 'PENDING')
-            """, (pattern_id, 'FACT-BLR-01', viability_score, cost_margin))
+                (pattern_id, factory_node_id, generation_type, viability_score, cost_margin, status, design_json)
+                VALUES (%s, %s, 'GAN', %s, %s, 'PENDING', %s)
+            """, (
+                pattern_id, 'FACT-BLR-01', viability_score, cost_margin,
+                json.dumps({
+                    'motif_style': motif_style,
+                    'sku_ref_id': sku_ref_id,
+                    'hook_count': hook_count,
+                    'file_size_gb': file_size_gb
+                })
+            ))
         
         conn.commit()
         cur.close()

@@ -188,7 +188,8 @@ Key constraints:
 - Implement FastAPI service on port 5009 with filtering, pagination, and filter-options endpoints
 - Seed 480 SKUs via CSV (`services/sku/sku_catalog.csv`) + `seed_sku.py`
 - Add `DashboardSKUManager` frontend with advanced filters and stats
-- Validation: Verify 480 SKUs load correctly, filters return expected subsets
+- Integrate SKU selection into Design Generator dashboard and backend generate endpoint
+- Validation: Verify 480 SKUs load correctly, filters return expected subsets, design generation accepts SKU reference
 
 ### Task 8: IoT Service
 - `POST /api/v1/iot/telemetry` — ingest MQTT telemetry from ECU edge controllers

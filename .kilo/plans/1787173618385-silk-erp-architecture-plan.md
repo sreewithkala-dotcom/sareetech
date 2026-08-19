@@ -55,9 +55,9 @@ Deliver an AI-Powered Silk & Fabric Manufacturing Enterprise ERP system with 24 
 | Demand Forecasting & Smart Cutting | Inventory | Historical sales, trends | Forecast, cutting layout |
 | Automated Weaving Defect Detection | Active weaving | Jacquard acoustic/sensor data | Structural anomalies |
 
-- All services return JSON verdict: `PASS | FAIL | WARNING`
-- Certificates stored in `ai_inspection_certificates` with SHA-256 cryptographic token
-- Fail verdict → quarantine → manual review queue
+- **Edge services**: Zari Defect Detection, Dye Coloring Defect Detection, Warp Defect Detection, Fabric Defect Detection, Automated Weaving Defect Detection deployed as ONNX/TensorRT models on local edge hardware per workstation
+- **Cloud service**: Demand Forecasting & Smart Cutting Optimization deployed centrally on GPU servers; batch async processing
+- **Fallback**: If edge hardware unavailable, cloud fallback with cached model; degraded mode with manual inspection prompts
 
 ### 5. Database Schema (PostgreSQL)
 Core tables:

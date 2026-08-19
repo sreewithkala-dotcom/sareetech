@@ -269,6 +269,27 @@ services:
       timeout: 10s
       retries: 3
 
+  sku-service:
+    build:
+      context: ./services/sku
+      dockerfile: Dockerfile
+    container_name: silk-erp-sku
+    ports:
+      - "5009:5009"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5009/api/v1/sku/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
   frontend:
     build:
       context: ./frontend

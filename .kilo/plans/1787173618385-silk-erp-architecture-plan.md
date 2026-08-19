@@ -99,6 +99,7 @@ Core tables:
 - `edge_controllers`, `loom_telemetry`, `design_injections`
 - `i18n_keys`, `i18n_translations`, `voice_audio_cache`
 - `certificate_ledger`, `nfc_registry`
+- `sku_catalog`, `sku_production_mapping`
 
 Key constraints:
 - UUID primary keys
@@ -170,6 +171,18 @@ Key constraints:
 - Multi-language support with TTS audio playback
 - Validation: Manual QA for each of the 29 role dashboards
 
+### Task 7.5: SKU Product Catalog Service
+- `GET /api/v1/sku` — list SKUs with pagination and filtering
+- `GET /api/v1/sku/{sku_id}` — get single SKU details
+- `GET /api/v1/sku/filters/options` — get distinct filter values
+- Filter by geographic hub, weave category, jacquard capacity, weight category
+- 480 SKUs across 18 hubs, 14 weave categories, 6 jacquard capacities, 4 zari configs
+- Costing model: yarn + zari + labor = total MFG cost
+- Pricing: MRP, selling price, min floor price with dynamic margins
+- Production mapping: SKU → Lot → Design → Loom assignment
+- Frontend: SKU Manager dashboard with advanced filters, stats, and pagination
+- Validation: Seed 480 SKUs, verify filters return correct results
+
 ### Task 8: IoT Service
 - `POST /api/v1/iot/telemetry` — ingest MQTT telemetry from ECU edge controllers
 - `POST /api/v1/iot/design/inject` — inject design files to ECU via MQTT
@@ -220,7 +233,7 @@ Key constraints:
 3. **Phase 3** (Week 5-6): Scanner service, workflow service, Kafka integration
 4. **Phase 4** (Week 7-8): AI service stubs, digital certification
 5. **Phase 5** (Week 9-10): IoT service, design service, buy-back service
-6. **Phase 6** (Week 11-12): Guild service, localization service, frontend dashboards
+6. **Phase 6** (Week 11-12): Guild service, localization service, SKU catalog service, frontend dashboards
 7. **Phase 7** (Week 13-14): Offline resilience, sync, monitoring
 8. **Phase 8** (Week 15-16): Load testing, security audit, pilot deployment
 

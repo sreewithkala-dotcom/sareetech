@@ -24,6 +24,8 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 | buyback | 5006 | Buy-back valuation, NFC verification, depreciation calculation |
 | guild | 5007 | Guild management, member tracking, payment distribution |
 | localization | 5008 | i18n translations, TTS audio generation |
+| sku | 5009 | 480-SKU product catalog, pricing, production mapping |
+| sku | 5009 | 480-SKU product catalog, pricing, production mapping |
 
 ### 3. Frontend (React PWA)
 - Login page with factory node selection
@@ -48,6 +50,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - NFC/RFID embedded certificates with blockchain-style ledger
 - Buy-back guarantee engine with AI depreciation
 - GAN design generation with viability filtering
+- SKU product catalog: 480 variants across 18 hubs, 14 weave categories
 - Self-improving AI architecture (PPO, YOLOv8 auto-training)
 - Multi-language support (Telugu, Tamil, Kannada, Hindi, Bengali)
 - TTS voice guidance for weavers
@@ -85,7 +88,8 @@ silk-erp/
 │   ├── design/
 │   ├── buyback/
 │   ├── guild/
-│   └── localization/
+│   ├── localization/
+│   └── sku/
 ├── frontend/
 │   └── src/
 │       ├── pages/
@@ -122,6 +126,7 @@ make test
 # Buy-Back: http://localhost:5006
 # Guild: http://localhost:5007
 # Localization: http://localhost:5008
+# SKU: http://localhost:5009
 ```
 
 ## Default Credentials

@@ -154,6 +154,12 @@ cd services/guild && python app.py &
 
 # Localization Service
 cd services/localization && python app.py &
+
+# SKU Service
+cd services/sku && pip install -r ../../requirements.txt && python main.py &
+
+# Localization Service
+cd services/localization && python app.py &
 ```
 
 #### 4. Start Frontend

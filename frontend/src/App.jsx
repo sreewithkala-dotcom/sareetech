@@ -32,6 +32,7 @@ import DashboardThrowsterTwister from './dashboards/DashboardThrowsterTwister'
 import DashboardWarpBeamPreparation from './dashboards/DashboardWarpBeamPreparation'
 import DashboardWarpJoiner from './dashboards/DashboardWarpJoiner'
 import DashboardZariInspector from './dashboards/DashboardZariInspector'
+import DashboardSKUManager from './dashboards/DashboardSKUManager'
 import DashboardDesignGenerator from './dashboards/DashboardDesignGenerator'
 import DashboardBuyBackManager from './dashboards/DashboardBuyBackManager'
 import DashboardGuildManager from './dashboards/DashboardGuildManager'
@@ -56,6 +57,7 @@ const DASHBOARD_COMPONENTS = {
   'ROLE-SILK-GRADER': DashboardSilkGrader,
   'ROLE-SILK-MARK-OFFICER': DashboardSilkMarkOfficer,
   'ROLE-SYSTEM-ADMIN': DashboardSystemAdmin,
+  'ROLE-SKU-MANAGER': DashboardSKUManager,
   'ROLE-SKEIN-DYE-MASTER': DashboardSkeinDyeMaster,
   'ROLE-STORE-INVENTORY-MANAGER': DashboardStoreInventoryManager,
   'ROLE-SUP-LOOM-FLOOR-SUPERVISOR': DashboardSUPLoomFloorSupervisor,

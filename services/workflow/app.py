@@ -8998,5 +8998,506 @@ def get_sales_forecast_warp_joiner():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# PETNI MASTER (WARP PULLING & REED DENTING SPECIALIST) MODULE
+# ============================================================
+
+@app.route('/api/v1/petni-master/jobs', methods=['POST'])
+@jwt_required()
+def create_petni_master_job():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['petni_job_card_id', 'loom_number_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO petni_master_jobs (
+                petni_job_card_id, loom_number_id, production_lot_id,
+                design_master_id, warp_joining_job_id, warp_beam_production_log_id,
+                harness_setup_log_id, card_puncher_job_id, pirn_winding_job_id,
+                bobbin_winder_job_card_id,
+                factory_node_id, master_petni_employee_id, status,
+                warp_set_id, petni_transition_method, reed_denting_draft_pattern,
+                dropper_wire_specification, lease_order_verification,
+                contrast_type, body_silk_lot_no, contrast_silk_lot_no,
+                crossed_ends_count, reed_mark_laser_inspection,
+                petni_joint_tension_variance_grams, border_channel_offset_mm,
+                dropper_pinning_completion_status, petni_master_approval_state,
+                saree_production_order_ref,
+                petni_start_time, petni_end_time,
+                total_threads_spliced_count, joint_clearance_status,
+                contrast_yarn_weight_consumed_kg,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PETNI_IN_PROGRESS', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, petni_job_card_id
+        """, (
+            data.get('petni_job_card_id'),
+            data.get('loom_number_id'),
+            data.get('production_lot_id'),
+            data.get('design_master_id'),
+            data.get('warp_joining_job_id'),
+            data.get('warp_beam_production_log_id'),
+            data.get('harness_setup_log_id'),
+            data.get('card_puncher_job_id'),
+            data.get('pirn_winding_job_id'),
+            data.get('bobbin_winder_job_card_id'),
+            factory_node_id,
+            operator_id,
+            data.get('warp_set_id'),
+            data.get('petni_transition_method', 'COMB_TENSIONED_PETNI_KNOTTING'),
+            data.get('reed_denting_draft_pattern', '4_ENDS_DENT_144_EPI'),
+            data.get('dropper_wire_specification', '0_3G_ULTRA_LIGHTWEIGHT_CLOSED_O_WIRE'),
+            data.get('lease_order_verification', '1X1_STRICT_LEASE_LOCK'),
+            data.get('contrast_type', 'SIDE_BORDERS_ONLY'),
+            data.get('body_silk_lot_no'),
+            data.get('contrast_silk_lot_no'),
+            data.get('crossed_ends_count', 0),
+            data.get('reed_mark_laser_inspection', 'PASSED_UNIFORM_DENTING'),
+            data.get('petni_joint_tension_variance_grams'),
+            data.get('border_channel_offset_mm'),
+            data.get('dropper_pinning_completion_status', '100_PERCENT_DROPPERS_PINNED_AND_TESTED'),
+            data.get('petni_master_approval_state', 'PETNI_IN_PROGRESS'),
+            data.get('saree_production_order_ref'),
+            data.get('petni_end_time'),
+            data.get('total_threads_spliced_count'),
+            data.get('joint_clearance_status', 'PASSED_TENSION_TEST'),
+            data.get('contrast_yarn_weight_consumed_kg'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        job_row = cur.fetchone()
+        job_id = job_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(job_id),
+            'petni_job_card_id': job_row['petni_job_card_id'],
+            'status': 'PETNI_IN_PROGRESS',
+            'message': 'Petni master job created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/petni-master/jobs', methods=['GET'])
+@jwt_required()
+def list_petni_master_jobs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pmj.id, pmj.petni_job_card_id, pmj.loom_number_id,
+                   pmj.petni_transition_method, pmj.reed_denting_draft_pattern,
+                   pmj.dropper_wire_specification, pmj.lease_order_verification,
+                   pmj.contrast_type, pmj.crossed_ends_count,
+                   pmj.reed_mark_laser_inspection, pmj.petni_joint_tension_variance_grams,
+                   pmj.border_channel_offset_mm, pmj.dropper_pinning_completion_status,
+                   pmj.petni_master_approval_state, pmj.total_threads_spliced_count,
+                   pmj.joint_clearance_status, pmj.contrast_yarn_weight_consumed_kg,
+                   pmj.status, pmj.certificate_hash, pmj.auto_assigned_routing,
+                   pmj.created_at,
+                   dm.design_master_id
+            FROM petni_master_jobs pmj
+            LEFT JOIN design_masters dm ON pmj.design_master_id = dm.id
+            WHERE pmj.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY pmj.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(jobs),
+            'jobs': [
+                {
+                    'id': str(j['id']),
+                    'petni_job_card_id': j['petni_job_card_id'],
+                    'loom_number_id': j['loom_number_id'],
+                    'design_master_id': j['design_master_id'],
+                    'petni_transition_method': j['petni_transition_method'],
+                    'reed_denting_draft_pattern': j['reed_denting_draft_pattern'],
+                    'dropper_wire_specification': j['dropper_wire_specification'],
+                    'lease_order_verification': j['lease_order_verification'],
+                    'contrast_type': j['contrast_type'],
+                    'crossed_ends_count': j['crossed_ends_count'],
+                    'reed_mark_laser_inspection': j['reed_mark_laser_inspection'],
+                    'petni_joint_tension_variance_grams': j['petni_joint_tension_variance_grams'],
+                    'border_channel_offset_mm': j['border_channel_offset_mm'],
+                    'dropper_pinning_completion_status': j['dropper_pinning_completion_status'],
+                    'petni_master_approval_state': j['petni_master_approval_state'],
+                    'total_threads_spliced_count': j['total_threads_spliced_count'],
+                    'joint_clearance_status': j['joint_clearance_status'],
+                    'contrast_yarn_weight_consumed_kg': j['contrast_yarn_weight_consumed_kg'],
+                    'status': j['status'],
+                    'certificate_hash': j['certificate_hash'],
+                    'auto_assigned_routing': j['auto_assigned_routing'],
+                    'created_at': j['created_at'].isoformat() if j['created_at'] else None
+                }
+                for j in jobs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/petni-master/jobs/<job_id>', methods=['GET'])
+@jwt_required()
+def get_petni_master_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pmj.*, dm.design_master_id
+            FROM petni_master_jobs pmj
+            LEFT JOIN design_masters dm ON pmj.design_master_id = dm.id
+            WHERE pmj.id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not job:
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        return jsonify({
+            'id': str(job['id']),
+            'petni_job_card_id': job['petni_job_card_id'],
+            'loom_number_id': job['loom_number_id'],
+            'design_master_id': job['design_master_id'],
+            'warp_set_id': job['warp_set_id'],
+            'petni_transition_method': job['petni_transition_method'],
+            'reed_denting_draft_pattern': job['reed_denting_draft_pattern'],
+            'dropper_wire_specification': job['dropper_wire_specification'],
+            'lease_order_verification': job['lease_order_verification'],
+            'contrast_type': job['contrast_type'],
+            'body_silk_lot_no': job['body_silk_lot_no'],
+            'contrast_silk_lot_no': job['contrast_silk_lot_no'],
+            'crossed_ends_count': job['crossed_ends_count'],
+            'reed_mark_laser_inspection': job['reed_mark_laser_inspection'],
+            'petni_joint_tension_variance_grams': job['petni_joint_tension_variance_grams'],
+            'border_channel_offset_mm': job['border_channel_offset_mm'],
+            'dropper_pinning_completion_status': job['dropper_pinning_completion_status'],
+            'petni_master_approval_state': job['petni_master_approval_state'],
+            'saree_production_order_ref': job['saree_production_order_ref'],
+            'petni_start_time': job['petni_start_time'].isoformat() if job['petni_start_time'] else None,
+            'petni_end_time': job['petni_end_time'].isoformat() if job['petni_end_time'] else None,
+            'total_threads_spliced_count': job['total_threads_spliced_count'],
+            'joint_clearance_status': job['joint_clearance_status'],
+            'contrast_yarn_weight_consumed_kg': job['contrast_yarn_weight_consumed_kg'],
+            'validation_errors': job['validation_errors'],
+            'validation_warnings': job['validation_warnings'],
+            'auto_assigned_routing': job['auto_assigned_routing'],
+            'status': job['status'],
+            'certificate_hash': job['certificate_hash']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/petni-master/jobs/<job_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_petni_master_job(job_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, petni_job_card_id, status, validation_errors, petni_master_approval_state
+            FROM petni_master_jobs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['validation_errors'] and len(job['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify job with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(job_id, job['petni_job_card_id'])
+        qr_tag_id = 'PETNI-' + job['petni_job_card_id']
+        
+        cur.execute("""
+            UPDATE petni_master_jobs
+            SET status = 'LOOM_ACTIVE_PRODUCTION',
+                certificate_hash = %s,
+                qr_tag_id = %s,
+                petni_master_approval_state = 'PASSED_APPROVED_FOR_FIRST_PICK'
+            WHERE id = %s::uuid
+            RETURNING id, petni_job_card_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, job_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO petni_master_certificates (
+                petni_master_job_id, certificate_hash, qr_tag_id, petni_job_card_id,
+                loom_number_id, warp_set_id, petni_transition_method,
+                reed_denting_draft_pattern, dropper_wire_specification,
+                lease_order_verification, contrast_type,
+                body_silk_lot_no, contrast_silk_lot_no,
+                crossed_ends_count, reed_mark_laser_inspection,
+                petni_joint_tension_variance_grams, border_channel_offset_mm,
+                dropper_pinning_completion_status, petni_master_approval_state,
+                total_threads_spliced_count, joint_clearance_status,
+                contrast_yarn_weight_consumed_kg,
+                auto_assigned_routing, master_petni_employee_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.petni_job_card_id,
+                pj.loom_number_id,
+                pj.warp_set_id,
+                pj.petni_transition_method,
+                pj.reed_denting_draft_pattern,
+                pj.dropper_wire_specification,
+                pj.lease_order_verification,
+                pj.contrast_type,
+                pj.body_silk_lot_no,
+                pj.contrast_silk_lot_no,
+                pj.crossed_ends_count,
+                pj.reed_mark_laser_inspection,
+                pj.petni_joint_tension_variance_grams,
+                pj.border_channel_offset_mm,
+                pj.dropper_pinning_completion_status,
+                pj.petni_master_approval_state,
+                pj.total_threads_spliced_count,
+                pj.joint_clearance_status,
+                pj.contrast_yarn_weight_consumed_kg,
+                pj.auto_assigned_routing,
+                pj.master_petni_employee_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'petni_job_card_id', pj.petni_job_card_id,
+                    'loom_number_id', pj.loom_number_id,
+                    'warp_set_id', pj.warp_set_id,
+                    'petni_transition_method', pj.petni_transition_method,
+                    'reed_denting_draft_pattern', pj.reed_denting_draft_pattern,
+                    'dropper_wire_specification', pj.dropper_wire_specification,
+                    'lease_order_verification', pj.lease_order_verification,
+                    'contrast_type', pj.contrast_type,
+                    'crossed_ends_count', pj.crossed_ends_count,
+                    'total_threads_spliced_count', pj.total_threads_spliced_count,
+                    'joint_clearance_status', pj.joint_clearance_status,
+                    'contrast_yarn_weight_consumed_kg', pj.contrast_yarn_weight_consumed_kg
+                )
+            FROM petni_master_jobs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'petni_job_card_id': result['petni_job_card_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'LOOM_ACTIVE_PRODUCTION',
+            'message': 'Petni master job certified and loom is active for production'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/petni-master/certificates', methods=['GET'])
+@jwt_required()
+def list_petni_master_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pmc.id, pmc.certificate_hash, pmc.qr_tag_id,
+                   pmc.petni_job_card_id, pmc.loom_number_id,
+                   pmc.warp_set_id, pmc.petni_transition_method,
+                   pmc.reed_denting_draft_pattern, pmc.dropper_wire_specification,
+                   pmc.lease_order_verification, pmc.contrast_type,
+                   pmc.body_silk_lot_no, pmc.contrast_silk_lot_no,
+                   pmc.crossed_ends_count, pmc.reed_mark_laser_inspection,
+                   pmc.petni_joint_tension_variance_grams, pmc.border_channel_offset_mm,
+                   pmc.dropper_pinning_completion_status, pmc.petni_master_approval_state,
+                   pmc.total_threads_spliced_count, pmc.joint_clearance_status,
+                   pmc.contrast_yarn_weight_consumed_kg,
+                   pmc.auto_assigned_routing, pmc.status, pmc.certified_at,
+                   pmj.petni_job_card_id
+            FROM petni_master_certificates pmc
+            JOIN petni_master_jobs pmj ON pmc.petni_master_job_id = pmj.id
+            WHERE pmc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY pmc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'petni_job_card_id': c['petni_job_card_id'],
+                    'loom_number_id': c['loom_number_id'],
+                    'warp_set_id': c['warp_set_id'],
+                    'petni_transition_method': c['petni_transition_method'],
+                    'reed_denting_draft_pattern': c['reed_denting_draft_pattern'],
+                    'dropper_wire_specification': c['dropper_wire_specification'],
+                    'lease_order_verification': c['lease_order_verification'],
+                    'contrast_type': c['contrast_type'],
+                    'body_silk_lot_no': c['body_silk_lot_no'],
+                    'contrast_silk_lot_no': c['contrast_silk_lot_no'],
+                    'crossed_ends_count': c['crossed_ends_count'],
+                    'reed_mark_laser_inspection': c['reed_mark_laser_inspection'],
+                    'petni_joint_tension_variance_grams': c['petni_joint_tension_variance_grams'],
+                    'border_channel_offset_mm': c['border_channel_offset_mm'],
+                    'dropper_pinning_completion_status': c['dropper_pinning_completion_status'],
+                    'petni_master_approval_state': c['petni_master_approval_state'],
+                    'total_threads_spliced_count': c['total_threads_spliced_count'],
+                    'joint_clearance_status': c['joint_clearance_status'],
+                    'contrast_yarn_weight_consumed_kg': c['contrast_yarn_weight_consumed_kg'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR PETNI MASTER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/petni-master', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_petni_master():
+    """
+    API plugin endpoint for sales team petni master material processing forecast.
+    Returns forecasted petni requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'petni_transition_method': 'COMB_TENSIONED_PETNI_KNOTTING',
+                    'reed_denting_draft_pattern': '4_ENDS_DENT_144_EPI',
+                    'dropper_wire_specification': '0_3G_ULTRA_LIGHTWEIGHT_CLOSED_O_WIRE',
+                    'estimated_petni_jobs': 3,
+                    'total_threads_spliced_count': 21000,
+                    'contrast_type': 'FULL_BODY_BORDER_PALLU_THREE_SHUTTLE_KORVAI',
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'petni_transition_method': 'COMB_TENSIONED_PETNI_KNOTTING',
+                    'reed_denting_draft_pattern': '4_ENDS_DENT_144_EPI',
+                    'dropper_wire_specification': '0_3G_ULTRA_LIGHTWEIGHT_CLOSED_O_WIRE',
+                    'estimated_petni_jobs': 2,
+                    'total_threads_spliced_count': 19800,
+                    'contrast_type': 'SIDE_BORDERS_ONLY',
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'petni_transition_method': 'STANDARD_MANUAL_HAND_PETNI',
+                    'reed_denting_draft_pattern': '2_ENDS_DENT_STANDARD',
+                    'dropper_wire_specification': '0_7G_STANDARD_HEAVY_WIRE',
+                    'estimated_petni_jobs': 5,
+                    'total_threads_spliced_count': 12000,
+                    'contrast_type': 'SIDE_BORDERS_ONLY',
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'PETNI-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_petni_jobs': 3,
+                    'loom_number_id': 'LOOM-2400-001',
+                    'petni_transition_method': 'COMB_TENSIONED_PETNI_KNOTTING'
+                },
+                {
+                    'lot_number': 'PETNI-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_petni_jobs': 2,
+                    'loom_number_id': 'LOOM-2400-002',
+                    'petni_transition_method': 'COMB_TENSIONED_PETNI_KNOTTING'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

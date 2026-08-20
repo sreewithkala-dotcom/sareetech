@@ -2547,7 +2547,7 @@ def list_quality_certificates():
     try:
         operator_id = get_jwt_identity()
         conn = get_db()
-        cur = cur.cursor()
+        cur = conn.cursor()
         
         cur.execute("""
             SELECT qc.id, qc.certificate_hash, qc.qr_tag_id, qc.certified_grade,
@@ -10605,6 +10605,488 @@ def get_sales_forecast_master_weaver():
                     'estimated_production_runs': 2,
                     'loom_id': 'LOOM-2400-002',
                     'shuttle_setup_mode': 'THREE_SHUTTLE_KORVAI_MANUAL_SPLIT'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SUP LOOM FLOOR SUPERVISOR MODULE
+# ============================================================
+
+def validate_sup_loom_floor_supervisor_guardrails(data):
+    """Validate supervisor inputs against business guardrails."""
+    errors = []
+    warnings = []
+    
+    ambient_relative_humidity_pct = data.get('ambient_relative_humidity_pct')
+    first_saree_dimensional_audit = data.get('first_saree_dimensional_audit')
+    loom_stop_rate_per_hour = data.get('loom_stop_rate_per_hour')
+    saree_batch_release_authorization = data.get('saree_batch_release_authorization')
+    
+    if ambient_relative_humidity_pct is not None:
+        if ambient_relative_humidity_pct < 62.0 or ambient_relative_humidity_pct > 73.0:
+            errors.append({
+                'code': 'ENVIRONMENT_OUT_OF_SPEC_WARNING',
+                'message': 'STATIC_AND_WARP_BREAK_RISK_FOR_HIGH_DENSITY_SILK'
+            })
+    
+    if first_saree_dimensional_audit is not None and first_saree_dimensional_audit != 'APPROVED_FULL_SPEC_MATCH':
+        errors.append({
+            'code': 'HALT_LOOM_RUN',
+            'message': 'CANNOT_PROCEED_WITH_REMAINING_79_SAREES_WITHOUT_FIRST_SAREE_APPROVAL'
+        })
+    
+    if loom_stop_rate_per_hour is not None and loom_stop_rate_per_hour > 2.5:
+        warnings.append({
+            'code': 'AUTO_MAINTENANCE_TICKET',
+            'message': 'EXCESSIVE_STOP_RATE_REQUIRES_SUPERVISOR_INTERVENTION'
+        })
+    
+    if saree_batch_release_authorization is not None and saree_batch_release_authorization != 'APPROVED_FOR_FINISHING':
+        errors.append({
+            'code': 'DENY_CUT_SAREE_TRANSFER_TO_FINISHING_WAREHOUSE',
+            'message': 'BATCH_RELEASE_AUTHORIZATION_REQUIRED'
+        })
+    
+    return errors, warnings
+
+@app.route('/api/v1/sup-loom-floor-supervisor/logs', methods=['POST'])
+@jwt_required()
+def create_sup_supervisor_log():
+    try:
+        supervisor_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['loom_shed_line_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (supervisor_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        validation_errors, validation_warnings = validate_sup_loom_floor_supervisor_guardrails(data)
+        
+        supervisor_log_id = f"SUP-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        cur.execute("""
+            INSERT INTO sup_loom_floor_supervisor_logs (
+                supervisor_log_id, loom_shed_line_id, factory_node_id, supervisor_id,
+                assistant_weaver_job_log_id, master_weaver_job_id, petni_master_job_id,
+                warp_joining_job_id, harness_setup_log_id,
+                ambient_relative_humidity_pct, ambient_temperature_celsius,
+                shift_target_oee_pct, gaiting_handover_status,
+                loom_stop_rate_per_hour, primary_stop_root_cause,
+                first_saree_dimensional_audit, waste_percentage_current_run,
+                shift_handover_approval_state, saree_batch_release_authorization,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, supervisor_log_id
+        """, (
+            supervisor_log_id,
+            data.get('loom_shed_line_id'),
+            factory_node_id,
+            supervisor_id,
+            data.get('assistant_weaver_job_log_id'),
+            data.get('master_weaver_job_id'),
+            data.get('petni_master_job_id'),
+            data.get('warp_joining_job_id'),
+            data.get('harness_setup_log_id'),
+            data.get('ambient_relative_humidity_pct'),
+            data.get('ambient_temperature_celsius'),
+            data.get('shift_target_oee_pct', 85.0),
+            data.get('gaiting_handover_status', 'ALL_PRE_WEAVE_CHECKS_PASSED'),
+            data.get('loom_stop_rate_per_hour'),
+            data.get('primary_stop_root_cause', 'NONE_NORMAL_RUNNING'),
+            data.get('first_saree_dimensional_audit', 'APPROVED_FULL_SPEC_MATCH'),
+            data.get('waste_percentage_current_run'),
+            data.get('shift_handover_approval_state', 'SHIFT_ACTIVE_NORMAL'),
+            data.get('saree_batch_release_authorization', 'APPROVED_FOR_FINISHING'),
+            json.dumps(validation_errors),
+            json.dumps(validation_warnings),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'supervisor_log_id': log_row['supervisor_log_id'],
+            'validation_errors': validation_errors,
+            'validation_warnings': validation_warnings,
+            'status': 'submitted'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/sup-loom-floor-supervisor/logs', methods=['GET'])
+@jwt_required()
+def list_sup_supervisor_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sfls.id, sfls.supervisor_log_id, sfls.loom_shed_line_id,
+                   sfls.shift_start_time, sfls.shift_end_time,
+                   sfls.ambient_relative_humidity_pct, sfls.ambient_temperature_celsius,
+                   sfls.shift_target_oee_pct, sfls.gaiting_handover_status,
+                   sfls.loom_stop_rate_per_hour, sfls.primary_stop_root_cause,
+                   sfls.first_saree_dimensional_audit, sfls.waste_percentage_current_run,
+                   sfls.shift_handover_approval_state, sfls.saree_batch_release_authorization,
+                   sfls.auto_assigned_routing,
+                   u_supervisor.full_name AS supervisor_name
+            FROM sup_loom_floor_supervisor_logs sfls
+            LEFT JOIN users u_supervisor ON sfls.supervisor_id = u_supervisor.id
+            WHERE sfls.supervisor_id = %s::uuid
+            ORDER BY sfls.shift_start_time DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(log['id']),
+                    'supervisor_log_id': log['supervisor_log_id'],
+                    'loom_shed_line_id': log['loom_shed_line_id'],
+                    'shift_start_time': log['shift_start_time'].isoformat() if log['shift_start_time'] else None,
+                    'shift_end_time': log['shift_end_time'].isoformat() if log['shift_end_time'] else None,
+                    'ambient_relative_humidity_pct': float(log['ambient_relative_humidity_pct']) if log['ambient_relative_humidity_pct'] else None,
+                    'ambient_temperature_celsius': float(log['ambient_temperature_celsius']) if log['ambient_temperature_celsius'] else None,
+                    'shift_target_oee_pct': float(log['shift_target_oee_pct']) if log['shift_target_oee_pct'] else None,
+                    'gaiting_handover_status': log['gaiting_handover_status'],
+                    'loom_stop_rate_per_hour': float(log['loom_stop_rate_per_hour']) if log['loom_stop_rate_per_hour'] else None,
+                    'primary_stop_root_cause': log['primary_stop_root_cause'],
+                    'first_saree_dimensional_audit': log['first_saree_dimensional_audit'],
+                    'waste_percentage_current_run': float(log['waste_percentage_current_run']) if log['waste_percentage_current_run'] else None,
+                    'shift_handover_approval_state': log['shift_handover_approval_state'],
+                    'saree_batch_release_authorization': log['saree_batch_release_authorization'],
+                    'auto_assigned_routing': log['auto_assigned_routing'],
+                    'supervisor_name': log['supervisor_name']
+                }
+                for log in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/sup-loom-floor-supervisor/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_sup_supervisor_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sfls.*,
+                   u_supervisor.full_name AS supervisor_name
+            FROM sup_loom_floor_supervisor_logs sfls
+            LEFT JOIN users u_supervisor ON sfls.supervisor_id = u_supervisor.id
+            WHERE sfls.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'supervisor_log_id': log['supervisor_log_id'],
+            'loom_shed_line_id': log['loom_shed_line_id'],
+            'factory_node_id': log['factory_node_id'],
+            'supervisor_id': str(log['supervisor_id']),
+            'assistant_weaver_job_log_id': str(log['assistant_weaver_job_log_id']) if log['assistant_weaver_job_log_id'] else None,
+            'master_weaver_job_id': str(log['master_weaver_job_id']) if log['master_weaver_job_id'] else None,
+            'shift_start_time': log['shift_start_time'].isoformat() if log['shift_start_time'] else None,
+            'shift_end_time': log['shift_end_time'].isoformat() if log['shift_end_time'] else None,
+            'ambient_relative_humidity_pct': float(log['ambient_relative_humidity_pct']) if log['ambient_relative_humidity_pct'] else None,
+            'ambient_temperature_celsius': float(log['ambient_temperature_celsius']) if log['ambient_temperature_celsius'] else None,
+            'shift_target_oee_pct': float(log['shift_target_oee_pct']) if log['shift_target_oee_pct'] else None,
+            'gaiting_handover_status': log['gaiting_handover_status'],
+            'loom_stop_rate_per_hour': float(log['loom_stop_rate_per_hour']) if log['loom_stop_rate_per_hour'] else None,
+            'primary_stop_root_cause': log['primary_stop_root_cause'],
+            'first_saree_dimensional_audit': log['first_saree_dimensional_audit'],
+            'waste_percentage_current_run': float(log['waste_percentage_current_run']) if log['waste_percentage_current_run'] else None,
+            'shift_handover_approval_state': log['shift_handover_approval_state'],
+            'saree_batch_release_authorization': log['saree_batch_release_authorization'],
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'certificate_hash': log['certificate_hash'],
+            'qr_tag_id': log['qr_tag_id'],
+            'supervisor_name': log['supervisor_name']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/sup-loom-floor-supervisor/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_sup_supervisor_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, supervisor_log_id, validation_errors, shift_handover_approval_state
+            FROM sup_loom_floor_supervisor_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['supervisor_log_id'])
+        qr_tag_id = 'SUP-SUPERVISOR-' + log['supervisor_log_id']
+        
+        cur.execute("""
+            UPDATE sup_loom_floor_supervisor_logs
+            SET certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, supervisor_log_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO sup_loom_floor_supervisor_certificates (
+                supervisor_log_id, certificate_hash, qr_tag_id, supervisor_log_id_ref,
+                loom_shed_line_id, assistant_weaver_job_log_id, master_weaver_job_id,
+                ambient_relative_humidity_pct, ambient_temperature_celsius,
+                shift_target_oee_pct, gaiting_handover_status,
+                loom_stop_rate_per_hour, primary_stop_root_cause,
+                first_saree_dimensional_audit, waste_percentage_current_run,
+                shift_handover_approval_state, saree_batch_release_authorization,
+                supervisor_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.supervisor_log_id,
+                pj.loom_shed_line_id,
+                pj.assistant_weaver_job_log_id,
+                pj.master_weaver_job_id,
+                pj.ambient_relative_humidity_pct, pj.ambient_temperature_celsius,
+                pj.shift_target_oee_pct, pj.gaiting_handover_status,
+                pj.loom_stop_rate_per_hour, pj.primary_stop_root_cause,
+                pj.first_saree_dimensional_audit, pj.waste_percentage_current_run,
+                pj.shift_handover_approval_state, pj.saree_batch_release_authorization,
+                pj.supervisor_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'supervisor_log_id', pj.supervisor_log_id,
+                    'loom_shed_line_id', pj.loom_shed_line_id,
+                    'ambient_relative_humidity_pct', pj.ambient_relative_humidity_pct,
+                    'ambient_temperature_celsius', pj.ambient_temperature_celsius,
+                    'shift_target_oee_pct', pj.shift_target_oee_pct,
+                    'gaiting_handover_status', pj.gaiting_handover_status,
+                    'loom_stop_rate_per_hour', pj.loom_stop_rate_per_hour,
+                    'first_saree_dimensional_audit', pj.first_saree_dimensional_audit,
+                    'waste_percentage_current_run', pj.waste_percentage_current_run,
+                    'shift_handover_approval_state', pj.shift_handover_approval_state,
+                    'saree_batch_release_authorization', pj.saree_batch_release_authorization
+                )
+            FROM sup_loom_floor_supervisor_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'supervisor_log_id': result['supervisor_log_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'CERTIFIED',
+            'message': 'Supervisor log certified'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/sup-loom-floor-supervisor/certificates', methods=['GET'])
+@jwt_required()
+def list_sup_supervisor_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sflsc.id, sflsc.certificate_hash, sflsc.qr_tag_id,
+                   sflsc.supervisor_log_id_ref, sflsc.loom_shed_line_id,
+                   sflsc.ambient_relative_humidity_pct, sflsc.ambient_temperature_celsius,
+                   sflsc.shift_target_oee_pct, sflsc.gaiting_handover_status,
+                   sflsc.loom_stop_rate_per_hour, sflsc.primary_stop_root_cause,
+                   sflsc.first_saree_dimensional_audit, sflsc.waste_percentage_current_run,
+                   sflsc.shift_handover_approval_state, sflsc.saree_batch_release_authorization,
+                   sflsc.status, sflsc.certified_at
+            FROM sup_loom_floor_supervisor_certificates sflsc
+            WHERE sflsc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY sflsc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'supervisor_log_id_ref': c['supervisor_log_id_ref'],
+                    'loom_shed_line_id': c['loom_shed_line_id'],
+                    'ambient_relative_humidity_pct': float(c['ambient_relative_humidity_pct']) if c['ambient_relative_humidity_pct'] else None,
+                    'ambient_temperature_celsius': float(c['ambient_temperature_celsius']) if c['ambient_temperature_celsius'] else None,
+                    'shift_target_oee_pct': float(c['shift_target_oee_pct']) if c['shift_target_oee_pct'] else None,
+                    'gaiting_handover_status': c['gaiting_handover_status'],
+                    'loom_stop_rate_per_hour': float(c['loom_stop_rate_per_hour']) if c['loom_stop_rate_per_hour'] else None,
+                    'primary_stop_root_cause': c['primary_stop_root_cause'],
+                    'first_saree_dimensional_audit': c['first_saree_dimensional_audit'],
+                    'waste_percentage_current_run': float(c['waste_percentage_current_run']) if c['waste_percentage_current_run'] else None,
+                    'shift_handover_approval_state': c['shift_handover_approval_state'],
+                    'saree_batch_release_authorization': c['saree_batch_release_authorization'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR SUP LOOM FLOOR SUPERVISOR
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/sup-loom-floor-supervisor', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_sup_supervisor():
+    """
+    API plugin endpoint for sales team sup loom floor supervisor material processing forecast.
+    Returns forecasted floor supervisor requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'loom_shed_line_id': 'LINE-2400-A',
+                    'shift_target_ooe_pct': 85.0,
+                    'max_loom_stop_rate_per_hour': 1.5,
+                    'ambient_relative_humidity_pct_min': 65.0,
+                    'ambient_relative_humidity_pct_max': 70.0,
+                    'estimated_shifts': 3,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'loom_shed_line_id': 'LINE-2400-B',
+                    'shift_target_ooe_pct': 85.0,
+                    'max_loom_stop_rate_per_hour': 1.5,
+                    'ambient_relative_humidity_pct_min': 65.0,
+                    'ambient_relative_humidity_pct_max': 70.0,
+                    'estimated_shifts': 2,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'loom_shed_line_id': 'LINE-1536-C',
+                    'shift_target_ooe_pct': 75.0,
+                    'max_loom_stop_rate_per_hour': 4.0,
+                    'ambient_relative_humidity_pct_min': 55.0,
+                    'ambient_relative_humidity_pct_max': 60.0,
+                    'estimated_shifts': 5,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'SUP-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'loom_shed_line_id': 'LINE-2400-A',
+                    'estimated_shifts': 3,
+                    'shift_target_ooe_pct': 85.0
+                },
+                {
+                    'lot_number': 'SUP-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'loom_shed_line_id': 'LINE-2400-B',
+                    'estimated_shifts': 2,
+                    'shift_target_ooe_pct': 85.0
                 }
             ]
         }

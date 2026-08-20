@@ -4528,5 +4528,604 @@ def get_sales_forecast_throwster():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# MASTER COLORIST MODULE
+# ============================================================
+
+@app.route('/api/v1/colorist/recipes', methods=['POST'])
+@jwt_required()
+def create_colorist_recipe():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['recipe_code', 'internal_shade_code', 'silk_origin_type_suitability', 'liquor_ratio']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO master_colorist_recipes (
+                recipe_code, internal_shade_code, pantone_reference_id,
+                silk_origin_type_suitability, liquor_ratio,
+                throwster_record_id, throwster_batch_id, production_lot_id,
+                factory_node_id, operator_id, status, version,
+                dye_class_used, dyebath_ph, max_temperature_celsius,
+                leveling_agent_added, color_difference_delta_e,
+                dry_crocking_fastness, wet_crocking_fastness,
+                post_dye_tenacity_gd, antistatic_lubricant_applied,
+                acid_fixative_type, leveling_exhausting_agent,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'DRAFT', 1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, recipe_code
+        """, (
+            data.get('recipe_code'),
+            data.get('internal_shade_code'),
+            data.get('pantone_reference_id'),
+            data.get('silk_origin_type_suitability'),
+            data.get('liquor_ratio'),
+            data.get('throwster_record_id'),
+            data.get('throwster_batch_id'),
+            data.get('production_lot_id'),
+            factory_node_id,
+            operator_id,
+            data.get('dye_class_used'),
+            data.get('dyebath_ph'),
+            data.get('max_temperature_celsius'),
+            data.get('leveling_agent_added', False),
+            data.get('color_difference_delta_e'),
+            data.get('dry_crocking_fastness'),
+            data.get('wet_crocking_fastness'),
+            data.get('post_dye_tenacity_gd'),
+            data.get('antistatic_lubricant_applied', False),
+            data.get('acid_fixative_type'),
+            data.get('leveling_exhausting_agent'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        recipe_row = cur.fetchone()
+        recipe_id = recipe_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status
+            FROM master_colorist_recipes WHERE id = %s::uuid
+        """, (recipe_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'LAB_DIP_PENDING'
+        else:
+            status = 'LAB_DIP_PENDING'
+        
+        cur.execute("""
+            UPDATE master_colorist_recipes SET status = %s WHERE id = %s::uuid
+        """, (status, recipe_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(recipe_id),
+            'recipe_code': recipe_row['recipe_code'],
+            'status': status,
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Master Colorist recipe created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/colorist/recipes', methods=['GET'])
+@jwt_required()
+def list_colorist_recipes():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT mcr.id, mcr.recipe_code, mcr.internal_shade_code,
+                   mcr.pantone_reference_id, mcr.silk_origin_type_suitability,
+                   mcr.liquor_ratio, mcr.dye_class_used, mcr.dyebath_ph,
+                   mcr.color_difference_delta_e, mcr.dry_crocking_fastness,
+                   mcr.wet_crocking_fastness, mcr.auto_assigned_routing,
+                   mcr.status, mcr.certificate_hash, mcr.version,
+                   tb.throwster_batch_no
+            FROM master_colorist_recipes mcr
+            LEFT JOIN throwster_batches tb ON mcr.throwster_batch_id = tb.id
+            WHERE mcr.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY mcr.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        recipes = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(recipes),
+            'recipes': [
+                {
+                    'id': str(r['id']),
+                    'recipe_code': r['recipe_code'],
+                    'internal_shade_code': r['internal_shade_code'],
+                    'pantone_reference_id': r['pantone_reference_id'],
+                    'silk_origin_type_suitability': r['silk_origin_type_suitability'],
+                    'liquor_ratio': r['liquor_ratio'],
+                    'dye_class_used': r['dye_class_used'],
+                    'dyebath_ph': float(r['dyebath_ph']) if r['dyebath_ph'] else None,
+                    'color_difference_delta_e': float(r['color_difference_delta_e']) if r['color_difference_delta_e'] else None,
+                    'dry_crocking_fastness': r['dry_crocking_fastness'],
+                    'wet_crocking_fastness': r['wet_crocking_fastness'],
+                    'auto_assigned_routing': r['auto_assigned_routing'],
+                    'status': r['status'],
+                    'certificate_hash': r['certificate_hash'],
+                    'version': r['version'],
+                    'throwster_batch_no': r['throwster_batch_no']
+                }
+                for r in recipes
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/colorist/recipes/<recipe_id>', methods=['GET'])
+@jwt_required()
+def get_colorist_recipe(recipe_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT mcr.*, tb.throwster_batch_no, tpr.input_raw_lot_no
+            FROM master_colorist_recipes mcr
+            LEFT JOIN throwster_batches tb ON mcr.throwster_batch_id = tb.id
+            LEFT JOIN throwster_production_records tpr ON mcr.throwster_record_id = tpr.id
+            WHERE mcr.id = %s::uuid
+        """, (recipe_id,))
+        
+        recipe = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not recipe:
+            return jsonify({'error': 'RecipeNotFound'}), 404
+        
+        return jsonify({
+            'id': str(recipe['id']),
+            'recipe_code': recipe['recipe_code'],
+            'internal_shade_code': recipe['internal_shade_code'],
+            'pantone_reference_id': recipe['pantone_reference_id'],
+            'silk_origin_type_suitability': recipe['silk_origin_type_suitability'],
+            'liquor_ratio': recipe['liquor_ratio'],
+            'throwster_record_id': str(recipe['throwster_record_id']) if recipe['throwster_record_id'] else None,
+            'throwster_batch_no': recipe['throwster_batch_no'],
+            'input_raw_lot_no': recipe['input_raw_lot_no'],
+            'status': recipe['status'],
+            'version': recipe['version'],
+            'dye_class_used': recipe['dye_class_used'],
+            'dyebath_ph': float(recipe['dyebath_ph']) if recipe['dyebath_ph'] else None,
+            'max_temperature_celsius': recipe['max_temperature_celsius'],
+            'leveling_agent_added': recipe['leveling_agent_added'],
+            'color_difference_delta_e': float(recipe['color_difference_delta_e']) if recipe['color_difference_delta_e'] else None,
+            'light_source_profile': recipe['light_source_profile'],
+            'cie_lab_coordinates': recipe['cie_lab_coordinates'],
+            'dry_crocking_fastness': recipe['dry_crocking_fastness'],
+            'wet_crocking_fastness': recipe['wet_crocking_fastness'],
+            'post_dye_tenacity_gd': float(recipe['post_dye_tenacity_gd']) if recipe['post_dye_tenacity_gd'] else None,
+            'antistatic_lubricant_applied': recipe['antistatic_lubricant_applied'],
+            'acid_fixative_type': recipe['acid_fixative_type'],
+            'leveling_exhausting_agent': recipe['leveling_exhausting_agent'],
+            'validation_errors': recipe['validation_errors'],
+            'validation_warnings': recipe['validation_warnings'],
+            'auto_assigned_routing': recipe['auto_assigned_routing'],
+            'certificate_hash': recipe['certificate_hash'],
+            'qr_tag_id': recipe['qr_tag_id']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/colorist/recipes/<recipe_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_colorist_recipe(recipe_id):
+    try:
+        approver_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, status, validation_errors, auto_assigned_routing, version
+            FROM master_colorist_recipes
+            WHERE id = %s::uuid
+        """, (recipe_id,))
+        
+        recipe = cur.fetchone()
+        if not recipe:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'RecipeNotFound'}), 404
+        
+        if recipe['validation_errors'] and len(recipe['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot approve recipe with validation errors'}), 400
+        
+        new_version = recipe['version'] + 1 if data.get('new_version') else recipe['version']
+        certificate_hash = generate_certificate_hash(recipe_id, recipe['recipe_code'])
+        qr_tag_id = 'COLOR-' + recipe['recipe_code']
+        
+        cur.execute("""
+            UPDATE master_colorist_recipes
+            SET status = 'APPROVED',
+                version = %s,
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, recipe_code, certificate_hash
+        """, (new_version, certificate_hash, qr_tag_id, recipe_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO master_colorist_certificates (
+                recipe_id, certificate_hash, qr_tag_id,
+                internal_shade_code, pantone_reference_id,
+                certified_grade, auto_assigned_routing,
+                dye_class_used, liquor_ratio, delta_e_value,
+                dry_crocking_fastness, wet_crocking_fastness,
+                post_dye_tenacity_gd, antistatic_lubricant_applied,
+                throwster_record_id, throwster_batch_id,
+                operator_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                mcr.id,
+                mcr.certificate_hash,
+                mcr.qr_tag_id,
+                mcr.internal_shade_code,
+                mcr.pantone_reference_id,
+                '4A',
+                mcr.auto_assigned_routing,
+                mcr.dye_class_used,
+                mcr.liquor_ratio,
+                mcr.color_difference_delta_e,
+                mcr.dry_crocking_fastness,
+                mcr.wet_crocking_fastness,
+                mcr.post_dye_tenacity_gd,
+                mcr.antistatic_lubricant_applied,
+                mcr.throwster_record_id,
+                mcr.throwster_batch_id,
+                mcr.operator_id,
+                %s,
+                mcr.factory_node_id,
+                jsonb_build_object(
+                    'recipe_code', mcr.recipe_code,
+                    'version', mcr.version,
+                    'silk_origin_type_suitability', mcr.silk_origin_type_suitability,
+                    'dyebath_ph', mcr.dyebath_ph,
+                    'max_temperature_celsius', mcr.max_temperature_celsius,
+                    'leveling_agent_added', mcr.leveling_agent_added,
+                    'light_source_profile', mcr.light_source_profile,
+                    'cie_lab_coordinates', mcr.cie_lab_coordinates,
+                    'acid_fixative_type', mcr.acid_fixative_type,
+                    'leveling_exhausting_agent', mcr.leveling_exhausting_agent
+                )
+            FROM master_colorist_recipes mcr
+            WHERE mcr.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM master_colorist_certificates WHERE recipe_id = mcr.id
+            )
+        """, (approver_id, recipe_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'recipe_code': result['recipe_code'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'version': new_version,
+            'status': 'APPROVED',
+            'message': 'Master Colorist recipe approved and certified'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/colorist/recipes/<recipe_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_colorist_recipe(recipe_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE master_colorist_recipes
+            SET status = 'SHADE_REJECTED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id, recipe_code
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by Master Colorist')}]),
+            recipe_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'RecipeNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'recipe_code': result['recipe_code'],
+            'status': 'SHADE_REJECTED',
+            'message': 'Master Colorist recipe rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/colorist/recipes/<recipe_id>/components', methods=['POST'])
+@jwt_required()
+def add_recipe_component(recipe_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['component_type', 'chemical_name', 'quantity_grams']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            INSERT INTO recipe_chemical_components (
+                recipe_id, component_type, chemical_name, quantity_grams,
+                volume_ml, sequence_order, notes
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            recipe_id,
+            data.get('component_type'),
+            data.get('chemical_name'),
+            data.get('quantity_grams'),
+            data.get('volume_ml'),
+            data.get('sequence_order'),
+            data.get('notes')
+        ))
+        
+        component_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(component_row['id']),
+            'recipe_id': str(recipe_id),
+            'message': 'Recipe component added successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/colorist/recipes/<recipe_id>/components', methods=['GET'])
+@jwt_required()
+def list_recipe_components(recipe_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, component_type, chemical_name, quantity_grams,
+                   volume_ml, sequence_order, notes
+            FROM recipe_chemical_components
+            WHERE recipe_id = %s::uuid
+            ORDER BY sequence_order ASC
+        """, (recipe_id,))
+        
+        components = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(components),
+            'components': [
+                {
+                    'id': str(c['id']),
+                    'component_type': c['component_type'],
+                    'chemical_name': c['chemical_name'],
+                    'quantity_grams': float(c['quantity_grams']) if c['quantity_grams'] else None,
+                    'volume_ml': float(c['volume_ml']) if c['volume_ml'] else None,
+                    'sequence_order': c['sequence_order'],
+                    'notes': c['notes']
+                }
+                for c in components
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/colorist/certificates', methods=['GET'])
+@jwt_required()
+def list_colorist_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT mcc.id, mcc.certificate_hash, mcc.qr_tag_id,
+                   mcc.internal_shade_code, mcc.pantone_reference_id,
+                   mcc.dye_class_used, mcc.liquor_ratio, mcc.delta_e_value,
+                   mcc.dry_crocking_fastness, mcc.wet_crocking_fastness,
+                   mcc.post_dye_tenacity_gd, mcc.antistatic_lubricant_applied,
+                   mcc.auto_assigned_routing, mcc.status, mcc.certified_at,
+                   mcr.recipe_code, tb.throwster_batch_no
+            FROM master_colorist_certificates mcc
+            JOIN master_colorist_recipes mcr ON mcc.recipe_id = mcr.id
+            LEFT JOIN throwster_batches tb ON mcc.throwster_batch_id = tb.id
+            WHERE mcc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY mcc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'recipe_code': c['recipe_code'],
+                    'internal_shade_code': c['internal_shade_code'],
+                    'pantone_reference_id': c['pantone_reference_id'],
+                    'dye_class_used': c['dye_class_used'],
+                    'liquor_ratio': c['liquor_ratio'],
+                    'delta_e_value': float(c['delta_e_value']) if c['delta_e_value'] else None,
+                    'dry_crocking_fastness': c['dry_crocking_fastness'],
+                    'wet_crocking_fastness': c['wet_crocking_fastness'],
+                    'post_dye_tenacity_gd': float(c['post_dye_tenacity_gd']) if c['post_dye_tenacity_gd'] else None,
+                    'antistatic_lubricant_applied': c['antistatic_lubricant_applied'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR MASTER COLORIST
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/colorist', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_colorist():
+    """
+    API plugin endpoint for sales team colorist material processing forecast.
+    Returns forecasted dyeing requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'dye_class': 'ACID_PRE_METALLISED_1_2',
+                    'estimated_silk_kg': 200.0,
+                    'target_delta_e': '<=0.5',
+                    'priority': 'HIGH',
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 80
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'dye_class': 'REACTIVE_CIBACRON_F',
+                    'estimated_silk_kg': 150.0,
+                    'target_delta_e': '<=0.5',
+                    'priority': 'HIGH',
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 60
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'shade_code': 'MID-MNG-402',
+                    'dye_class': 'ACID_MILL_MILLING',
+                    'estimated_silk_kg': 180.0,
+                    'target_delta_e': '<=1.0',
+                    'priority': 'MEDIUM',
+                    'target_machine': '1536_HOOK_JACQUARD',
+                    'estimated_sarees': 100
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'COLOR-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'estimated_sarees': 80,
+                    'estimated_silk_kg': 200.0,
+                    'dye_class': 'ACID_PRE_METALLISED_1_2',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                },
+                {
+                    'lot_number': 'COLOR-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'estimated_sarees': 60,
+                    'estimated_silk_kg': 150.0,
+                    'dye_class': 'REACTIVE_CIBACRON_F',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

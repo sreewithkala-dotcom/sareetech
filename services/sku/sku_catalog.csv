@@ -1,0 +1,481 @@
+sku_ref_id,geographic_hub,weave_category,jacquard_capacity,zari_configuration,warp_denier,weft_denier,zari_wire_denier,warp_net_weight_g,weft_net_weight_g,zari_net_weight_g,bobbin_waste_weight_g,total_saree_weight_g,yarn_raw_cost_inr,zari_raw_cost_inr,labor_surcharge_inr,total_mfg_cost_inr,mrp_inr,selling_price_inr,min_floor_price_inr,weight_category_profile
+SKU-0001,Arani,Deccan Fine Weave,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,561,3465,3653,7679,26876,18813,10366,Lightweight Dress Silk
+SKU-0002,Arani,Deccan Fine Weave,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,561,1480,3653,5694,19929,13950,7686,Lightweight Dress Silk
+SKU-0003,Arani,Deccan Fine Weave,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,561,3591,3433,7585,26547,18583,10239,Standard Mid-Weight Saree
+SKU-0004,Arani,Deccan Fine Weave,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,561,2331,3433,6325,22137,15496,8538,Standard Mid-Weight Saree
+SKU-0005,Arani,Deccan Fine Weave,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,561,7150,3276,10987,38454,26918,14832,Standard Mid-Weight Saree
+SKU-0006,Arani,Deccan Fine Weave,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,561,4709,3276,8546,29911,20937,11537,Standard Mid-Weight Saree
+SKU-0007,Arani,Deccan Fine Weave,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,561,9418,3559,13538,47383,33168,18276,Heavy Bridal Brocade
+SKU-0008,Arani,Deccan Fine Weave,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,561,6205,3559,10325,36137,25296,13938,Heavy Bridal Brocade
+SKU-0009,Arani,Deccan Fine Weave,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,561,4047,3559,8167,28584,20009,11025,Heavy Bridal Brocade
+SKU-0010,Arani,Deccan Fine Weave,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,561,23719,3559,27839,97436,68205,37582,Heavy Bridal Brocade
+SKU-0011,Arani,Deccan Fine Weave,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,561,14127,3528,18216,63756,44629,24591,Ultra-Heavy Royal Heritage Pattu
+SKU-0012,Arani,Deccan Fine Weave,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,561,1890,3339,5790,20265,14185,7816,Lightweight Dress Silk
+SKU-0013,Arani,Deccan Fine Weave,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,561,1244,3339,5144,18004,12602,6944,Lightweight Dress Silk
+SKU-0014,Arani,South Indian Heavy Pattu,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,567,2283,3685,6535,22872,16010,8822,Lightweight Dress Silk
+SKU-0015,Arani,South Indian Heavy Pattu,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,567,3591,3402,7560,26460,18522,10206,Standard Mid-Weight Saree
+SKU-0016,Arani,South Indian Heavy Pattu,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,567,2331,3402,6300,22050,15435,8505,Standard Mid-Weight Saree
+SKU-0017,Arani,South Indian Heavy Pattu,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,567,13718,3402,17687,61904,43333,23877,Standard Mid-Weight Saree
+SKU-0018,Arani,South Indian Heavy Pattu,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,567,4709,3244,8520,29820,20874,11502,Standard Mid-Weight Saree
+SKU-0019,Arani,South Indian Heavy Pattu,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,567,3071,3244,6882,24087,16860,9290,Standard Mid-Weight Saree
+SKU-0020,Arani,South Indian Heavy Pattu,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,567,6205,3559,10331,36158,25310,13946,Heavy Bridal Brocade
+SKU-0021,Arani,South Indian Heavy Pattu,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,567,23719,3559,27845,97457,68220,37590,Heavy Bridal Brocade
+SKU-0022,Arani,South Indian Heavy Pattu,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,567,14127,3653,18347,64214,44950,24768,Ultra-Heavy Royal Heritage Pattu
+SKU-0023,Arani,South Indian Heavy Pattu,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,567,6063,3653,10283,35990,25193,13882,Ultra-Heavy Royal Heritage Pattu
+SKU-0024,Arani,South Indian Heavy Pattu,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,567,35595,3653,39815,139352,97546,53750,Ultra-Heavy Royal Heritage Pattu
+SKU-0025,Arani,South Indian Heavy Pattu,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,567,1244,3465,5276,18466,12926,7122,Lightweight Dress Silk
+SKU-0026,Arani,South Indian Heavy Pattu,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,567,803,3465,4835,16922,11845,6527,Lightweight Dress Silk
+SKU-0027,Bishnupur,Central Sheer Fabric,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,454,2970,2970,6394,22379,15665,8631,Lightweight Dress Silk
+SKU-0028,Bishnupur,Central Sheer Fabric,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,454,1957,2970,5381,18833,13183,7264,Lightweight Dress Silk
+SKU-0029,Bishnupur,Central Sheer Fabric,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,454,1269,2970,4693,16425,11497,6335,Lightweight Dress Silk
+SKU-0030,Bishnupur,Central Sheer Fabric,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,454,4671,3078,8203,28710,20097,11074,Standard Mid-Weight Saree
+SKU-0031,Bishnupur,Central Sheer Fabric,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,454,3078,3078,6610,23135,16194,8923,Standard Mid-Weight Saree
+SKU-0032,Bishnupur,Central Sheer Fabric,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,454,6129,2781,9364,32774,22941,12641,Standard Mid-Weight Saree
+SKU-0033,Bishnupur,Central Sheer Fabric,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,454,2632,2781,5867,20534,14374,7920,Standard Mid-Weight Saree
+SKU-0034,Bishnupur,Central Sheer Fabric,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,454,15444,2781,18679,65376,45763,25216,Standard Mid-Weight Saree
+SKU-0035,Bishnupur,Central Sheer Fabric,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,454,8073,3050,11577,40519,28363,15628,Heavy Bridal Brocade
+SKU-0036,Bishnupur,Central Sheer Fabric,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,454,5319,3050,8823,30880,21616,11911,Heavy Bridal Brocade
+SKU-0037,Bishnupur,Central Sheer Fabric,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,454,3469,3050,6973,24405,17083,9413,Heavy Bridal Brocade
+SKU-0038,Bishnupur,Central Sheer Fabric,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,454,12109,3186,15749,55121,38585,21261,Ultra-Heavy Royal Heritage Pattu
+SKU-0039,Bishnupur,Central Sheer Fabric,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,454,7992,3186,11632,40712,28498,15703,Ultra-Heavy Royal Heritage Pattu
+SKU-0040,Bishnupur,Central Sheer Fabric,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,454,30510,3186,34150,119525,83667,46102,Ultra-Heavy Royal Heritage Pattu
+SKU-0041,Bishnupur,Central Sheer Fabric,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,454,1066,2727,4247,14864,10405,5733,Lightweight Dress Silk
+SKU-0042,Bishnupur,East Handloom Ikat,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,490,2970,2700,6160,21560,15092,8316,Lightweight Dress Silk
+SKU-0043,Bishnupur,East Handloom Ikat,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,490,1269,2700,4459,15606,10924,6019,Lightweight Dress Silk
+SKU-0044,Bishnupur,East Handloom Ikat,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,490,7479,2700,10669,37341,26139,14403,Lightweight Dress Silk
+SKU-0045,Bishnupur,East Handloom Ikat,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,490,3078,3104,6672,23352,16346,9007,Standard Mid-Weight Saree
+SKU-0046,Bishnupur,East Handloom Ikat,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,490,4036,2970,7496,26236,18365,10119,Standard Mid-Weight Saree
+SKU-0047,Bishnupur,East Handloom Ikat,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,490,2632,2970,6092,21322,14925,8224,Standard Mid-Weight Saree
+SKU-0048,Bishnupur,East Handloom Ikat,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,490,15444,2970,18904,66164,46314,25520,Standard Mid-Weight Saree
+SKU-0049,Bishnupur,East Handloom Ikat,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,490,5319,2781,8590,30065,21045,11596,Heavy Bridal Brocade
+SKU-0050,Bishnupur,East Handloom Ikat,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,490,3469,2781,6740,23590,16513,9099,Heavy Bridal Brocade
+SKU-0051,Bishnupur,East Handloom Ikat,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,490,20331,2781,23602,82607,57824,31862,Heavy Bridal Brocade
+SKU-0052,Bishnupur,East Handloom Ikat,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,490,12109,2997,15596,54586,38210,21054,Ultra-Heavy Royal Heritage Pattu
+SKU-0053,Bishnupur,East Handloom Ikat,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,490,5197,2997,8684,30394,21275,11723,Ultra-Heavy Royal Heritage Pattu
+SKU-0054,Bishnupur,East Handloom Ikat,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,490,30510,2997,33997,118989,83292,45895,Ultra-Heavy Royal Heritage Pattu
+SKU-0055,Bishnupur,East Handloom Ikat,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,490,1620,2808,4918,17213,12049,6639,Lightweight Dress Silk
+SKU-0056,Bishnupur,East Handloom Ikat,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,490,1066,2808,4364,15274,10691,5891,Lightweight Dress Silk
+SKU-0057,Chanderi,Central Sheer Fabric,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,520,3300,3300,7120,24920,17444,9612,Lightweight Dress Silk
+SKU-0058,Chanderi,Central Sheer Fabric,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,520,1410,3300,5230,18305,12813,7060,Lightweight Dress Silk
+SKU-0059,Chanderi,Central Sheer Fabric,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,520,8310,3300,12130,42455,29718,16375,Lightweight Dress Silk
+SKU-0060,Chanderi,Central Sheer Fabric,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,520,3420,3420,7360,25760,18032,9936,Standard Mid-Weight Saree
+SKU-0061,Chanderi,Central Sheer Fabric,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,520,2220,3420,6160,21560,15092,8316,Standard Mid-Weight Saree
+SKU-0062,Chanderi,Central Sheer Fabric,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,520,13065,3420,17005,59517,41662,22956,Standard Mid-Weight Saree
+SKU-0063,Chanderi,Central Sheer Fabric,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,520,6810,3090,10420,36470,25529,14067,Standard Mid-Weight Saree
+SKU-0064,Chanderi,Central Sheer Fabric,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,520,4485,3090,8095,28332,19832,10928,Standard Mid-Weight Saree
+SKU-0065,Chanderi,Central Sheer Fabric,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,520,17160,3090,20770,72695,50886,28039,Standard Mid-Weight Saree
+SKU-0066,Chanderi,Central Sheer Fabric,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,520,5910,3389,9819,34366,24056,13255,Heavy Bridal Brocade
+SKU-0067,Chanderi,Central Sheer Fabric,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,520,3855,3389,7764,27174,19021,10481,Heavy Bridal Brocade
+SKU-0068,Chanderi,Central Sheer Fabric,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,520,22590,3389,26499,92746,64922,35773,Heavy Bridal Brocade
+SKU-0069,Chanderi,Central Sheer Fabric,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,520,8880,3540,12940,45290,31703,17469,Ultra-Heavy Royal Heritage Pattu
+SKU-0070,Chanderi,Central Sheer Fabric,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,520,5775,3540,9835,34422,24095,13277,Ultra-Heavy Royal Heritage Pattu
+SKU-0071,Chanderi,Central Sheer Fabric,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,520,1185,3030,4735,16572,11600,6392,Lightweight Dress Silk
+SKU-0072,Chanderi,North Silk-Cotton Mix,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,535,3300,3000,6835,23922,16745,9227,Lightweight Dress Silk
+SKU-0073,Chanderi,North Silk-Cotton Mix,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,535,1410,3000,4945,17307,12115,6675,Lightweight Dress Silk
+SKU-0074,Chanderi,North Silk-Cotton Mix,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,535,8310,3000,11845,41457,29020,15990,Lightweight Dress Silk
+SKU-0075,Chanderi,North Silk-Cotton Mix,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,535,3420,3360,7315,25602,17921,9875,Standard Mid-Weight Saree
+SKU-0076,Chanderi,North Silk-Cotton Mix,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,535,2220,3360,6115,21402,14981,8255,Standard Mid-Weight Saree
+SKU-0077,Chanderi,North Silk-Cotton Mix,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,535,13065,3360,16960,59360,41552,22896,Standard Mid-Weight Saree
+SKU-0078,Chanderi,North Silk-Cotton Mix,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,535,4485,3150,8170,28595,20016,11029,Standard Mid-Weight Saree
+SKU-0079,Chanderi,North Silk-Cotton Mix,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,535,2925,3150,6610,23135,16194,8923,Standard Mid-Weight Saree
+SKU-0080,Chanderi,North Silk-Cotton Mix,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,535,22590,3030,26155,91542,64079,35309,Heavy Bridal Brocade
+SKU-0081,Chanderi,North Silk-Cotton Mix,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,535,13455,3540,17530,61355,42948,23665,Ultra-Heavy Royal Heritage Pattu
+SKU-0082,Chanderi,North Silk-Cotton Mix,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,535,33900,3540,37975,132912,93038,51266,Ultra-Heavy Royal Heritage Pattu
+SKU-0083,Chanderi,North Silk-Cotton Mix,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,535,1185,3210,4930,17255,12078,6655,Lightweight Dress Silk
+SKU-0084,Dharmavaram,Deccan Zari Bordered,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,489,3135,2964,6588,23058,16140,8893,Lightweight Dress Silk
+SKU-0085,Dharmavaram,Deccan Zari Bordered,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,489,2066,2964,5519,19316,13521,7450,Lightweight Dress Silk
+SKU-0086,Dharmavaram,Deccan Zari Bordered,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,489,1339,2964,4792,16772,11740,6469,Lightweight Dress Silk
+SKU-0087,Dharmavaram,Deccan Zari Bordered,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,489,4930,3249,8668,30338,21236,11701,Standard Mid-Weight Saree
+SKU-0088,Dharmavaram,Deccan Zari Bordered,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,489,3249,3249,6987,24454,17118,9432,Standard Mid-Weight Saree
+SKU-0089,Dharmavaram,Deccan Zari Bordered,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,489,2109,3249,5847,20464,14325,7893,Standard Mid-Weight Saree
+SKU-0090,Dharmavaram,Deccan Zari Bordered,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,489,12411,3249,16149,56521,39565,21801,Standard Mid-Weight Saree
+SKU-0091,Dharmavaram,Deccan Zari Bordered,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,489,6469,2935,9893,34625,24237,13355,Standard Mid-Weight Saree
+SKU-0092,Dharmavaram,Deccan Zari Bordered,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,489,4260,2935,7684,26894,18825,10373,Standard Mid-Weight Saree
+SKU-0093,Dharmavaram,Deccan Zari Bordered,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,489,16302,2935,19726,69041,48328,26630,Standard Mid-Weight Saree
+SKU-0094,Dharmavaram,Deccan Zari Bordered,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,489,8521,3363,12373,43305,30313,16703,Heavy Bridal Brocade
+SKU-0095,Dharmavaram,Deccan Zari Bordered,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,489,5614,3363,9466,33131,23191,12779,Heavy Bridal Brocade
+SKU-0096,Dharmavaram,Deccan Zari Bordered,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,489,3662,3363,7514,26299,18409,10143,Heavy Bridal Brocade
+SKU-0097,Dharmavaram,Deccan Zari Bordered,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,489,12782,3078,16349,57221,40055,22071,Ultra-Heavy Royal Heritage Pattu
+SKU-0098,Dharmavaram,Deccan Zari Bordered,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,489,32205,3078,35772,125202,87641,48292,Ultra-Heavy Royal Heritage Pattu
+SKU-0099,Dharmavaram,Deccan Zari Bordered,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,489,4303,2878,7670,26845,18791,10354,Lightweight Dress Silk
+SKU-0100,Dharmavaram,North Indian Katan,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,475,3135,3078,6688,23408,16385,9028,Lightweight Dress Silk
+SKU-0101,Dharmavaram,North Indian Katan,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,475,2066,3078,5619,19666,13766,7585,Lightweight Dress Silk
+SKU-0102,Dharmavaram,North Indian Katan,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,475,1339,3078,4892,17122,11985,6604,Lightweight Dress Silk
+SKU-0103,Dharmavaram,North Indian Katan,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,475,7894,3078,11447,40064,28045,15453,Lightweight Dress Silk
+SKU-0104,Dharmavaram,North Indian Katan,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,475,4930,2878,8283,28990,20293,11182,Standard Mid-Weight Saree
+SKU-0105,Dharmavaram,North Indian Katan,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,475,12411,2878,15764,55174,38621,21281,Standard Mid-Weight Saree
+SKU-0106,Dharmavaram,North Indian Katan,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,475,4260,3391,8126,28441,19908,10970,Standard Mid-Weight Saree
+SKU-0107,Dharmavaram,North Indian Katan,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,475,8521,3021,12017,42059,29441,16222,Heavy Bridal Brocade
+SKU-0108,Dharmavaram,North Indian Katan,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,475,3662,3021,7158,25053,17537,9663,Heavy Bridal Brocade
+SKU-0109,Dharmavaram,North Indian Katan,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,475,12782,3249,16506,57771,40439,22283,Ultra-Heavy Royal Heritage Pattu
+SKU-0110,Dharmavaram,North Indian Katan,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,475,1710,3305,5490,19215,13450,7411,Lightweight Dress Silk
+SKU-0111,Dharmavaram,North Indian Katan,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,475,4303,3305,8083,28290,19803,10912,Lightweight Dress Silk
+SKU-0112,Gadwal,Deccan Cotton-Silk,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,486,2970,2862,6318,22113,15479,8529,Lightweight Dress Silk
+SKU-0113,Gadwal,Deccan Cotton-Silk,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,486,1957,2862,5305,18567,12997,7161,Lightweight Dress Silk
+SKU-0114,Gadwal,Deccan Cotton-Silk,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,486,7479,2862,10827,37894,26526,14616,Lightweight Dress Silk
+SKU-0115,Gadwal,Deccan Cotton-Silk,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,486,1998,3024,5508,19278,13494,7435,Standard Mid-Weight Saree
+SKU-0116,Gadwal,Deccan Cotton-Silk,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,486,11758,3024,15268,53438,37406,20611,Standard Mid-Weight Saree
+SKU-0117,Gadwal,Deccan Cotton-Silk,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,486,15444,3159,19089,66811,46768,25770,Standard Mid-Weight Saree
+SKU-0118,Gadwal,Deccan Cotton-Silk,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,486,8073,3104,11663,40820,28574,15745,Heavy Bridal Brocade
+SKU-0119,Gadwal,Deccan Cotton-Silk,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,486,3469,3104,7059,24706,17294,9529,Heavy Bridal Brocade
+SKU-0120,Gadwal,Deccan Cotton-Silk,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,486,20331,3104,23921,83723,58606,32293,Heavy Bridal Brocade
+SKU-0121,Gadwal,Deccan Cotton-Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,486,12109,3159,15754,55139,38597,21267,Ultra-Heavy Royal Heritage Pattu
+SKU-0122,Gadwal,Deccan Cotton-Silk,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,486,1620,3050,5156,18046,12632,6960,Lightweight Dress Silk
+SKU-0123,Gadwal,Deccan Cotton-Silk,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,486,1066,3050,4602,16107,11274,6212,Lightweight Dress Silk
+SKU-0124,Gadwal,Deccan Cotton-Silk,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,486,688,3050,4224,14784,10348,5702,Lightweight Dress Silk
+SKU-0125,Gadwal,South Tied-Dye Ikat,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,481,2970,2808,6259,21906,15334,8449,Lightweight Dress Silk
+SKU-0126,Gadwal,South Tied-Dye Ikat,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,481,1957,2808,5246,18361,12852,7082,Lightweight Dress Silk
+SKU-0127,Gadwal,South Tied-Dye Ikat,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,481,7479,2808,10768,37688,26381,14536,Lightweight Dress Silk
+SKU-0128,Gadwal,South Tied-Dye Ikat,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,481,4671,2781,7933,27765,19435,10709,Standard Mid-Weight Saree
+SKU-0129,Gadwal,South Tied-Dye Ikat,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,481,1998,2781,5260,18410,12887,7101,Standard Mid-Weight Saree
+SKU-0130,Gadwal,South Tied-Dye Ikat,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,481,11758,2781,15020,52570,36799,20277,Standard Mid-Weight Saree
+SKU-0131,Gadwal,South Tied-Dye Ikat,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,481,6129,3213,9823,34380,24066,13261,Standard Mid-Weight Saree
+SKU-0132,Gadwal,South Tied-Dye Ikat,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,481,2632,3213,6326,22141,15498,8540,Standard Mid-Weight Saree
+SKU-0133,Gadwal,South Tied-Dye Ikat,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,481,15444,3213,19138,66983,46888,25836,Standard Mid-Weight Saree
+SKU-0134,Gadwal,South Tied-Dye Ikat,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,481,12109,2916,15506,54271,37989,20933,Ultra-Heavy Royal Heritage Pattu
+SKU-0135,Gadwal,South Tied-Dye Ikat,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,481,5197,2916,8594,30079,21055,11601,Ultra-Heavy Royal Heritage Pattu
+SKU-0136,Gadwal,South Tied-Dye Ikat,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,481,688,2808,3977,13919,9743,5368,Lightweight Dress Silk
+SKU-0137,Gadwal,South Tied-Dye Ikat,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,481,4077,2808,7366,25781,18046,9944,Lightweight Dress Silk
+SKU-0138,Ilkal,Deccan Zari Bordered,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,425,7063,2652,10140,35490,24843,13689,Lightweight Dress Silk
+SKU-0139,Ilkal,Deccan Zari Bordered,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,425,4411,2907,7743,27100,18970,10453,Standard Mid-Weight Saree
+SKU-0140,Ilkal,Deccan Zari Bordered,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,425,2907,2907,6239,21836,15285,8422,Standard Mid-Weight Saree
+SKU-0141,Ilkal,Deccan Zari Bordered,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,425,11105,2907,14437,50529,35370,19489,Standard Mid-Weight Saree
+SKU-0142,Ilkal,Deccan Zari Bordered,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,425,5788,2626,8839,30936,21655,11932,Standard Mid-Weight Saree
+SKU-0143,Ilkal,Deccan Zari Bordered,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,425,3812,2626,6863,24020,16814,9265,Standard Mid-Weight Saree
+SKU-0144,Ilkal,Deccan Zari Bordered,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,425,2486,2626,5537,19379,13565,7474,Standard Mid-Weight Saree
+SKU-0145,Ilkal,Deccan Zari Bordered,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,425,7624,3009,11058,38703,27092,14928,Heavy Bridal Brocade
+SKU-0146,Ilkal,Deccan Zari Bordered,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,425,5023,3009,8457,29599,20719,11416,Heavy Bridal Brocade
+SKU-0147,Ilkal,Deccan Zari Bordered,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,425,3276,3009,6710,23485,16439,9058,Heavy Bridal Brocade
+SKU-0148,Ilkal,Deccan Zari Bordered,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,425,19201,3009,22635,79222,55455,30557,Heavy Bridal Brocade
+SKU-0149,Ilkal,Deccan Zari Bordered,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,425,11436,2754,14615,51152,35806,19730,Ultra-Heavy Royal Heritage Pattu
+SKU-0150,Ilkal,Deccan Zari Bordered,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,425,4908,2754,8087,28304,19813,10917,Ultra-Heavy Royal Heritage Pattu
+SKU-0151,Ilkal,Deccan Zari Bordered,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,425,28815,2754,31994,111979,78385,43191,Ultra-Heavy Royal Heritage Pattu
+SKU-0152,Ilkal,Deccan Zari Bordered,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,425,1530,2575,4530,15855,11098,6115,Lightweight Dress Silk
+SKU-0153,Ilkal,Deccan Zari Bordered,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,425,1007,2575,4007,14024,9817,5409,Lightweight Dress Silk
+SKU-0154,Ilkal,Deccan Zari Bordered,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,425,650,2575,3650,12775,8942,4927,Lightweight Dress Silk
+SKU-0155,Ilkal,North Indian Katan,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,442,1198,2754,4394,15379,10765,5931,Lightweight Dress Silk
+SKU-0156,Ilkal,North Indian Katan,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,442,7063,2754,10259,35906,25134,13849,Lightweight Dress Silk
+SKU-0157,Ilkal,North Indian Katan,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,442,2907,2575,5924,20734,14513,7997,Standard Mid-Weight Saree
+SKU-0158,Ilkal,North Indian Katan,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,442,11105,2575,14122,49427,34598,19064,Standard Mid-Weight Saree
+SKU-0159,Ilkal,North Indian Katan,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,442,3812,3034,7288,25508,17855,9838,Standard Mid-Weight Saree
+SKU-0160,Ilkal,North Indian Katan,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,442,2486,3034,5962,20867,14606,8048,Standard Mid-Weight Saree
+SKU-0161,Ilkal,North Indian Katan,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,442,14586,3034,18062,63217,44251,24383,Standard Mid-Weight Saree
+SKU-0162,Ilkal,North Indian Katan,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,442,7624,2703,10769,37691,26384,14538,Heavy Bridal Brocade
+SKU-0163,Ilkal,North Indian Katan,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,442,5023,2703,8168,28588,20011,11026,Heavy Bridal Brocade
+SKU-0164,Ilkal,North Indian Katan,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,442,19201,2703,22346,78211,54747,30167,Heavy Bridal Brocade
+SKU-0165,Ilkal,North Indian Katan,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,442,11436,2907,14785,51747,36223,19959,Ultra-Heavy Royal Heritage Pattu
+SKU-0166,Ilkal,North Indian Katan,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,442,4908,2907,8257,28899,20229,11146,Ultra-Heavy Royal Heritage Pattu
+SKU-0167,Ilkal,North Indian Katan,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,442,28815,2907,32164,112574,78801,43421,Ultra-Heavy Royal Heritage Pattu
+SKU-0168,Ilkal,North Indian Katan,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,442,1007,2958,4407,15424,10797,5949,Lightweight Dress Silk
+SKU-0169,Ilkal,North Indian Katan,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,442,3850,2958,7250,25375,17762,9787,Lightweight Dress Silk
+SKU-0170,Kanchipuram,South Indian Heavy Pattu,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,577,3630,3861,8068,28238,19766,10891,Lightweight Dress Silk
+SKU-0171,Kanchipuram,South Indian Heavy Pattu,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,577,5709,3564,9850,34475,24132,13297,Standard Mid-Weight Saree
+SKU-0172,Kanchipuram,South Indian Heavy Pattu,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,577,4933,3399,8909,31181,21827,12027,Standard Mid-Weight Saree
+SKU-0173,Kanchipuram,South Indian Heavy Pattu,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,577,18876,3399,22852,79982,55987,30850,Standard Mid-Weight Saree
+SKU-0174,Kanchipuram,South Indian Heavy Pattu,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,577,9867,3729,14173,49605,34723,19133,Heavy Bridal Brocade
+SKU-0175,Kanchipuram,South Indian Heavy Pattu,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,577,4240,3729,8546,29911,20937,11537,Heavy Bridal Brocade
+SKU-0176,Kanchipuram,South Indian Heavy Pattu,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,577,1303,3630,5510,19285,13499,7438,Lightweight Dress Silk
+SKU-0177,Kanchipuram,South Indian Heavy Pattu,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,577,841,3630,5048,17668,12367,6814,Lightweight Dress Silk
+SKU-0178,Kanchipuram,South Soft Crepe Silk,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,561,3630,3597,7788,27258,19080,10513,Lightweight Dress Silk
+SKU-0179,Kanchipuram,South Soft Crepe Silk,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,561,1551,3597,5709,19981,13987,7707,Lightweight Dress Silk
+SKU-0180,Kanchipuram,South Soft Crepe Silk,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,561,9141,3597,13299,46546,32582,17953,Lightweight Dress Silk
+SKU-0181,Kanchipuram,South Soft Crepe Silk,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,561,7491,3927,11979,41926,29348,16171,Standard Mid-Weight Saree
+SKU-0182,Kanchipuram,South Soft Crepe Silk,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,561,4933,3927,9421,32973,23081,12718,Standard Mid-Weight Saree
+SKU-0183,Kanchipuram,South Soft Crepe Silk,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,561,3217,3927,7705,26967,18877,10401,Standard Mid-Weight Saree
+SKU-0184,Kanchipuram,South Soft Crepe Silk,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,561,9867,3729,14157,49549,34684,19111,Heavy Bridal Brocade
+SKU-0185,Kanchipuram,South Soft Crepe Silk,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,561,4240,3729,8530,29855,20898,11515,Heavy Bridal Brocade
+SKU-0186,Kanchipuram,South Soft Crepe Silk,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,561,24849,3729,29139,101986,71390,39337,Heavy Bridal Brocade
+SKU-0187,Kanchipuram,South Soft Crepe Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,561,14800,3696,19057,66699,46689,25726,Ultra-Heavy Royal Heritage Pattu
+SKU-0188,Maheshwar,Central Ribbed Weave,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,463,2970,2997,6430,22505,15753,8680,Lightweight Dress Silk
+SKU-0189,Maheshwar,Central Ribbed Weave,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,463,3078,3050,6591,23068,16147,8897,Standard Mid-Weight Saree
+SKU-0190,Maheshwar,Central Ribbed Weave,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,463,11758,3050,15271,53448,37413,20615,Standard Mid-Weight Saree
+SKU-0191,Maheshwar,Central Ribbed Weave,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,463,4036,2943,7442,26047,18232,10046,Standard Mid-Weight Saree
+SKU-0192,Maheshwar,Central Ribbed Weave,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,463,8073,3024,11560,40460,28322,15606,Heavy Bridal Brocade
+SKU-0193,Maheshwar,Central Ribbed Weave,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,463,20331,3024,23818,83363,58354,32154,Heavy Bridal Brocade
+SKU-0194,Maheshwar,Central Ribbed Weave,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,463,12109,2862,15434,54019,37813,20835,Ultra-Heavy Royal Heritage Pattu
+SKU-0195,Maheshwar,Central Ribbed Weave,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,463,5197,2862,8522,29827,20878,11504,Ultra-Heavy Royal Heritage Pattu
+SKU-0196,Maheshwar,Central Ribbed Weave,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,463,30510,2862,33835,118422,82895,45677,Ultra-Heavy Royal Heritage Pattu
+SKU-0197,Maheshwar,Deccan Fine Weave,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,477,1957,3132,5566,19481,13636,7514,Lightweight Dress Silk
+SKU-0198,Maheshwar,Deccan Fine Weave,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,477,4671,2943,8091,28318,19822,10922,Standard Mid-Weight Saree
+SKU-0199,Maheshwar,Deccan Fine Weave,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,477,3078,2943,6498,22743,15920,8772,Standard Mid-Weight Saree
+SKU-0200,Maheshwar,Deccan Fine Weave,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,477,11758,2943,15178,53123,37186,20490,Standard Mid-Weight Saree
+SKU-0201,Maheshwar,Deccan Fine Weave,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,477,6129,2808,9414,32949,23064,12708,Standard Mid-Weight Saree
+SKU-0202,Maheshwar,Deccan Fine Weave,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,477,2632,2808,5917,20709,14496,7987,Standard Mid-Weight Saree
+SKU-0203,Maheshwar,Deccan Fine Weave,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,477,8073,3050,11600,40600,28420,15660,Heavy Bridal Brocade
+SKU-0204,Maheshwar,Deccan Fine Weave,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,477,12109,3024,15610,54635,38244,21073,Ultra-Heavy Royal Heritage Pattu
+SKU-0205,Maheshwar,Deccan Fine Weave,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,477,7992,3024,11493,40225,28157,15515,Ultra-Heavy Royal Heritage Pattu
+SKU-0206,Maheshwar,Deccan Fine Weave,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,477,5197,3024,8698,30443,21310,11742,Ultra-Heavy Royal Heritage Pattu
+SKU-0207,Maheshwar,Deccan Fine Weave,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,477,30510,3024,34011,119038,83326,45914,Ultra-Heavy Royal Heritage Pattu
+SKU-0208,Maheshwar,Deccan Fine Weave,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,477,1620,2862,4959,17356,12149,6694,Lightweight Dress Silk
+SKU-0209,Maheshwar,Deccan Fine Weave,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,477,688,2862,4027,14094,9866,5436,Lightweight Dress Silk
+SKU-0210,Maheshwar,Deccan Fine Weave,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,477,4077,2862,7416,25956,18169,10011,Lightweight Dress Silk
+SKU-0211,Narayanpet,Central Ribbed Weave,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,454,2805,2830,6089,21311,14918,8220,Lightweight Dress Silk
+SKU-0212,Narayanpet,Central Ribbed Weave,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,454,1848,2830,5132,17962,12573,6928,Lightweight Dress Silk
+SKU-0213,Narayanpet,Central Ribbed Weave,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,454,7063,2830,10347,36214,25350,13968,Lightweight Dress Silk
+SKU-0214,Narayanpet,Central Ribbed Weave,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,454,4411,2881,7746,27111,18977,10457,Standard Mid-Weight Saree
+SKU-0215,Narayanpet,Central Ribbed Weave,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,454,5788,2779,9021,31573,22101,12178,Standard Mid-Weight Saree
+SKU-0216,Narayanpet,Central Ribbed Weave,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,454,5023,2856,8333,29165,20415,11249,Heavy Bridal Brocade
+SKU-0217,Narayanpet,Central Ribbed Weave,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,454,19201,2856,22511,78788,55151,30389,Heavy Bridal Brocade
+SKU-0218,Narayanpet,Central Ribbed Weave,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,454,11436,2703,14593,51075,35752,19700,Ultra-Heavy Royal Heritage Pattu
+SKU-0219,Narayanpet,Central Ribbed Weave,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,454,7548,2703,10705,37467,26227,14451,Ultra-Heavy Royal Heritage Pattu
+SKU-0220,Narayanpet,Central Ribbed Weave,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,454,28815,2703,31972,111902,78331,43162,Ultra-Heavy Royal Heritage Pattu
+SKU-0221,Narayanpet,Central Ribbed Weave,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,454,650,2575,3679,12876,9013,4966,Lightweight Dress Silk
+SKU-0222,Narayanpet,Central Ribbed Weave,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,454,3850,2575,6879,24076,16853,9286,Lightweight Dress Silk
+SKU-0223,Narayanpet,Deccan Cotton-Silk,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,433,2805,2703,5941,20793,14555,8020,Lightweight Dress Silk
+SKU-0224,Narayanpet,Deccan Cotton-Silk,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,433,1848,2703,4984,17444,12210,6728,Lightweight Dress Silk
+SKU-0225,Narayanpet,Deccan Cotton-Silk,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,433,1198,2703,4334,15169,10618,5850,Lightweight Dress Silk
+SKU-0226,Narayanpet,Deccan Cotton-Silk,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,433,7063,2703,10199,35696,24987,13768,Lightweight Dress Silk
+SKU-0227,Narayanpet,Deccan Cotton-Silk,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,433,2907,2856,6196,21686,15180,8364,Standard Mid-Weight Saree
+SKU-0228,Narayanpet,Deccan Cotton-Silk,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,433,1887,2856,5176,18116,12681,6987,Standard Mid-Weight Saree
+SKU-0229,Narayanpet,Deccan Cotton-Silk,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,433,11105,2856,14394,50379,35265,19431,Standard Mid-Weight Saree
+SKU-0230,Narayanpet,Deccan Cotton-Silk,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,433,2486,2983,5902,20657,14459,7967,Standard Mid-Weight Saree
+SKU-0231,Narayanpet,Deccan Cotton-Silk,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,433,7624,2932,10989,38461,26923,14835,Heavy Bridal Brocade
+SKU-0232,Narayanpet,Deccan Cotton-Silk,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,433,19201,2932,22566,78981,55286,30464,Heavy Bridal Brocade
+SKU-0233,Narayanpet,Deccan Cotton-Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,433,11436,2983,14852,51982,36387,20050,Ultra-Heavy Royal Heritage Pattu
+SKU-0234,Narayanpet,Deccan Cotton-Silk,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,433,1530,2881,4844,16954,11867,6539,Lightweight Dress Silk
+SKU-0235,Narayanpet,Deccan Cotton-Silk,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,433,3850,2881,7164,25074,17551,9671,Lightweight Dress Silk
+SKU-0236,Paithan,Deccan Kasuti Silk,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,540,2175,3570,6285,21997,15398,8484,Lightweight Dress Silk
+SKU-0237,Paithan,Deccan Kasuti Silk,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,540,1410,3570,5520,19320,13524,7452,Lightweight Dress Silk
+SKU-0238,Paithan,Deccan Kasuti Silk,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,540,8310,3570,12420,43470,30429,16767,Lightweight Dress Silk
+SKU-0239,Paithan,Deccan Kasuti Silk,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,540,3420,3240,7200,25200,17640,9720,Standard Mid-Weight Saree
+SKU-0240,Paithan,Deccan Kasuti Silk,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,540,2220,3240,6000,21000,14700,8100,Standard Mid-Weight Saree
+SKU-0241,Paithan,Deccan Kasuti Silk,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,540,13065,3240,16845,58957,41270,22740,Standard Mid-Weight Saree
+SKU-0242,Paithan,Deccan Kasuti Silk,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,540,4485,3360,8385,29347,20543,11319,Standard Mid-Weight Saree
+SKU-0243,Paithan,Deccan Kasuti Silk,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,540,2925,3360,6825,23887,16721,9213,Standard Mid-Weight Saree
+SKU-0244,Paithan,Deccan Kasuti Silk,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,540,8970,3270,12780,44730,31311,17253,Heavy Bridal Brocade
+SKU-0245,Paithan,Deccan Kasuti Silk,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,540,3855,3270,7665,26827,18779,10347,Heavy Bridal Brocade
+SKU-0246,Paithan,Deccan Kasuti Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,540,13455,3000,16995,59482,41637,22943,Ultra-Heavy Royal Heritage Pattu
+SKU-0247,Paithan,Deccan Kasuti Silk,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,540,8880,3000,12420,43470,30429,16767,Ultra-Heavy Royal Heritage Pattu
+SKU-0248,Paithan,Deccan Kasuti Silk,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,540,5775,3000,9315,32602,22821,12575,Ultra-Heavy Royal Heritage Pattu
+SKU-0249,Paithan,Deccan Kasuti Silk,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,540,33900,3000,37440,131040,91728,50544,Ultra-Heavy Royal Heritage Pattu
+SKU-0250,Paithan,Deccan Kasuti Silk,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,540,1800,3120,5460,19110,13377,7371,Lightweight Dress Silk
+SKU-0251,Paithan,Deccan Kasuti Silk,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,540,1185,3120,4845,16957,11870,6540,Lightweight Dress Silk
+SKU-0252,Paithan,Deccan Kasuti Silk,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,540,765,3120,4425,15487,10841,5973,Lightweight Dress Silk
+SKU-0253,Paithan,Deccan Kasuti Silk,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,540,4530,3120,8190,28665,20065,11056,Lightweight Dress Silk
+SKU-0254,Paithan,South Indian Heavy Pattu,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,540,3300,3510,7350,25725,18007,9922,Lightweight Dress Silk
+SKU-0255,Paithan,South Indian Heavy Pattu,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,540,2175,3510,6225,21787,15251,8403,Lightweight Dress Silk
+SKU-0256,Paithan,South Indian Heavy Pattu,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,540,1410,3510,5460,19110,13377,7371,Lightweight Dress Silk
+SKU-0257,Paithan,South Indian Heavy Pattu,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,540,5190,3240,8970,31395,21976,12109,Standard Mid-Weight Saree
+SKU-0258,Paithan,South Indian Heavy Pattu,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,540,6810,3090,10440,36540,25578,14094,Standard Mid-Weight Saree
+SKU-0259,Paithan,South Indian Heavy Pattu,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,540,4485,3090,8115,28402,19881,10955,Standard Mid-Weight Saree
+SKU-0260,Paithan,South Indian Heavy Pattu,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,540,2925,3090,6555,22942,16059,8849,Standard Mid-Weight Saree
+SKU-0261,Paithan,South Indian Heavy Pattu,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,540,17160,3090,20790,72765,50935,28066,Standard Mid-Weight Saree
+SKU-0262,Paithan,South Indian Heavy Pattu,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,540,8970,3389,12899,45146,31602,17413,Heavy Bridal Brocade
+SKU-0263,Paithan,South Indian Heavy Pattu,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,540,5910,3389,9839,34436,24105,13282,Heavy Bridal Brocade
+SKU-0264,Paithan,South Indian Heavy Pattu,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,540,3855,3389,7784,27244,19070,10508,Heavy Bridal Brocade
+SKU-0265,Paithan,South Indian Heavy Pattu,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,540,8880,3479,12899,45146,31602,17413,Ultra-Heavy Royal Heritage Pattu
+SKU-0266,Paithan,South Indian Heavy Pattu,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,540,33900,3479,37919,132716,92901,51190,Ultra-Heavy Royal Heritage Pattu
+SKU-0267,Paithan,South Indian Heavy Pattu,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,540,1800,3300,5640,19740,13818,7614,Lightweight Dress Silk
+SKU-0268,Paithan,South Indian Heavy Pattu,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,540,4530,3300,8370,29295,20506,11299,Lightweight Dress Silk
+SKU-0269,Pochampally,East Handloom Ikat,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,466,2904,2640,6010,21035,14724,8113,Lightweight Dress Silk
+SKU-0270,Pochampally,East Handloom Ikat,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,466,1914,2640,5020,17570,12299,6777,Lightweight Dress Silk
+SKU-0271,Pochampally,East Handloom Ikat,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,466,1240,2640,4346,15211,10647,5867,Lightweight Dress Silk
+SKU-0272,Pochampally,East Handloom Ikat,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,466,3009,3035,6510,22785,15949,8788,Standard Mid-Weight Saree
+SKU-0273,Pochampally,East Handloom Ikat,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,466,11497,3035,14998,52493,36745,20247,Standard Mid-Weight Saree
+SKU-0274,Pochampally,East Handloom Ikat,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,466,5992,2904,9362,32767,22936,12638,Standard Mid-Weight Saree
+SKU-0275,Pochampally,East Handloom Ikat,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,466,2574,2904,5944,20804,14562,8024,Standard Mid-Weight Saree
+SKU-0276,Pochampally,East Handloom Ikat,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,466,3392,2719,6577,23019,16113,8878,Heavy Bridal Brocade
+SKU-0277,Pochampally,East Handloom Ikat,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,466,19879,2719,23064,80724,56506,31136,Heavy Bridal Brocade
+SKU-0278,Pochampally,East Handloom Ikat,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,466,11840,2930,15236,53326,37328,20568,Ultra-Heavy Royal Heritage Pattu
+SKU-0279,Pochampally,East Handloom Ikat,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,466,29832,2930,33228,116298,81408,44857,Ultra-Heavy Royal Heritage Pattu
+SKU-0280,Pochampally,East Handloom Ikat,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,466,1584,2745,4795,16782,11747,6473,Lightweight Dress Silk
+SKU-0281,Pochampally,East Handloom Ikat,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,466,673,2745,3884,13594,9515,5243,Lightweight Dress Silk
+SKU-0282,Pochampally,East Handloom Ikat,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,466,3986,2745,7197,25189,17632,9715,Lightweight Dress Silk
+SKU-0283,Pochampally,South Tied-Dye Ikat,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,470,1914,2745,5129,17951,12566,6924,Lightweight Dress Silk
+SKU-0284,Pochampally,South Tied-Dye Ikat,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,470,7312,2745,10527,36844,25791,14211,Lightweight Dress Silk
+SKU-0285,Pochampally,South Tied-Dye Ikat,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,470,3009,2719,6198,21693,15185,8367,Standard Mid-Weight Saree
+SKU-0286,Pochampally,South Tied-Dye Ikat,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,470,1953,2719,5142,17997,12597,6941,Standard Mid-Weight Saree
+SKU-0287,Pochampally,South Tied-Dye Ikat,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,470,11497,2719,14686,51401,35980,19826,Standard Mid-Weight Saree
+SKU-0288,Pochampally,South Tied-Dye Ikat,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,470,3946,3141,7557,26449,18514,10201,Standard Mid-Weight Saree
+SKU-0289,Pochampally,South Tied-Dye Ikat,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,470,2574,3141,6185,21647,15153,8349,Standard Mid-Weight Saree
+SKU-0290,Pochampally,South Tied-Dye Ikat,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,470,15100,3141,18711,65488,45841,25259,Standard Mid-Weight Saree
+SKU-0291,Pochampally,South Tied-Dye Ikat,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,470,7893,3088,11451,40078,28054,15458,Heavy Bridal Brocade
+SKU-0292,Pochampally,South Tied-Dye Ikat,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,470,19879,3088,23437,82029,57420,31639,Heavy Bridal Brocade
+SKU-0293,Pochampally,South Tied-Dye Ikat,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,470,7814,2851,11135,38972,27280,15032,Ultra-Heavy Royal Heritage Pattu
+SKU-0294,Pochampally,South Tied-Dye Ikat,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,470,5082,2851,8403,29410,20587,11344,Ultra-Heavy Royal Heritage Pattu
+SKU-0295,Pochampally,South Tied-Dye Ikat,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,470,29832,2851,33153,116035,81224,44756,Ultra-Heavy Royal Heritage Pattu
+SKU-0296,Pochampally,South Tied-Dye Ikat,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,470,1042,2745,4257,14899,10429,5746,Lightweight Dress Silk
+SKU-0297,Pochampally,South Tied-Dye Ikat,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,470,673,2745,3888,13608,9525,5248,Lightweight Dress Silk
+SKU-0298,Pochampally,South Tied-Dye Ikat,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,470,3986,2745,7201,25203,17642,9721,Lightweight Dress Silk
+SKU-0299,Sambalpur,East Handloom Ikat,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,454,1848,2550,4852,16982,11887,6550,Lightweight Dress Silk
+SKU-0300,Sambalpur,East Handloom Ikat,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,454,4411,2932,7797,27289,19102,10525,Standard Mid-Weight Saree
+SKU-0301,Sambalpur,East Handloom Ikat,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,454,1887,2932,5273,18455,12918,7118,Standard Mid-Weight Saree
+SKU-0302,Sambalpur,East Handloom Ikat,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,454,11105,2932,14491,50718,35502,19562,Standard Mid-Weight Saree
+SKU-0303,Sambalpur,East Handloom Ikat,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,454,5788,2805,9047,31664,22165,12213,Standard Mid-Weight Saree
+SKU-0304,Sambalpur,East Handloom Ikat,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,454,14586,2805,17845,62457,43720,24090,Standard Mid-Weight Saree
+SKU-0305,Sambalpur,East Handloom Ikat,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,454,7624,2626,10704,37464,26224,14450,Heavy Bridal Brocade
+SKU-0306,Sambalpur,East Handloom Ikat,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,454,5023,2626,8103,28360,19852,10939,Heavy Bridal Brocade
+SKU-0307,Sambalpur,East Handloom Ikat,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,454,3276,2626,6356,22246,15572,8580,Heavy Bridal Brocade
+SKU-0308,Sambalpur,East Handloom Ikat,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,454,19201,2626,22281,77983,54588,30079,Heavy Bridal Brocade
+SKU-0309,Sambalpur,East Handloom Ikat,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,454,11436,2830,14720,51520,36064,19872,Ultra-Heavy Royal Heritage Pattu
+SKU-0310,Sambalpur,East Handloom Ikat,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,454,7548,2830,10832,37912,26538,14623,Ultra-Heavy Royal Heritage Pattu
+SKU-0311,Sambalpur,East Handloom Ikat,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,454,28815,2830,32099,112346,78642,43333,Ultra-Heavy Royal Heritage Pattu
+SKU-0312,Sambalpur,East Handloom Ikat,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,454,1530,2652,4636,16226,11358,6258,Lightweight Dress Silk
+SKU-0313,Sambalpur,East Handloom Ikat,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,454,650,2652,3756,13146,9202,5070,Lightweight Dress Silk
+SKU-0314,Sambalpur,East Handloom Ikat,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,454,3850,2652,6956,24346,17042,9390,Lightweight Dress Silk
+SKU-0315,Sambalpur,Northeast Assam Silk,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,433,1848,2703,4984,17444,12210,6728,Lightweight Dress Silk
+SKU-0316,Sambalpur,Northeast Assam Silk,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,433,1198,2703,4334,15169,10618,5850,Lightweight Dress Silk
+SKU-0317,Sambalpur,Northeast Assam Silk,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,433,4411,2958,7802,27307,19114,10532,Standard Mid-Weight Saree
+SKU-0318,Sambalpur,Northeast Assam Silk,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,433,1887,2958,5278,18473,12931,7125,Standard Mid-Weight Saree
+SKU-0319,Sambalpur,Northeast Assam Silk,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,433,11105,2958,14496,50736,35515,19569,Standard Mid-Weight Saree
+SKU-0320,Sambalpur,Northeast Assam Silk,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,433,3812,2601,6846,23961,16772,9242,Standard Mid-Weight Saree
+SKU-0321,Sambalpur,Northeast Assam Silk,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,433,2486,2601,5520,19320,13524,7452,Standard Mid-Weight Saree
+SKU-0322,Sambalpur,Northeast Assam Silk,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,433,14586,2601,17620,61670,43169,23787,Standard Mid-Weight Saree
+SKU-0323,Sambalpur,Northeast Assam Silk,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,433,5023,2703,8159,28556,19989,11014,Heavy Bridal Brocade
+SKU-0324,Sambalpur,Northeast Assam Silk,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,433,3276,2703,6412,22442,15709,8656,Heavy Bridal Brocade
+SKU-0325,Sambalpur,Northeast Assam Silk,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,433,19201,2703,22337,78179,54725,30154,Heavy Bridal Brocade
+SKU-0326,Sambalpur,Northeast Assam Silk,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,433,4908,2550,7891,27618,19332,10652,Ultra-Heavy Royal Heritage Pattu
+SKU-0327,Sambalpur,Northeast Assam Silk,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,433,28815,2550,31798,111293,77905,42927,Ultra-Heavy Royal Heritage Pattu
+SKU-0328,Sambalpur,Northeast Assam Silk,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,433,1530,2856,4819,16866,11806,6505,Lightweight Dress Silk
+SKU-0329,Sambalpur,Northeast Assam Silk,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,433,1007,2856,4296,15036,10525,5799,Lightweight Dress Silk
+SKU-0330,Sambalpur,Northeast Assam Silk,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,433,3850,2856,7139,24986,17490,9637,Lightweight Dress Silk
+SKU-0331,Sualkuchi,East Handloom Ikat,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,450,2970,2700,6120,21420,14994,8262,Lightweight Dress Silk
+SKU-0332,Sualkuchi,East Handloom Ikat,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,450,1269,2700,4419,15466,10826,5965,Lightweight Dress Silk
+SKU-0333,Sualkuchi,East Handloom Ikat,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,450,3078,3104,6632,23212,16248,8953,Standard Mid-Weight Saree
+SKU-0334,Sualkuchi,East Handloom Ikat,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,450,1998,3104,5552,19432,13602,7495,Standard Mid-Weight Saree
+SKU-0335,Sualkuchi,East Handloom Ikat,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,450,6129,2970,9549,33421,23395,12891,Standard Mid-Weight Saree
+SKU-0336,Sualkuchi,East Handloom Ikat,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,450,15444,2970,18864,66024,46216,25466,Standard Mid-Weight Saree
+SKU-0337,Sualkuchi,East Handloom Ikat,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,450,5319,2781,8550,29925,20947,11542,Heavy Bridal Brocade
+SKU-0338,Sualkuchi,East Handloom Ikat,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,450,20331,2781,23562,82467,57726,31808,Heavy Bridal Brocade
+SKU-0339,Sualkuchi,East Handloom Ikat,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,450,12109,2997,15556,54446,38112,21000,Ultra-Heavy Royal Heritage Pattu
+SKU-0340,Sualkuchi,East Handloom Ikat,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,450,7992,2997,11439,40036,28025,15442,Ultra-Heavy Royal Heritage Pattu
+SKU-0341,Sualkuchi,East Handloom Ikat,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,450,1620,2808,4878,17073,11951,6585,Lightweight Dress Silk
+SKU-0342,Sualkuchi,East Handloom Ikat,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,450,688,2808,3946,13811,9667,5327,Lightweight Dress Silk
+SKU-0343,Sualkuchi,Northeast Assam Silk,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,472,1998,3132,5602,19607,13724,7562,Standard Mid-Weight Saree
+SKU-0344,Sualkuchi,Northeast Assam Silk,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,472,11758,3132,15362,53767,37636,20738,Standard Mid-Weight Saree
+SKU-0345,Sualkuchi,Northeast Assam Silk,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,472,2632,2754,5858,20503,14352,7908,Standard Mid-Weight Saree
+SKU-0346,Sualkuchi,Northeast Assam Silk,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,472,3469,2862,6803,23810,16667,9184,Heavy Bridal Brocade
+SKU-0347,Sualkuchi,Northeast Assam Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,472,12109,2700,15281,53483,37438,20629,Ultra-Heavy Royal Heritage Pattu
+SKU-0348,Sualkuchi,Northeast Assam Silk,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,472,1620,3024,5116,17906,12534,6906,Lightweight Dress Silk
+SKU-0349,Sualkuchi,Northeast Assam Silk,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,472,688,3024,4184,14644,10250,5648,Lightweight Dress Silk
+SKU-0350,Sualkuchi,Northeast Assam Silk,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,472,4077,3024,7573,26505,18553,10223,Lightweight Dress Silk
+SKU-0351,Surat,Deccan Cotton-Silk,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,468,1957,2862,5287,18504,12953,7137,Lightweight Dress Silk
+SKU-0352,Surat,Deccan Cotton-Silk,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,468,1269,2862,4599,16096,11267,6208,Lightweight Dress Silk
+SKU-0353,Surat,Deccan Cotton-Silk,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,468,7479,2862,10809,37831,26482,14592,Lightweight Dress Silk
+SKU-0354,Surat,Deccan Cotton-Silk,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,468,4671,3024,8163,28570,19999,11020,Standard Mid-Weight Saree
+SKU-0355,Surat,Deccan Cotton-Silk,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,468,3078,3024,6570,22995,16096,8869,Standard Mid-Weight Saree
+SKU-0356,Surat,Deccan Cotton-Silk,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,468,1998,3024,5490,19215,13450,7411,Standard Mid-Weight Saree
+SKU-0357,Surat,Deccan Cotton-Silk,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,468,6129,3159,9756,34146,23902,13170,Standard Mid-Weight Saree
+SKU-0358,Surat,Deccan Cotton-Silk,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,468,2632,3159,6259,21906,15334,8449,Standard Mid-Weight Saree
+SKU-0359,Surat,Deccan Cotton-Silk,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,468,15444,3159,19071,66748,46723,25745,Standard Mid-Weight Saree
+SKU-0360,Surat,Deccan Cotton-Silk,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,468,8073,3104,11645,40757,28530,15720,Heavy Bridal Brocade
+SKU-0361,Surat,Deccan Cotton-Silk,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,468,3469,3104,7041,24643,17250,9505,Heavy Bridal Brocade
+SKU-0362,Surat,Deccan Cotton-Silk,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,468,20331,3104,23903,83660,58562,32269,Heavy Bridal Brocade
+SKU-0363,Surat,Deccan Cotton-Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,468,12109,3159,15736,55076,38553,21243,Ultra-Heavy Royal Heritage Pattu
+SKU-0364,Surat,Deccan Cotton-Silk,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,468,7992,3159,11619,40666,28466,15685,Ultra-Heavy Royal Heritage Pattu
+SKU-0365,Surat,Deccan Cotton-Silk,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,468,30510,3159,34137,119479,83635,46084,Ultra-Heavy Royal Heritage Pattu
+SKU-0366,Surat,Deccan Cotton-Silk,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,468,1620,3050,5138,17983,12588,6936,Lightweight Dress Silk
+SKU-0367,Surat,Deccan Cotton-Silk,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,468,1066,3050,4584,16044,11230,6188,Lightweight Dress Silk
+SKU-0368,Surat,Deccan Cotton-Silk,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,468,4077,3050,7595,26582,18607,10253,Lightweight Dress Silk
+SKU-0369,Surat,North Silk-Cotton Mix,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,454,1957,2700,5111,17888,12521,6899,Lightweight Dress Silk
+SKU-0370,Surat,North Silk-Cotton Mix,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,454,1998,3024,5476,19166,13416,7392,Standard Mid-Weight Saree
+SKU-0371,Surat,North Silk-Cotton Mix,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,454,11758,3024,15236,53326,37328,20568,Standard Mid-Weight Saree
+SKU-0372,Surat,North Silk-Cotton Mix,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,454,4036,2835,7325,25637,17946,9888,Standard Mid-Weight Saree
+SKU-0373,Surat,North Silk-Cotton Mix,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,454,15444,2835,18733,65565,45895,25289,Standard Mid-Weight Saree
+SKU-0374,Surat,North Silk-Cotton Mix,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,454,8073,2727,11254,39389,27572,15192,Heavy Bridal Brocade
+SKU-0375,Surat,North Silk-Cotton Mix,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,454,12109,3186,15749,55121,38585,21261,Ultra-Heavy Royal Heritage Pattu
+SKU-0376,Surat,North Silk-Cotton Mix,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,454,7992,3186,11632,40712,28498,15703,Ultra-Heavy Royal Heritage Pattu
+SKU-0377,Surat,North Silk-Cotton Mix,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,454,30510,3186,34150,119525,83667,46102,Ultra-Heavy Royal Heritage Pattu
+SKU-0378,Uppada,East Handloom Ikat,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,484,3135,2850,6469,22641,15849,8733,Lightweight Dress Silk
+SKU-0379,Uppada,East Handloom Ikat,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,484,2066,2850,5400,18900,13230,7290,Lightweight Dress Silk
+SKU-0380,Uppada,East Handloom Ikat,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,484,1339,2850,4673,16355,11448,6308,Lightweight Dress Silk
+SKU-0381,Uppada,East Handloom Ikat,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,484,7894,2850,11228,39298,27508,15157,Lightweight Dress Silk
+SKU-0382,Uppada,East Handloom Ikat,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,484,2109,3277,5870,20545,14381,7924,Standard Mid-Weight Saree
+SKU-0383,Uppada,East Handloom Ikat,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,484,12411,3277,16172,56602,39621,21832,Standard Mid-Weight Saree
+SKU-0384,Uppada,East Handloom Ikat,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,484,6469,3135,10088,35308,24715,13618,Standard Mid-Weight Saree
+SKU-0385,Uppada,East Handloom Ikat,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,484,4260,3135,7879,27576,19303,10636,Standard Mid-Weight Saree
+SKU-0386,Uppada,East Handloom Ikat,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,484,2778,3135,6397,22389,15672,8635,Standard Mid-Weight Saree
+SKU-0387,Uppada,East Handloom Ikat,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,484,16302,3135,19921,69723,48806,26893,Standard Mid-Weight Saree
+SKU-0388,Uppada,East Handloom Ikat,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,484,5614,2935,9033,31615,22130,12194,Heavy Bridal Brocade
+SKU-0389,Uppada,East Handloom Ikat,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,484,12782,3163,16429,57501,40251,22179,Ultra-Heavy Royal Heritage Pattu
+SKU-0390,Uppada,East Handloom Ikat,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,484,8436,3163,12083,42290,29603,16312,Ultra-Heavy Royal Heritage Pattu
+SKU-0391,Uppada,East Handloom Ikat,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,484,32205,3163,35852,125482,87837,48400,Ultra-Heavy Royal Heritage Pattu
+SKU-0392,Uppada,East Handloom Ikat,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,484,1710,2964,5158,18053,12637,6963,Lightweight Dress Silk
+SKU-0393,Uppada,East Handloom Ikat,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,484,4303,2964,7751,27128,18989,10463,Lightweight Dress Silk
+SKU-0394,Uppada,South Jamdani Translucent,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,494,3135,3277,6906,24171,16919,9323,Lightweight Dress Silk
+SKU-0395,Uppada,South Jamdani Translucent,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,494,2066,3277,5837,20429,14300,7879,Lightweight Dress Silk
+SKU-0396,Uppada,South Jamdani Translucent,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,494,3249,3106,6849,23971,16780,9246,Standard Mid-Weight Saree
+SKU-0397,Uppada,South Jamdani Translucent,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,494,6469,3021,9984,34944,24460,13478,Standard Mid-Weight Saree
+SKU-0398,Uppada,South Jamdani Translucent,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,494,2778,3021,6293,22025,15417,8495,Standard Mid-Weight Saree
+SKU-0399,Uppada,South Jamdani Translucent,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,494,3662,3049,7205,25217,17652,9726,Heavy Bridal Brocade
+SKU-0400,Uppada,South Jamdani Translucent,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,494,21460,3049,25003,87510,61257,33754,Heavy Bridal Brocade
+SKU-0401,Uppada,South Jamdani Translucent,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,494,12782,3106,16382,57337,40135,22115,Ultra-Heavy Royal Heritage Pattu
+SKU-0402,Uppada,South Jamdani Translucent,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,494,8436,3106,12036,42126,29488,16248,Ultra-Heavy Royal Heritage Pattu
+SKU-0403,Uppada,South Jamdani Translucent,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,494,5486,3106,9086,31801,22260,12266,Ultra-Heavy Royal Heritage Pattu
+SKU-0404,Uppada,South Jamdani Translucent,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,494,1125,3334,4953,17335,12134,6686,Lightweight Dress Silk
+SKU-0405,Varanasi,North Indian Katan,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,500,2175,3240,5915,20702,14491,7985,Lightweight Dress Silk
+SKU-0406,Varanasi,North Indian Katan,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,500,5190,3030,8720,30520,21364,11772,Standard Mid-Weight Saree
+SKU-0407,Varanasi,North Indian Katan,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,500,2220,3030,5750,20125,14087,7762,Standard Mid-Weight Saree
+SKU-0408,Varanasi,North Indian Katan,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,500,6810,3570,10880,38080,26656,14688,Standard Mid-Weight Saree
+SKU-0409,Varanasi,North Indian Katan,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,500,4485,3570,8555,29942,20959,11549,Standard Mid-Weight Saree
+SKU-0410,Varanasi,North Indian Katan,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,500,2925,3570,6995,24482,17137,9443,Standard Mid-Weight Saree
+SKU-0411,Varanasi,North Indian Katan,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,500,8970,3180,12650,44275,30992,17077,Heavy Bridal Brocade
+SKU-0412,Varanasi,North Indian Katan,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,500,5910,3180,9590,33565,23495,12946,Heavy Bridal Brocade
+SKU-0413,Varanasi,North Indian Katan,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,500,3855,3180,7535,26372,18460,10172,Heavy Bridal Brocade
+SKU-0414,Varanasi,North Indian Katan,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,500,13455,3420,17375,60812,42568,23456,Ultra-Heavy Royal Heritage Pattu
+SKU-0415,Varanasi,North Indian Katan,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,500,5775,3420,9695,33932,23752,13088,Ultra-Heavy Royal Heritage Pattu
+SKU-0416,Varanasi,North Indian Katan,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,500,33900,3420,37820,132370,92659,51057,Ultra-Heavy Royal Heritage Pattu
+SKU-0417,Varanasi,North Indian Katan,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,500,1185,3479,5164,18074,12651,6971,Lightweight Dress Silk
+SKU-0418,Varanasi,North Silk-Cotton Mix,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,545,3300,3000,6845,23957,16770,9240,Lightweight Dress Silk
+SKU-0419,Varanasi,North Silk-Cotton Mix,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,545,2175,3000,5720,20020,14014,7722,Lightweight Dress Silk
+SKU-0420,Varanasi,North Silk-Cotton Mix,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,545,8310,3000,11855,41492,29044,16004,Lightweight Dress Silk
+SKU-0421,Varanasi,North Silk-Cotton Mix,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,545,3420,3360,7325,25637,17946,9888,Standard Mid-Weight Saree
+SKU-0422,Varanasi,North Silk-Cotton Mix,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,545,2220,3360,6125,21437,15006,8268,Standard Mid-Weight Saree
+SKU-0423,Varanasi,North Silk-Cotton Mix,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,545,6810,3150,10505,36767,25737,14181,Standard Mid-Weight Saree
+SKU-0424,Varanasi,North Silk-Cotton Mix,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,545,4485,3150,8180,28630,20041,11043,Standard Mid-Weight Saree
+SKU-0425,Varanasi,North Silk-Cotton Mix,2400 Hooks,3G Gold Zari,19/21 D,23/25 D,65 Denier,39,53,195,25,571,545,2925,3150,6620,23170,16219,8937,Standard Mid-Weight Saree
+SKU-0426,Varanasi,North Silk-Cotton Mix,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,545,17160,3150,20855,72992,51094,28154,Standard Mid-Weight Saree
+SKU-0427,Varanasi,North Silk-Cotton Mix,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,545,5910,3030,9485,33197,23238,12804,Heavy Bridal Brocade
+SKU-0428,Varanasi,North Silk-Cotton Mix,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,545,3855,3030,7430,26005,18203,10030,Heavy Bridal Brocade
+SKU-0429,Varanasi,North Silk-Cotton Mix,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,545,22590,3030,26165,91577,64104,35322,Heavy Bridal Brocade
+SKU-0430,Varanasi,North Silk-Cotton Mix,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,545,8880,3540,12965,45377,31764,17502,Ultra-Heavy Royal Heritage Pattu
+SKU-0431,Varanasi,North Silk-Cotton Mix,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,545,33900,3540,37985,132947,93063,51279,Ultra-Heavy Royal Heritage Pattu
+SKU-0432,Varanasi,North Silk-Cotton Mix,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,545,1800,3210,5555,19442,13609,7499,Lightweight Dress Silk
+SKU-0433,Varanasi,North Silk-Cotton Mix,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,545,765,3210,4520,15820,11074,6102,Lightweight Dress Silk
+SKU-0434,Venkatagiri,South Jamdani Translucent,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,473,2001,3173,5647,19764,13835,7623,Lightweight Dress Silk
+SKU-0435,Venkatagiri,South Jamdani Translucent,1024 Hooks,3G Gold Zari,17/19 D,21/23 D,55 Denier,35,49,94,14,318,473,1297,3173,4943,17300,12110,6673,Lightweight Dress Silk
+SKU-0436,Venkatagiri,South Jamdani Translucent,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,473,7645,3173,11291,39518,27662,15242,Lightweight Dress Silk
+SKU-0437,Venkatagiri,South Jamdani Translucent,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,473,3146,3008,6627,23194,16236,8946,Standard Mid-Weight Saree
+SKU-0438,Venkatagiri,South Jamdani Translucent,1534 Hooks,3G Gold Zari,18/20 D,22/24 D,60 Denier,37,51,148,20,454,473,2042,3008,5523,19330,13531,7456,Standard Mid-Weight Saree
+SKU-0439,Venkatagiri,South Jamdani Translucent,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,473,12019,3008,15500,54250,37975,20925,Standard Mid-Weight Saree
+SKU-0440,Venkatagiri,South Jamdani Translucent,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,473,6265,2925,9663,33820,23674,13045,Standard Mid-Weight Saree
+SKU-0441,Venkatagiri,South Jamdani Translucent,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,473,8252,2953,11678,40873,28611,15765,Heavy Bridal Brocade
+SKU-0442,Venkatagiri,South Jamdani Translucent,2688 Hooks,2G Gold Zari,20/22 D,24/26 D,65 Denier,41,56,394,31,725,473,5437,2953,8863,31020,21714,11965,Heavy Bridal Brocade
+SKU-0443,Venkatagiri,South Jamdani Translucent,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,473,3546,2953,6972,24402,17081,9412,Heavy Bridal Brocade
+SKU-0444,Venkatagiri,South Jamdani Translucent,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,473,20782,2953,24208,84728,59309,32680,Heavy Bridal Brocade
+SKU-0445,Venkatagiri,South Jamdani Translucent,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,473,31188,3008,34669,121341,84939,46803,Ultra-Heavy Royal Heritage Pattu
+SKU-0446,Venkatagiri,South Jamdani Translucent,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,473,1656,3229,5358,18753,13127,7233,Lightweight Dress Silk
+SKU-0447,Venkatagiri,South Jamdani Translucent,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,473,703,3229,4405,15417,10792,5946,Lightweight Dress Silk
+SKU-0448,Venkatagiri,South Jamdani Translucent,640 Hooks,5G Gold Zari,16/18 D,20/22 D,55 Denier,33,47,302,9,209,473,4167,3229,7869,27541,19279,10623,Lightweight Dress Silk
+SKU-0449,Venkatagiri,South Soft Crepe Silk,1024 Hooks,2G Gold Zari,17/19 D,21/23 D,50 Denier,35,49,145,14,318,473,2001,3008,5482,19187,13430,7400,Lightweight Dress Silk
+SKU-0450,Venkatagiri,South Soft Crepe Silk,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,473,4774,2815,8062,28217,19751,10883,Standard Mid-Weight Saree
+SKU-0451,Venkatagiri,South Soft Crepe Silk,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,473,3146,2815,6434,22519,15763,8685,Standard Mid-Weight Saree
+SKU-0452,Venkatagiri,South Soft Crepe Silk,2400 Hooks,1Gram Gold Zari,19/21 D,23/25 D,55 Denier,39,53,454,25,571,473,6265,3284,10022,35077,24553,13529,Standard Mid-Weight Saree
+SKU-0453,Venkatagiri,South Soft Crepe Silk,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,473,15787,3284,19544,68404,47882,26384,Standard Mid-Weight Saree
+SKU-0454,Venkatagiri,South Soft Crepe Silk,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,473,20782,3118,24373,85305,59713,32903,Heavy Bridal Brocade
+SKU-0455,Venkatagiri,South Soft Crepe Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,473,12378,3091,15942,55797,39057,21521,Ultra-Heavy Royal Heritage Pattu
+SKU-0456,Venkatagiri,South Soft Crepe Silk,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,473,5313,3091,8877,31069,21748,11983,Ultra-Heavy Royal Heritage Pattu
+SKU-0457,Venkatagiri,South Soft Crepe Silk,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,473,1656,2898,5027,17594,12316,6786,Lightweight Dress Silk
+SKU-0458,Yeola,Deccan Kasuti Silk,1024 Hooks,5G Gold Zari,17/19 D,21/23 D,60 Denier,35,49,554,14,318,475,7894,3391,11760,41160,28812,15876,Lightweight Dress Silk
+SKU-0459,Yeola,Deccan Kasuti Silk,1534 Hooks,2G Gold Zari,18/20 D,22/24 D,55 Denier,37,51,228,20,454,475,3249,3078,6802,23807,16664,9182,Standard Mid-Weight Saree
+SKU-0460,Yeola,Deccan Kasuti Silk,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,475,12411,3078,15964,55874,39111,21551,Standard Mid-Weight Saree
+SKU-0461,Yeola,Deccan Kasuti Silk,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,475,8521,3106,12102,42357,29649,16337,Heavy Bridal Brocade
+SKU-0462,Yeola,Deccan Kasuti Silk,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,475,3662,3106,7243,25350,17745,9778,Heavy Bridal Brocade
+SKU-0463,Yeola,Deccan Kasuti Silk,2688 Hooks,5G Gold Zari,20/22 D,24/26 D,40 Denier,41,56,1506,31,725,475,21460,3106,25041,87643,61350,33805,Heavy Bridal Brocade
+SKU-0464,Yeola,Deccan Kasuti Silk,5400 Hooks,1Gram Gold Zari,22/24 D,28/30 D,65 Denier,45,64,897,45,1051,475,12782,2850,16107,56374,39462,21744,Ultra-Heavy Royal Heritage Pattu
+SKU-0465,Yeola,Deccan Kasuti Silk,5400 Hooks,2G Gold Zari,22/24 D,28/30 D,70 Denier,45,64,592,45,1051,475,8436,2850,11761,41163,28814,15877,Ultra-Heavy Royal Heritage Pattu
+SKU-0466,Yeola,Deccan Kasuti Silk,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,475,5486,2850,8811,30838,21586,11894,Ultra-Heavy Royal Heritage Pattu
+SKU-0467,Yeola,Deccan Kasuti Silk,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,475,32205,2850,35530,124355,87048,47965,Ultra-Heavy Royal Heritage Pattu
+SKU-0468,Yeola,Deccan Kasuti Silk,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,475,1125,2964,4564,15974,11181,6161,Lightweight Dress Silk
+SKU-0469,Yeola,South Tied-Dye Ikat,1024 Hooks,1Gram Gold Zari,17/19 D,21/23 D,45 Denier,35,49,220,14,318,513,3135,2964,6612,23142,16199,8926,Lightweight Dress Silk
+SKU-0470,Yeola,South Tied-Dye Ikat,1534 Hooks,1Gram Gold Zari,18/20 D,22/24 D,50 Denier,37,51,346,20,454,513,4930,2935,8378,29323,20526,11310,Standard Mid-Weight Saree
+SKU-0471,Yeola,South Tied-Dye Ikat,1534 Hooks,5G Gold Zari,18/20 D,22/24 D,65 Denier,37,51,871,20,454,513,12411,2935,15859,55506,38854,21409,Standard Mid-Weight Saree
+SKU-0472,Yeola,South Tied-Dye Ikat,2400 Hooks,2G Gold Zari,19/21 D,23/25 D,60 Denier,39,53,299,25,571,513,4260,3391,8164,28574,20001,11021,Standard Mid-Weight Saree
+SKU-0473,Yeola,South Tied-Dye Ikat,2400 Hooks,5G Gold Zari,19/21 D,23/25 D,70 Denier,39,53,1144,25,571,513,16302,3391,20206,70721,49504,27278,Standard Mid-Weight Saree
+SKU-0474,Yeola,South Tied-Dye Ikat,2688 Hooks,1Gram Gold Zari,20/22 D,24/26 D,60 Denier,41,56,598,31,725,513,8521,3334,12368,43288,30301,16696,Heavy Bridal Brocade
+SKU-0475,Yeola,South Tied-Dye Ikat,2688 Hooks,3G Gold Zari,20/22 D,24/26 D,70 Denier,41,56,257,31,725,513,3662,3334,7509,26281,18397,10137,Heavy Bridal Brocade
+SKU-0476,Yeola,South Tied-Dye Ikat,5400 Hooks,3G Gold Zari,22/24 D,28/30 D,40 Denier,45,64,385,45,1051,513,5486,3078,9077,31769,22238,12253,Ultra-Heavy Royal Heritage Pattu
+SKU-0477,Yeola,South Tied-Dye Ikat,5400 Hooks,5G Gold Zari,22/24 D,28/30 D,45 Denier,45,64,2260,45,1051,513,32205,3078,35796,125286,87700,48324,Ultra-Heavy Royal Heritage Pattu
+SKU-0478,Yeola,South Tied-Dye Ikat,640 Hooks,1Gram Gold Zari,16/18 D,20/22 D,40 Denier,33,47,120,9,209,513,1710,2964,5187,18154,12708,7002,Lightweight Dress Silk
+SKU-0479,Yeola,South Tied-Dye Ikat,640 Hooks,2G Gold Zari,16/18 D,20/22 D,45 Denier,33,47,79,9,209,513,1125,2964,4602,16107,11274,6212,Lightweight Dress Silk
+SKU-0480,Yeola,South Tied-Dye Ikat,640 Hooks,3G Gold Zari,16/18 D,20/22 D,50 Denier,33,47,51,9,209,513,726,2964,4203,14710,10297,5674,Lightweight Dress Silk

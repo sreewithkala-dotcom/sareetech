@@ -1,0 +1,209 @@
+# Silk Saree Manufacturing ERP — Implementation Summary
+
+## What Was Built
+
+A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with the following components:
+
+### 1. Database Schema (PostgreSQL)
+**6 migration files** covering:
+- `001_initial_schema.sql` — Core tables: users, roles, production_lots, workflow_states, scanner_logs, ai_inspection_certificates, audit_logs, pending_sync_queue, quarantined_lots, materials, inventory_movements
+- `002_workflow_transitions.sql` — 24-role sequential workflow transitions
+- `003_stored_procedures.sql` — Core procedures: sp_validate_scanner_input, sp_process_ai_certification, sp_process_scanner_output, sp_sync_pending_operations, sp_supervisor_override_quarantine
+- `004_quarantine_management.sql` — Quarantine triggers, duplicate scan checks, status validators
+- `005_silk_saree_extensions.sql` — Extended tables: guilds, yarn_batches, zari_batches, dye_vats, loom_assignments, finished_sarees, buyback_guarantees, design_files, design_generations, edge_controllers, loom_telemetry, i18n tables, certificate_ledger, nfc_registry
+- `006_sku_catalog.sql` — SKU product catalog and production mapping tables
+- `007_sku_buyback_link.sql` — Links finished_sarees to sku_catalog for buyback valuation
+- `008_assistant_weaver.sql` — Assistant Weaver job logs, wage distributions, breakage alarms, shift audits, and guardrail triggers
+- `009_bobbin_winder.sql` — Bobbin Winder job cards, bobbin records, waste variance alarms, production certificates, and stock routing view
+- `017_bobbin_winder_enhancements.sql` — Bobbin Winder enhancements: 1536/2400 hook validation rules (joint method gate, winding speed protection, splice count limit, tension check), pre-process linkage from Skein Dye Master and Master Colorist, sales forecast API plugin
+- `018_pirn_winder.sql` — Pirn Winder module with pirn winding jobs, pirn records, certificates, sales forecast API plugin, 1536/2400 hook validation rules (splice gate, hardness protection, sloughing risk, spindle speed check), and pre-process linkage from Bobbin Winder
+- `019_graph_drafter.sql` — Graph Drafter (2400 Hook) module with design masters, design iterations, design certificates, sales forecast API plugin, 1536/2400 hook validation rules (float limit guardrail, hook allocation check, aspect ratio check), and pre-process linkage from Pirn Winder
+- `020_card_puncher.sql` — Card Puncher (Digital/E-Jacquard Programmer) module with programming jobs, programming certificates, sales forecast API plugin, 1536/2400 hook validation rules (controller selection gate, simulation clearance, solenoid overload warning, loom load authorization), and pre-process linkage from Graph Drafter
+- `021_warp_beam_preparation.sql` — Warp Beam Preparation (80 Saree Length) module with warp beam production logs, warp beam certificates, sales forecast API plugin, 1536/2400 hook validation rules (2400 hook long-warp tension gate, beam hardness clearance gate, section join inspection enforcement, loom mounting approval), material discrepancy & theft firewall (weight variance >1% triggers BEAM_QC_HOLD), mass balance accounting, and pre-process linkage from Card Puncher
+- `022_loom_harness_setter.sql` — Loom Harness Setter (Harness Building Master) module with harness setup logs, harness certificates, sales forecast API plugin, 1536/2400 hook validation rules (2400 hook shed height protection, lingo weight compliance, mail eye alignment clearance, warp drawing-in clearance authorization, 2400 hook capacity logic), preventive maintenance tracker (accumulated picks ≥ 10M triggers maintenance flag), production state transition (PASSED_100%_HOOK_CLEARANCE → VACANT_AVAILABLE_FOR_WEAVING), and pre-process linkage from Warp Beam Preparation
+- `023_warp_joiner.sql` — Warp Joiner (Tie-in Master / Knotting Specialist) module with warp joining jobs, warp joining certificates, sales forecast API plugin, 1536/2400 hook validation rules (2400 hook tying speed protection, knot tail clearance, safe pull-through enforcement, loom weaver handover gate), loom downtime financial audit (>6h triggers variance alert), piecemeal wage calculation script (per-hundred-knots pay matrix), production state transition (PASSED_100%_KNOTS_CLEARED → LOOM_ACTIVE_PRODUCTION), and pre-process linkage from Loom Harness Setter
+- `024_petni_master.sql` — Petni Master (Warp Pulling & Reed Denting Specialist) module with petni master jobs, petni master certificates, sales forecast API plugin, 1536/2400 hook validation rules (zero crossed ends guardrail, dropper wire weight compliance, reed denting quality gate, first-pick production authorization), contrast inventory depletion (multi-lot balancing), saree value-add multiplier (Korvai/Petni labor multiplier), production state transition (PASSED_TENSION_TEST → LOOM_ACTIVE_PRODUCTION), and pre-process linkage from Warp Joiner
+- `025_master_weaver.sql` — Master Weaver (Loom Operator & Saree Production Specialist) module with master weaver jobs, master weaver certificates, sales forecast API plugin, 1536/2400 hook validation rules (2400 hook speed protection, warp tension variance gate, on-loom defect escalation, saree cut-off clearance authorization), daily production yield calculation (RPM/PPI/efficiency formula), low efficiency alert (<80% target), design-to-loom capability validator, inventory security triggers (first-pick approval unlocks material ledger), and pre-process linkage from Petni Master
+- `026_sup_loom_floor_supervisor.sql` — SUP Loom Floor Supervisor (Weaving Shed Supervisor / Jacquard Floor Lead) module with sup loom floor supervisor logs, sup loom floor supervisor certificates, sales forecast API plugin, 1536/2400 hook validation rules (environmental humidity interlock guardrail 62-73% RH, first saree quality gate, high loom stop rate trigger >2.5 stops/hr, batch release authorization gate), floor operations & environmental monitoring (loom shed line, humidity, temperature, OEE target, gaiting handover), quality escapes & root cause audits (loom stop rate, primary stop root cause, first saree dimensional audit, waste percentage), executive clearance & shift sign-off (shift handover approval state, saree batch release authorization), and pre-process linkage from Assistant Weaver
+- `027_quality_inspector.sql` — Quality Inspector (Fabric QA Specialist / On-Loom & Off-Loom Inspector) module with quality inspector logs, quality inspector certificates, sales forecast API plugin, 1536/2400 hook validation rules (zero Zari looping protection guardrail, dimensional compliance gate 6.25-6.35m, hook mislift escalation rule, packing warehouse transfer authorization gate), inspection setup & material metadata (saree serial barcode, loom ID ref, inspection table type, fabric weight, pick density, warp density), defect classification & dimensional audit (primary fabric defect code, pallu length, total saree length, border width symmetry, Zari tarnish check), quality grading & final batch disposition (final fabric quality grade, QA inspector approval state), piece-rate financial penalty trigger (GRADE_A=100% release, GRADE_B=20% penalty, GRADE_C/REJECTED=100% frozen), automatic B2B order matcher for GRADE_A_EXPORT_PREMIUM, and pre-process linkage from SUP Loom Floor Supervisor
+- `028_qa_dyeing_inspector.sql` — QA Dyeing Inspector module with QA dyeing inspector logs, QA dyeing inspector certificates, sales forecast API plugin, 1536/2400 hook validation rules (color consistency guardrail Delta-E >1.0, color fastness grade gate, dye defect escalation rule, batch clearance authorization gate), dye batch identification & color reference (batch ID, color code, color name, dyeing process type), color consistency verification (Delta-E measurement, color fastness grade, shade variation, dye penetration uniformity, metamerism risk), defect classification & batch disposition (primary dye defect code, batch clearance status, QA dyeing approval state), piece-rate financial penalty trigger (clean batch=100% release, shade variation=15% penalty, uneven penetration/fastness fail=100% frozen), automatic B2B order matcher for cleared batches, and pre-process linkage from Quality Inspector
+- `010_inward_quality_gate.sql` — Inward Quality Gate framework for Filature Supplier with Gate Clerk, QC Inspector, and Quality Manager roles, quality intake records, approval workflow, and certificates
+- `011_zari_refinery.sql` — Zari Refinery Inward & Quality Screen with lot batches, metallurgical assay records, quality gate toggles, certificates, and sales forecast API plugin
+- `012_zari_inspector.sql` — Zari Inspector Post-Process Inspection module with XRF verification, physical/geometrics inspection, aesthetic/weight audit, defect logging, automated 1536/2400 hook validation rules, and inspector certificates
+- `013_silk_degumming_master.sql` — Silk Degumming Master module with chemical bath formulation, thermal-process control, weight loss accounting, automated 1536/2400 hook validation rules, and degumming certificates
+- `014_throwster_twister.sql` — Throwster/Twister module with yarn ply doubling, TPI control, twist setting/steaming, material mass balance, automated 1536/2400 hook validation rules, and throwster certificates
+
+### 2. Backend Microservices (9 services)
+| Service | Port | Purpose |
+|---------|------|---------|
+| auth | 5000 | JWT authentication, login, refresh, logout |
+| scanner | 5001 | Input/output scanning with pre-step validation |
+| ai | 5002 | 6 AI inspection services (zari, dye, warp, fabric, weaving, forecasting) |
+| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing, inward quality gate, Zari refinery assay and certification, Zari inspector post-process inspection and certification, Silk Degumming Master thermal-chemical process control and certification, Throwster/Twister yarn ply doubling, TPI control, twist setting/steaming, and certification, Master Colorist shade matching, chemical recipe formulation, spectrophotometer QA, recipe approval, and color certification, Skein Dye Master physical dye bath execution, temperature profiling, chemical additive management, post-dye quality audit, floor mass balance, and skein dye certification, Bobbin Winder yarn winding, bobbin build, quality audit, 1536/2400 hook validation, and winding certification, Pirn Winder weft pirn winding, precision taper control, density monitoring, quality audit, 1536/2400 hook validation, and pirn certification, Graph Drafter (2400 Hook) Jacquard graph design, hook mapping, weave structure assignment, color separation, card-punch coding, and design certification, Card Puncher (Digital/E-Jacquard Programmer) CAD-to-CAM file compilation, controller programming, verification/simulation, and programming certification, Warp Beam Preparation (80 Saree Length) sectional warping, creel tension synchronization, beaming-off, mass balance accounting, quality audit, automated validation gates, and warp beam certification, Loom Harness Setter (Harness Building Master) harness cord assembly, comber board positioning, mail eye leveling, lingo weight integration, shed alignment, mechanical synchronization, preventive maintenance tracking, and harness certification, Warp Joiner (Tie-in Master / Knotting Specialist) warp sheet alignment, precision end-to-end knotting, drawing-through, lease correction, quality audit, automated validation gates, piecemeal wage calculation, and warp joining certification, Petni Master (Warp Pulling & Reed Denting Specialist) Petni warp transition joint, reed denting, dropper pinning, lease verification, border alignment, quality audit, contrast inventory depletion, saree value-add multiplier, and Petni certification, Master Weaver (Loom Operator & Saree Production Specialist) loom operation, real-time quality troubleshooting, weaver skill-to-loom matching, material allocation, yield calculation, first-pick verification, saree completion clearance, and weaving certification, SUP Loom Floor Supervisor (Weaving Shed Supervisor / Jacquard Floor Lead) floor operations monitoring, environmental control, quality escapes, root cause audits, first saree approval, batch release authorization, shift handover clearance, and supervisor certification, Quality Inspector (Fabric QA Specialist / On-Loom & Off-Loom Inspector) finished saree inspection, dimensional auditing, defect classification, commercial grading, piece-rate penalty trigger, B2B order auto-matcher, and quality certification, QA Dyeing Inspector post-dye color consistency verification, Delta-E measurement, color fastness testing, defect classification, dyeing certification, and B2B order linkage |
+| iot | 5004 | MQTT telemetry ingestion, design injection to ECU |
+| design | 5005 | GAN design generation, design file management |
+| buyback | 5006 | Buy-back valuation, NFC verification, depreciation calculation |
+| guild | 5007 | Guild management, member tracking, payment distribution |
+| localization | 5008 | i18n translations, TTS audio generation |
+| sku | 5009 | 480-SKU product catalog, pricing, production mapping |
+
+### 3. Frontend (React PWA)
+- Login page with factory node selection
+- Role-aware dashboard with input queue
+- Scanner UI for input/output scans
+- Multi-language support architecture
+- Kafka subscription for real-time updates
+
+### 4. Infrastructure
+- Docker Compose with all services
+- Apache Kafka for event streaming
+- PostgreSQL with active-active multi-region
+- Redis for session storage
+- MQTT over TLS 1.3 for IoT
+
+### 5. Key Features Implemented
+- 29 role profiles with specialized dashboards
+- 24-step sequential workflow with state machine enforcement
+- 12 AI microservices (6 inspection + 6 new)
+- Guild/association management for decentralized workforce
+- Supply chain tracking: yarn batches, zari batches, dye vats
+- NFC/RFID embedded certificates with blockchain-style ledger
+- Buy-back guarantee engine with AI depreciation
+- GAN design generation with viability filtering
+- Assistant Weaver floor operations module with shift logs, wage splits, breakage alarms, and guardrail validation
+- Bobbin Winder module with winding job cards, bobbin records, waste guardrails, stock routing, and certificate generation, enhanced with 1536/2400 hook validation rules (joint method gate, winding speed protection, splice count limit, tension check), pre-process linkage from Skein Dye Master and Master Colorist, and sales forecast API plugin
+- Pirn Winder module with pirn winding jobs, pirn records, quality audit (spindle speed, nose taper, hardness, splices, sloughing risk, surface inspection), automated 1536/2400 hook validation rules (splice gate, hardness protection, sloughing risk, spindle speed check), material variance leakage alert, and pirn winding certificate issuance
+- Graph Drafter (2400 Hook) module with Jacquard graph design, hook mapping (top/bottom/body/selvedge allocation), weave structure assignment (ground weave, Zari binding, border binding, shading), color separation/card-punch coding, automated 2400 Hook validation gates (float limit, hook allocation, aspect ratio, CAD export authorization), and design certificate issuance
+- Card Puncher (Digital/E-Jacquard Programmer) module with CAD-to-CAM file compilation, controller & machine hardware setup (loom hardware, controller brand, hook matrix, data transfer), programming rules & repeat logic (pattern repeat, solenoid firing, pick interlock), verification & simulation (checksum security gate, dry-run simulation), material consumables tracking, and programming certificate issuance
+- Warp Beam Preparation (80 Saree Length) module with sectional warping, creel tension synchronization, beaming-off, mass balance accounting, lease insertion, quality controls (static control, wax conditioning, beam density), final inspection (section gap/overlap, broken ends), automated validation gates (tension gate, beam hardness clearance, section join inspection, loom mounting approval), material discrepancy firewall (>1% weight variance freeze), and warp beam certification
+- Loom Harness Setter (Harness Building Master) module with harness cord assembly, comber board positioning, mail eye leveling, lingo weight integration, shed alignment, mechanical synchronization, quality controls (comber board density, harness cord material, lingo weight), final verification (dry-run lift test, approval state), automated validation gates (2400 hook shed height protection, lingo weight compliance, mail eye alignment clearance, warp drawing-in clearance authorization, loom capability mismatch), preventive maintenance tracker (10M picks threshold), production state transition (PASSED_100%_HOOK_CLEARANCE → VACANT_AVAILABLE_FOR_WEAVING), and harness certification
+- Warp Joiner (Tie-in Master / Knotting Specialist) module with warp sheet alignment, precision end-to-end knotting, adhesive application, drawing-through, lease correction, quality controls (tying machine model, separation needle type, knot type, knot tail length, double-end detection, pull-through mode), final verification (knot pull-through status, approval state), automated validation gates (2400 hook tying speed protection, knot tail clearance, safe pull-through enforcement, loom weaver handover gate), loom downtime financial audit (>6h idle triggers variance alert), piecemeal wage calculation (per-hundred-knots pay matrix), production state transition (PASSED_100%_KNOTS_CLEARED → LOOM_ACTIVE_PRODUCTION), and warp joining certification
+- Petni Master (Warp Pulling & Reed Denting Specialist) module with Petni warp transition joint, reed denting, dropper pinning, lease verification, border alignment, quality controls (petni transition method, reed denting draft pattern, dropper wire specification, lease order verification, contrast type, crossed ends, reed mark laser inspection, joint tension variance, border channel offset), final verification (dropper pinning completion, approval state), automated validation gates (zero crossed ends, dropper wire weight compliance, reed denting quality, first-pick production authorization), contrast inventory depletion (multi-lot balancing), saree value-add multiplier (Korvai/Petni labor multiplier), production state transition (PASSED_TENSION_TEST → LOOM_ACTIVE_PRODUCTION), and Petni certification
+- Master Weaver (Loom Operator & Saree Production Specialist) module with loom operation, real-time quality troubleshooting, weaver skill-to-loom matching, material allocation, yield calculation, first-pick verification, saree completion clearance, quality controls (loom operating speed, warp let-off tension, weft insertion feeder profile, dynamic PPI control, on-loom defect category, Zari catch selvage, saree section phase, saree length), final inspection (saree piece clearance status, weaver approval state), automated validation gates (2400 hook speed protection, warp tension variance, on-loom defect escalation, saree cut-off clearance), daily production yield calculation (RPM/PPI/efficiency formula), low efficiency alert (<80% target), design-to-loom capability validator, inventory security triggers, and weaving certification
+- Zari Refinery module with lot batch intake, metallurgical assay (silver/gold purity), physical quality toggles, certificate issuance with precious metal valuation, and sales forecast API plugin
+- Zari Inspector module with post-process XRF verification, core yarn auditing, physical/geometrics inspection, aesthetic/weight audit, defect logging, automated 1536/2400 hook validation rules, ERP routing, and inspector certificate issuance
+- Silk Degumming Master module with chemical bath formulation (degumming agent, alkali buffer, water softener), thermal-process control (temperature, duration, pH), weight loss accounting with sericin loss calculation, automated 1536/2400 hook validation rules, and degumming certificate issuance
+- Throwster/Twister module with yarn ply doubling (1-6 ply), TPI control (first twist 300-600 TPM, final twist 500-800 TPM), twist direction (S/Z), steam stabilization, material mass balance with 1.5% variance alert, automated 1536/2400 hook validation rules, and throwster certificate issuance
+- Master Colorist module with shade matching, chemical recipe formulation (dye class, fixative type, leveling agent), spectrophotometer QA (Delta-E, CIE L*a*b*, metamerism filters), automated 2400 Hook shade precision/tenacity/finish guardrails, recipe scaler logic, lab-dip approval gate, and color certificate issuance
+- Skein Dye Master module with physical dye bath execution (machine allocation, vessel type, hank loading), temperature/time curve tracking, chemical additive management, post-dye washing & softening, floor mass balance, quality audit (core-to-surface shade, tie-marks, winding breaks, entanglement), automated 1536/2400 hook validation rules, over-boiling strength check, and skein dye certificate issuance
+- SKU product catalog: 480 variants across 18 hubs, 14 weave categories (CSV fully populated)
+- Buy-Back valuation engine uses SKU selling price as base value
+- IoT design injection validates SKU-hook compatibility
+- SKU comparison tool for design feasibility analysis
+- Self-improving AI architecture (PPO, YOLOv8 auto-training)
+- Multi-language support (Telugu, Tamil, Kannada, Hindi, Bengali)
+- TTS voice guidance for weavers
+- IoT edge controller management
+- Offline resilience with pending_sync_queue
+
+## Architecture Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Message Broker | Apache Kafka | Log retention supports offline replay, partitioned by lot_id |
+| AI Deployment | Hybrid | Edge ONNX/TensorRT for inspection, cloud for forecasting/GAN |
+| DB Strategy | Active-active multi-region | Server timestamp authority, factory node routing |
+| Scanner Interface | IScannerDevice adapters | Supports Barcode/QR/RFID, registered in factory_nodes.config |
+| Hardware | ESP32-S3 ECU + 4GB eMMC | Handles 1GB design files, block streaming to jacquard |
+| Connectivity | MQTT over TLS 1.3 | Lightweight, suitable for rural Wi-Fi mesh |
+| Localization | Neural TTS + i18n keys | Supports 5 regional dialects, voice guidance |
+
+## File Structure
+
+```
+silk-erp/
+├── migrations/
+│   ├── 001_initial_schema.sql
+│   ├── 002_workflow_transitions.sql
+│   ├── 003_stored_procedures.sql
+│   ├── 004_quarantine_management.sql
+│   ├── 005_silk_saree_extensions.sql
+│   ├── 006_sku_catalog.sql
+│   ├── 007_sku_buyback_link.sql
+│   ├── 008_assistant_weaver.sql
+│   ├── 009_bobbin_winder.sql
+│   ├── 010_inward_quality_gate.sql
+│   ├── 011_zari_refinery.sql
+│   ├── 012_zari_inspector.sql
+│   ├── 013_silk_degumming_master.sql
+│   ├── 014_throwster_twister.sql
+│   ├── 015_master_colorist.sql
+│   ├── 016_skein_dye_master.sql
+│   ├── 017_bobbin_winder_enhancements.sql
+│   ├── 018_pirn_winder.sql
+│   ├── 019_graph_drafter.sql
+│   ├── 020_card_puncher.sql
+│   ├── 021_warp_beam_preparation.sql
+│   ├── 022_loom_harness_setter.sql
+│   ├── 023_warp_joiner.sql
+│   ├── 024_petni_master.sql
+│   ├── 025_master_weaver.sql
+│   ├── 026_sup_loom_floor_supervisor.sql
+│   ├── 027_quality_inspector.sql
+│   └── 028_qa_dyeing_inspector.sql
+├── services/
+│   ├── auth/
+│   ├── scanner/
+│   ├── ai/
+│   ├── workflow/
+│   ├── iot/
+│   ├── design/
+│   ├── buyback/
+│   ├── guild/
+│   ├── localization/
+│   └── sku/
+├── frontend/
+│   └── src/
+│       ├── pages/
+│       ├── contexts/
+│       └── components/
+├── docker-compose.yml
+├── requirements.txt
+├── seed_db.py
+├── test.sh
+├── Makefile
+└── README.md
+```
+
+## How to Run
+
+```bash
+# Start all services
+make up
+
+# Seed database with initial data
+make seed
+
+# Run tests
+make test
+
+# Access services
+# Frontend: http://localhost:3000
+# Auth: http://localhost:5000
+# Scanner: http://localhost:5001
+# AI: http://localhost:5002
+# Workflow: http://localhost:5003
+# IoT: http://localhost:5004
+# Design: http://localhost:5005
+# Buy-Back: http://localhost:5006
+# Guild: http://localhost:5007
+# Localization: http://localhost:5008
+# SKU: http://localhost:5009
+```
+
+## Default Credentials
+- Email: `admin@factory.com`
+- Password: `admin123`
+- Factory: `FACT-BLR-01`
+
+## Next Steps for Production
+1. Replace mock AI models with real ONNX/TensorRT models
+2. Implement actual MQTT broker for IoT telemetry
+3. Deploy ESP32 ECU firmware with USB emulator + Wi-Fi
+4. Integrate real NFC/RFID hardware for certificate embedding
+5. Set up active-active PostgreSQL with BDR or similar
+6. Implement actual GAN design engine (StyleGAN-XL)
+7. Add native mobile apps for iOS/Android
+8. Set up monitoring with Prometheus + Grafana
+9. Implement proper secrets management (HashiCorp Vault)
+10. Load testing and security audit

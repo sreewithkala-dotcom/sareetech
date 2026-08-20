@@ -1,0 +1,313 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: silk-erp-postgres
+    environment:
+      POSTGRES_DB: silk_erp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: silk-erp-kafka
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: silk-erp-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: silk-erp-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: silk-erp-auth
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/auth/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  scanner-service:
+    build:
+      context: ./services/scanner
+      dockerfile: Dockerfile
+    container_name: silk-erp-scanner
+    ports:
+      - "5001:5001"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/v1/scanner/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  ai-service:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+    container_name: silk-erp-ai
+    ports:
+      - "5002:5002"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/v1/ai/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  workflow-service:
+    build:
+      context: ./services/workflow
+      dockerfile: Dockerfile
+    container_name: silk-erp-workflow
+    ports:
+      - "5003:5003"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/api/v1/workflow/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  iot-service:
+    build:
+      context: ./services/iot
+      dockerfile: Dockerfile
+    container_name: silk-erp-iot
+    ports:
+      - "5004:5004"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5004/api/v1/iot/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  design-service:
+    build:
+      context: ./services/design
+      dockerfile: Dockerfile
+    container_name: silk-erp-design
+    ports:
+      - "5005:5005"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/api/v1/design/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  buyback-service:
+    build:
+      context: ./services/buyback
+      dockerfile: Dockerfile
+    container_name: silk-erp-buyback
+    ports:
+      - "5006:5006"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5006/api/v1/buyback/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  guild-service:
+    build:
+      context: ./services/guild
+      dockerfile: Dockerfile
+    container_name: silk-erp-guild
+    ports:
+      - "5007:5007"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5007/api/v1/guilds/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  localization-service:
+    build:
+      context: ./services/localization
+      dockerfile: Dockerfile
+    container_name: silk-erp-localization
+    ports:
+      - "5008:5008"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5008/api/v1/i18n/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  sku-service:
+    build:
+      context: ./services/sku
+      dockerfile: Dockerfile
+    container_name: silk-erp-sku
+    ports:
+      - "5009:5009"
+    environment:
+      DB_HOST: postgres
+      DB_NAME: silk_erp
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5009/api/v1/sku/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: silk-erp-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:5000
+      VITE_KAFKA_TOPIC_PREFIX: lot.
+    depends_on:
+      - auth-service
+      - workflow-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:

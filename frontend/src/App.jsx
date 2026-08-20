@@ -40,6 +40,7 @@ import DashboardBuyBackManager from './dashboards/DashboardBuyBackManager'
 import DashboardGuildManager from './dashboards/DashboardGuildManager'
 import DashboardIoTDeviceManager from './dashboards/DashboardIoTDeviceManager'
 import DashboardLocalizationManager from './dashboards/DashboardLocalizationManager'
+import DashboardProductionPlanningControl from './dashboards/DashboardProductionPlanningControl'
 
 const DASHBOARD_COMPONENTS = {
   'ROLE-ASSISTANT-WEAVER': DashboardAssistantWeaver,
@@ -72,6 +73,7 @@ const DASHBOARD_COMPONENTS = {
   'ROLE-GUILD-MANAGER': DashboardGuildManager,
   'ROLE-IOT-DEVICE-MANAGER': DashboardIoTDeviceManager,
   'ROLE-LOCALIZATION-MANAGER': DashboardLocalizationManager,
+  'ROLE-PRODUCTION-PLANNING': DashboardProductionPlanningControl,
 }
 
 function App() {

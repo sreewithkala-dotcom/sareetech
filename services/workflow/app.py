@@ -15461,5 +15461,955 @@ def list_cultural_evaluations():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# PRODUCTION PLANNING & CONTROL (PPC)
+# Cloud-based, mobile-enabled
+# ============================================================
+
+# ---------------------------
+# BOM Headers CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/bom', methods=['POST'])
+@jwt_required()
+def create_bom():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['bom_id', 'factory_node_id', 'sku_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO bom_headers (bom_id, factory_node_id, sku_id, design_id, version,
+                total_material_cost, total_labor_cost, total_overhead_cost, total_cost_per_unit,
+                approved_by, approved_at, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('bom_id'), data.get('factory_node_id'), data.get('sku_id'),
+            data.get('design_id'), data.get('version', '1.0'),
+            data.get('total_material_cost'), data.get('total_labor_cost'),
+            data.get('total_overhead_cost'), data.get('total_cost_per_unit'),
+            data.get('approved_by'), data.get('approved_at'), operator_id
+        ))
+        bom_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(bom_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/bom', methods=['GET'])
+@jwt_required()
+def list_boms():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        sku_id = request.args.get('sku_id')
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT bh.bom_id, bh.sku_id, bh.version, bh.status, bh.total_cost_per_unit,
+                   bh.approved_at, bh.created_at, sc.sku_name
+            FROM bom_headers bh
+            LEFT JOIN sku_catalog sc ON bh.sku_id = sc.sku_id
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND bh.factory_node_id = %s"
+            params.append(factory_node_id)
+        if sku_id:
+            query += " AND bh.sku_id = %s"
+            params.append(sku_id)
+        if status:
+            query += " AND bh.status = %s"
+            params.append(status)
+        query += " ORDER BY bh.created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        boms = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(boms), 'boms': [dict(b) for b in boms]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# BOM Lines CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/bom/<bom_id>/lines', methods=['POST'])
+@jwt_required()
+def create_bom_line(bom_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['line_no', 'component_type', 'quantity_per_unit']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO bom_lines (bom_id, factory_node_id, line_no, component_type,
+                item_code, item_description, uom, quantity_per_unit, unit_cost, total_cost,
+                wastage_pct, wastage_qty, supplier_id, lead_time_days, available_stock,
+                is_critical)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            bom_id, data.get('factory_node_id'), data.get('line_no'),
+            data.get('component_type', 'RAW_MATERIAL'), data.get('item_code'),
+            data.get('item_description'), data.get('uom', 'KG'),
+            data.get('quantity_per_unit'), data.get('unit_cost'),
+            data.get('total_cost'), data.get('wastage_pct', 0),
+            data.get('wastage_qty', 0), data.get('supplier_id'),
+            data.get('lead_time_days'), data.get('available_stock', 0),
+            data.get('is_critical', False)
+        ))
+        line_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(line_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/bom/<bom_id>/lines', methods=['GET'])
+@jwt_required()
+def list_bom_lines(bom_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT bl.line_no, bl.component_type, bl.item_code, bl.item_description,
+                   bl.uom, bl.quantity_per_unit, bl.unit_cost, bl.total_cost,
+                   bl.wastage_pct, bl.wastage_qty, bl.available_stock, bl.is_critical
+            FROM bom_lines bl
+            WHERE bl.bom_id = %s
+            ORDER BY bl.line_no
+        """, (bom_id,))
+        lines = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'bom_id': bom_id, 'total': len(lines), 'lines': [dict(l) for l in lines]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Styles CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/styles', methods=['POST'])
+@jwt_required()
+def create_style():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['style_id', 'factory_node_id', 'style_name']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO styles (style_id, factory_node_id, style_name, style_code, category,
+                subcategory, hook_count, silk_type, zari_type, color_family, target_price,
+                target_market, season, is_active, launched_at, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('style_id'), data.get('factory_node_id'), data.get('style_name'),
+            data.get('style_code'), data.get('category'), data.get('subcategory'),
+            data.get('hook_count'), data.get('silk_type'), data.get('zari_type'),
+            data.get('color_family'), data.get('target_price'),
+            data.get('target_market', 'BOTH'), data.get('season'),
+            data.get('is_active', True), data.get('launched_at'), operator_id
+        ))
+        style_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(style_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/styles', methods=['GET'])
+@jwt_required()
+def list_styles():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        category = request.args.get('category')
+        target_market = request.args.get('target_market')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT style_id, style_name, style_code, category, subcategory, hook_count,
+                   silk_type, zari_type, color_family, target_price, target_market,
+                   season, is_active, launched_at
+            FROM styles
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if category:
+            query += " AND category = %s"
+            params.append(category)
+        if target_market:
+            query += " AND target_market = %s"
+            params.append(target_market)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        styles = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(styles), 'styles': [dict(s) for s in styles]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Orders CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/orders', methods=['POST'])
+@jwt_required()
+def create_order():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['order_id', 'factory_node_id', 'quantity', 'unit_price', 'total_amount', 'order_date', 'delivery_date']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO orders (order_id, factory_node_id, order_type, buyer_id, buyer_name,
+                style_id, sku_id, quantity, unit_price, total_amount, currency,
+                order_date, delivery_date, status, priority, shipment_mode,
+                destination_port, incoterms, payment_terms, assigned_production_line,
+                notes, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('order_id'), data.get('factory_node_id'), data.get('order_type', 'DOMESTIC'),
+            data.get('buyer_id'), data.get('buyer_name'), data.get('style_id'),
+            data.get('sku_id'), data.get('quantity'), data.get('unit_price'),
+            data.get('total_amount'), data.get('currency', 'INR'),
+            data.get('order_date'), data.get('delivery_date'),
+            data.get('status', 'PENDING'), data.get('priority', 'MEDIUM'),
+            data.get('shipment_mode'), data.get('destination_port'),
+            data.get('incoterms'), data.get('payment_terms'),
+            data.get('assigned_production_line'), data.get('notes'), operator_id
+        ))
+        order_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(order_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/orders', methods=['GET'])
+@jwt_required()
+def list_orders():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        order_type = request.args.get('order_type')
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT order_id, order_type, buyer_name, sku_id, quantity, unit_price,
+                   total_amount, order_date, delivery_date, status, priority,
+                   assigned_production_line
+            FROM orders
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if order_type:
+            query += " AND order_type = %s"
+            params.append(order_type)
+        if status:
+            query += " AND status = %s"
+            params.append(status)
+        query += " ORDER BY order_date DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        orders = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(orders), 'orders': [dict(o) for o in orders]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Production Plans CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/plans', methods=['POST'])
+@jwt_required()
+def create_production_plan():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['plan_id', 'factory_node_id', 'plan_name', 'plan_start_date', 'plan_end_date']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO production_plans (plan_id, factory_node_id, plan_name, plan_type,
+                status, plan_start_date, plan_end_date, total_looms, total_workers,
+                total_production_target, approved_by, approved_at, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('plan_id'), data.get('factory_node_id'), data.get('plan_name'),
+            data.get('plan_type', 'MONTHLY'), data.get('status', 'DRAFT'),
+            data.get('plan_start_date'), data.get('plan_end_date'),
+            data.get('total_looms'), data.get('total_workers'),
+            data.get('total_production_target'), data.get('approved_by'),
+            data.get('approved_at'), operator_id
+        ))
+        plan_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(plan_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/plans', methods=['GET'])
+@jwt_required()
+def list_production_plans():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT plan_id, plan_name, plan_type, status, plan_start_date, plan_end_date,
+                   total_looms, total_workers, total_production_target, total_production_actual,
+                   efficiency_pct, oee_score, approved_at
+            FROM production_plans
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if status:
+            query += " AND status = %s"
+            params.append(status)
+        query += " ORDER BY plan_start_date DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        plans = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(plans), 'plans': [dict(p) for p in plans]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Production Plan Lines CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/plans/<plan_id>/lines', methods=['POST'])
+@jwt_required()
+def create_production_plan_line(plan_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['line_no', 'planned_qty']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO production_plan_lines (plan_id, factory_node_id, line_no, order_id,
+                style_id, sku_id, loom_id, assigned_weaver_id, planned_qty, actual_qty,
+                pending_qty, rejected_qty, start_date, end_date, status, completion_pct, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            plan_id, data.get('factory_node_id'), data.get('line_no'),
+            data.get('order_id'), data.get('style_id'), data.get('sku_id'),
+            data.get('loom_id'), data.get('assigned_weaver_id'), data.get('planned_qty'),
+            data.get('actual_qty', 0), data.get('pending_qty', 0),
+            data.get('rejected_qty', 0), data.get('start_date'), data.get('end_date'),
+            data.get('status', 'PLANNED'), data.get('completion_pct', 0), data.get('notes')
+        ))
+        line_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(line_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/plans/<plan_id>/lines', methods=['GET'])
+@jwt_required()
+def list_production_plan_lines(plan_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT ppl.line_no, ppl.order_id, ppl.style_id, ppl.sku_id, ppl.loom_id,
+                   ppl.assigned_weaver_id, ppl.planned_qty, ppl.actual_qty, ppl.pending_qty,
+                   ppl.rejected_qty, ppl.start_date, ppl.end_date, ppl.status,
+                   ppl.completion_pct
+            FROM production_plan_lines ppl
+            WHERE ppl.plan_id = %s
+            ORDER BY ppl.line_no
+        """, (plan_id,))
+        lines = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'plan_id': plan_id, 'total': len(lines), 'lines': [dict(l) for l in lines]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Production Tracking Logs
+# ---------------------------
+
+@app.route('/api/v1/ppc/tracking', methods=['POST'])
+@jwt_required()
+def create_tracking_log():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['tracking_id', 'factory_node_id', 'operation_type']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO production_tracking_logs (tracking_id, factory_node_id, plan_line_id,
+                order_id, loom_id, weaver_id, shift_id, operation_type, picks_per_minute,
+                warp_tension_cn, temperature_celsius, humidity_pct, output_meters,
+                defect_count, breakage_count, downtime_minutes, downtime_reason,
+                ai_anomaly_score, ai_anomaly_flag, supervisor_notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('tracking_id'), data.get('factory_node_id'), data.get('plan_line_id'),
+            data.get('order_id'), data.get('loom_id'), data.get('weaver_id'),
+            data.get('shift_id'), data.get('operation_type'), data.get('picks_per_minute'),
+            data.get('warp_tension_cn'), data.get('temperature_celsius'),
+            data.get('humidity_pct'), data.get('output_meters', 0),
+            data.get('defect_count', 0), data.get('breakage_count', 0),
+            data.get('downtime_minutes', 0), data.get('downtime_reason'),
+            data.get('ai_anomaly_score'), data.get('ai_anomaly_flag', False),
+            data.get('supervisor_notes')
+        ))
+        tracking_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(tracking_id), 'status': 'recorded'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/tracking', methods=['GET'])
+@jwt_required()
+def list_tracking_logs():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        loom_id = request.args.get('loom_id')
+        plan_line_id = request.args.get('plan_line_id')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT tracking_id, loom_id, operation_type, output_meters, defect_count,
+                   breakage_count, downtime_minutes, ai_anomaly_flag, recorded_at
+            FROM production_tracking_logs
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if loom_id:
+            query += " AND loom_id = %s"
+            params.append(loom_id)
+        if plan_line_id:
+            query += " AND plan_line_id = %s"
+            params.append(plan_line_id)
+        query += " ORDER BY recorded_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(logs), 'logs': [dict(l) for l in logs]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Quality & Compliance Checks
+# ---------------------------
+
+@app.route('/api/v1/ppc/quality-checks', methods=['POST'])
+@jwt_required()
+def create_quality_check():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['check_id', 'factory_node_id', 'check_type', 'order_id', 'sku_id', 'inspector_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO quality_compliance_checks (check_id, factory_node_id, check_type,
+                plan_line_id, order_id, sku_id, saree_serial_id, inspector_id,
+                defect_type, defect_severity, defect_count, grade, status,
+                ai_defect_score, ai_grade_prediction, ai_confidence_score,
+                corrective_action, certified_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('check_id'), data.get('factory_node_id'), data.get('check_type'),
+            data.get('plan_line_id'), data.get('order_id'), data.get('sku_id'),
+            data.get('saree_serial_id'), data.get('inspector_id'),
+            data.get('defect_type'), data.get('defect_severity'), data.get('defect_count', 0),
+            data.get('grade'), data.get('status', 'PENDING'),
+            data.get('ai_defect_score'), data.get('ai_grade_prediction'),
+            data.get('ai_confidence_score'), data.get('corrective_action'),
+            data.get('certified_at')
+        ))
+        check_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(check_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/quality-checks', methods=['GET'])
+@jwt_required()
+def list_quality_checks():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        check_type = request.args.get('check_type')
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT qc.check_id, qc.check_type, qc.order_id, qc.sku_id, qc.saree_serial_id,
+                   qc.defect_type, qc.defect_severity, qc.defect_count, qc.grade,
+                   qc.status, qc.ai_defect_score, qc.certified_at
+            FROM quality_compliance_checks qc
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND qc.factory_node_id = %s"
+            params.append(factory_node_id)
+        if check_type:
+            query += " AND qc.check_type = %s"
+            params.append(check_type)
+        if status:
+            query += " AND qc.status = %s"
+            params.append(status)
+        query += " ORDER BY qc.created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        checks = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(checks), 'checks': [dict(c) for c in checks]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Compliance Certificates CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/compliance-certificates', methods=['POST'])
+@jwt_required()
+def create_compliance_certificate():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['certificate_id', 'factory_node_id', 'certificate_type', 'order_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO compliance_certificates (certificate_id, factory_node_id, certificate_type,
+                order_id, sku_id, saree_serial_id, issued_by, valid_from, valid_until,
+                certificate_number, issuing_authority, status, document_url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('certificate_id'), data.get('factory_node_id'), data.get('certificate_type'),
+            data.get('order_id'), data.get('sku_id'), data.get('saree_serial_id'),
+            data.get('issued_by', operator_id), data.get('valid_from'), data.get('valid_until'),
+            data.get('certificate_number'), data.get('issuing_authority'),
+            data.get('status', 'ACTIVE'), data.get('document_url')
+        ))
+        cert_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(cert_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/compliance-certificates', methods=['GET'])
+@jwt_required()
+def list_compliance_certificates():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        certificate_type = request.args.get('certificate_type')
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT certificate_id, certificate_type, order_id, sku_id, certificate_number,
+                   issuing_authority, valid_from, valid_until, status, document_url
+            FROM compliance_certificates
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if certificate_type:
+            query += " AND certificate_type = %s"
+            params.append(certificate_type)
+        if status:
+            query += " AND status = %s"
+            params.append(status)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(certs), 'certificates': [dict(c) for c in certs]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Mobile Sync Endpoints
+# ---------------------------
+
+@app.route('/api/v1/ppc/mobile/sync', methods=['POST'])
+@jwt_required()
+def mobile_sync():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['sync_id', 'factory_node_id', 'device_id', 'sync_type', 'entity_type', 'operation']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO mobile_sync_log (sync_id, factory_node_id, user_id, device_id,
+                device_type, sync_type, entity_type, entity_id, operation, sync_status,
+                payload)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('sync_id'), data.get('factory_node_id'), operator_id,
+            data.get('device_id'), data.get('device_type', 'ANDROID'),
+            data.get('sync_type'), data.get('entity_type'), data.get('entity_id'),
+            data.get('operation'), data.get('sync_status', 'SUCCESS'),
+            json.dumps(data.get('payload', {}))
+        ))
+        sync_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(sync_id), 'status': 'synced'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/mobile/sync', methods=['GET'])
+@jwt_required()
+def list_mobile_syncs():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        entity_type = request.args.get('entity_type')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT sync_id, device_type, sync_type, entity_type, entity_id, operation,
+                   sync_status, synced_at
+            FROM mobile_sync_log
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if entity_type:
+            query += " AND entity_type = %s"
+            params.append(entity_type)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        syncs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(syncs), 'syncs': [dict(s) for s in syncs]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Push Notifications
+# ---------------------------
+
+@app.route('/api/v1/ppc/mobile/push', methods=['POST'])
+@jwt_required()
+def send_push_notification():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['notification_id', 'factory_node_id', 'user_id', 'platform', 'notification_type', 'title', 'body']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO push_notification_log (notification_id, factory_node_id, user_id,
+                device_id, platform, notification_type, title, body, data_payload,
+                sent_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('notification_id'), data.get('factory_node_id'), data.get('user_id'),
+            data.get('device_id'), data.get('platform'), data.get('notification_type'),
+            data.get('title'), data.get('body'),
+            json.dumps(data.get('data_payload', {})), data.get('sent_status', 'PENDING')
+        ))
+        notif_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(notif_id), 'status': 'queued'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/mobile/push', methods=['GET'])
+@jwt_required()
+def list_push_notifications():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        user_id = request.args.get('user_id')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT notification_id, platform, notification_type, title, body,
+                   sent_status, sent_at, read_at
+            FROM push_notification_log
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if user_id:
+            query += " AND user_id = %s"
+            params.append(user_id)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        notifs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(notifs), 'notifications': [dict(n) for n in notifs]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Production Efficiency Analytics
+# ---------------------------
+
+@app.route('/api/v1/ppc/analytics/efficiency', methods=['GET'])
+@jwt_required()
+def get_production_efficiency():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        loom_id = request.args.get('loom_id')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT loom_id, shift_date, planned_output_meters, actual_output_meters,
+                   efficiency_pct, oee_score, defect_rate_pct, downtime_minutes,
+                   utilization_pct
+            FROM production_efficiency_analytics
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if loom_id:
+            query += " AND loom_id = %s"
+            params.append(loom_id)
+        if start_date:
+            query += " AND shift_date >= %s"
+            params.append(start_date)
+        if end_date:
+            query += " AND shift_date <= %s"
+            params.append(end_date)
+        query += " ORDER BY shift_date DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        analytics = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(analytics), 'analytics': [dict(a) for a in analytics]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# BOM Consumption Tracking
+# ---------------------------
+
+@app.route('/api/v1/ppc/bom-consumption', methods=['POST'])
+@jwt_required()
+def create_bom_consumption():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['consumption_id', 'factory_node_id', 'bom_line_id', 'planned_qty', 'actual_qty']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        planned = data.get('planned_qty')
+        actual = data.get('actual_qty')
+        variance = actual - planned if planned is not None and actual is not None else 0
+        variance_pct = (variance / planned * 100) if planned and planned != 0 else 0
+
+        cur.execute("""
+            INSERT INTO bom_consumption_tracking (consumption_id, factory_node_id, bom_line_id,
+                plan_line_id, order_id, item_code, planned_qty, actual_qty, variance_qty,
+                variance_pct, uom, recorded_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('consumption_id'), data.get('factory_node_id'), data.get('bom_line_id'),
+            data.get('plan_line_id'), data.get('order_id'), data.get('item_code'),
+            planned, actual, variance, variance_pct, data.get('uom', 'KG'), operator_id
+        ))
+        consumption_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(consumption_id), 'status': 'recorded'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/bom-consumption', methods=['GET'])
+@jwt_required()
+def list_bom_consumption():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        bom_line_id = request.args.get('bom_line_id')
+        order_id = request.args.get('order_id')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT consumption_id, item_code, planned_qty, actual_qty, variance_qty,
+                   variance_pct, uom, consumed_at
+            FROM bom_consumption_tracking
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if bom_line_id:
+            query += " AND bom_line_id = %s"
+            params.append(bom_line_id)
+        if order_id:
+            query += " AND order_id = %s"
+            params.append(order_id)
+        query += " ORDER BY consumed_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        records = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(records), 'records': [dict(r) for r in records]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

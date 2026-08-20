@@ -62,6 +62,7 @@ def seed():
         ('ROLE-GUILD-MANAGER', 'guild.manager@factory.com', 'Guild Manager', 'EMP-027'),
         ('ROLE-IOT-DEVICE-MANAGER', 'iot.device@factory.com', 'IoT Device Manager', 'EMP-028'),
         ('ROLE-LOCALIZATION-MANAGER', 'localization.manager@factory.com', 'Localization Manager', 'EMP-029'),
+        ('ROLE-PRODUCTION-PLANNING', 'production.planning@factory.com', 'Production Planning & Control Manager', 'EMP-030'),
     ]
 
     for role_id, email, name, emp_id in roles:

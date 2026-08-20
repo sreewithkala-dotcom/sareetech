@@ -3,6 +3,7 @@ import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Tab
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import EnterprisePanel from '../components/EnterprisePanel'
+import StyleReferenceLibrary from '../components/StyleReferenceLibrary'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5009/api/v1'
 
@@ -319,6 +320,7 @@ export default function DashboardSKUManager() {
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
       </Paper>
+      <StyleReferenceLibrary user={user} factoryNodeId={user?.factory_node_id} skuOptions={skus} />
       <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )

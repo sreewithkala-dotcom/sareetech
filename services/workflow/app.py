@@ -14633,5 +14633,210 @@ def list_buyback_guarantees():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# STYLE REFERENCE LIBRARY
+# Dataset: shrimantasatpati/Saree-NIFT-Style
+# ============================================================
+
+# ---------------------------
+# Style References CRUD
+# ---------------------------
+
+@app.route('/api/v1/enterprise/style-references', methods=['POST'])
+@jwt_required()
+def create_style_reference():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['image_id', 'factory_node_id', 'image_url']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO saree_style_reference_images (image_id, factory_node_id, source_dataset,
+                hf_split, hf_row_index, image_url, image_width, image_height, storage_path,
+                mime_type, file_size_bytes, dominant_colors, pattern_hash, ai_style_tag,
+                ai_confidence_score, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('image_id'), data.get('factory_node_id'),
+            data.get('source_dataset', 'shrimantasatpati/Saree-NIFT-Style'),
+            data.get('hf_split', 'train'), data.get('hf_row_index'),
+            data.get('image_url'), data.get('image_width'), data.get('image_height'),
+            data.get('storage_path'), data.get('mime_type', 'image/png'), data.get('file_size_bytes'),
+            json.dumps(data.get('dominant_colors', [])), data.get('pattern_hash'),
+            data.get('ai_style_tag'), data.get('ai_confidence_score'),
+            json.dumps(data.get('metadata', {}))
+        ))
+        image_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(image_id), 'status': 'indexed'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/style-references', methods=['GET'])
+@jwt_required()
+def list_style_references():
+    try:
+        operator_id = get_jwt_identity()
+        factory_node_id = request.args.get('factory_node_id')
+        tag = request.args.get('tag')
+        limit = int(request.args.get('limit', 50))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT image_id, source_dataset, hf_split, hf_row_index, image_url,
+                   image_width, image_height, dominant_colors, pattern_hash,
+                   ai_style_tag, ai_confidence_score, is_active, created_at
+            FROM saree_style_reference_images
+            WHERE is_active = TRUE
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if tag:
+            query += " AND ai_style_tag = %s"
+            params.append(tag)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        images = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(images), 'images': [dict(img) for img in images]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/style-references/search', methods=['GET'])
+@jwt_required()
+def search_style_references():
+    try:
+        operator_id = get_jwt_identity()
+        tag_value = request.args.get('tag_value')
+        tag_type = request.args.get('tag_type')
+        limit = int(request.args.get('limit', 50))
+
+        if not tag_value:
+            return jsonify({'error': 'MissingFields', 'message': "tag_value is required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT sri.image_id, sri.image_url, sri.ai_style_tag, sri.dominant_colors,
+                   srt.tag_type, srt.tag_value, srt.confidence_score
+            FROM saree_style_reference_images sri
+            JOIN saree_style_reference_tags srt ON sri.id = srt.image_id
+            WHERE srt.tag_value ILIKE %s
+        """
+        params = [f"%{tag_value}%"]
+        if tag_type:
+            query += " AND srt.tag_type = %s"
+            params.append(tag_type)
+        query += " ORDER BY srt.confidence_score DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(results), 'results': [dict(r) for r in results]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/style-references/<image_id>/tags', methods=['POST'])
+@jwt_required()
+def add_style_reference_tag():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['tag_type', 'tag_value']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO saree_style_reference_tags (image_id, factory_node_id, tag_type,
+                tag_value, confidence_score, ai_generated, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            image_id,
+            data.get('factory_node_id', 'FACT-BLR-01'),
+            data.get('tag_type'), data.get('tag_value'),
+            data.get('confidence_score', 1.0),
+            data.get('ai_generated', False),
+            operator_id
+        ))
+        tag_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(tag_id), 'status': 'tagged'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/style-references/<image_id>/tags', methods=['GET'])
+@jwt_required()
+def list_style_reference_tags():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT srt.tag_type, srt.tag_value, srt.confidence_score, srt.ai_generated,
+                   srt.created_at
+            FROM saree_style_reference_tags srt
+            JOIN saree_style_reference_images sri ON srt.image_id = sri.id
+            WHERE sri.image_id = %s
+            ORDER BY srt.tag_type, srt.confidence_score DESC
+        """, (image_id,))
+        tags = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(tags), 'tags': [dict(t) for t in tags]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/style-references/<image_id>/map-sku', methods=['POST'])
+@jwt_required()
+def map_style_reference_to_sku():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['sku_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO saree_style_reference_sku_mapping (image_id, sku_id, factory_node_id,
+                similarity_score, match_reason, mapped_by)
+            VALUES (%s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            image_id, data.get('sku_id'),
+            data.get('factory_node_id', 'FACT-BLR-01'),
+            data.get('similarity_score'), data.get('match_reason'), operator_id
+        ))
+        mapping_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(mapping_id), 'status': 'mapped'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

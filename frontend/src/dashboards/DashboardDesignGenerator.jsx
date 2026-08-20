@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useDashboard } from '../contexts/DashboardContext'
 import EnterprisePanel from '../components/EnterprisePanel'
+import StyleReferenceLibrary from '../components/StyleReferenceLibrary'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5009/api/v1'
 
@@ -178,6 +179,7 @@ export default function DashboardDesignGenerator() {
           </Paper>
         </Grid>
       </Grid>
+      <StyleReferenceLibrary user={user} factoryNodeId={user?.factory_node_id} skuOptions={[]} />
       <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )

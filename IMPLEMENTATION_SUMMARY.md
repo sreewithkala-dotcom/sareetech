@@ -14,6 +14,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - `006_sku_catalog.sql` — SKU product catalog and production mapping tables
 - `007_sku_buyback_link.sql` — Links finished_sarees to sku_catalog for buyback valuation
 - `008_assistant_weaver.sql` — Assistant Weaver job logs, wage distributions, breakage alarms, shift audits, and guardrail triggers
+- `009_bobbin_winder.sql` — Bobbin Winder job cards, bobbin records, waste variance alarms, production certificates, and stock routing view
 
 ### 2. Backend Microservices (9 services)
 | Service | Port | Purpose |
@@ -21,7 +22,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 | auth | 5000 | JWT authentication, login, refresh, logout |
 | scanner | 5001 | Input/output scanning with pre-step validation |
 | ai | 5002 | 6 AI inspection services (zari, dye, warp, fabric, weaving, forecasting) |
-| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms |
+| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing |
 | iot | 5004 | MQTT telemetry ingestion, design injection to ECU |
 | design | 5005 | GAN design generation, design file management |
 | buyback | 5006 | Buy-back valuation, NFC verification, depreciation calculation |
@@ -53,6 +54,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - Buy-back guarantee engine with AI depreciation
 - GAN design generation with viability filtering
 - Assistant Weaver floor operations module with shift logs, wage splits, breakage alarms, and guardrail validation
+- Bobbin Winder module with winding job cards, bobbin records, waste guardrails, stock routing, and certificate generation
 - SKU product catalog: 480 variants across 18 hubs, 14 weave categories (CSV fully populated)
 - Buy-Back valuation engine uses SKU selling price as base value
 - IoT design injection validates SKU-hook compatibility
@@ -87,7 +89,8 @@ silk-erp/
 │   ├── 005_silk_saree_extensions.sql
 │   ├── 006_sku_catalog.sql
 │   ├── 007_sku_buyback_link.sql
-│   └── 008_assistant_weaver.sql
+│   ├── 008_assistant_weaver.sql
+│   └── 009_bobbin_winder.sql
 ├── services/
 │   ├── auth/
 │   ├── scanner/

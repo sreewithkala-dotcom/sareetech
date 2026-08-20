@@ -724,5 +724,649 @@ def create_loom_alarm():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# BOBBIN WINDER MODULE
+# ============================================================
+
+def validate_winding_guardrails(data):
+    """Validate bobbin winder inputs against business guardrails."""
+    errors = []
+    warnings = []
+    
+    yarn_type = data.get('yarn_type')
+    winding_machine_type = data.get('winding_machine_type')
+    winding_speed_mpm = data.get('winding_speed_mpm')
+    joint_method_used = data.get('joint_method_used')
+    splice_count_per_bobbin = data.get('splice_count_per_bobbin')
+    waste_variance_percent = data.get('waste_variance_percent')
+    target_machine = data.get('target_machine')
+    
+    if target_machine == '2400_HOOK_JACQUARD':
+        if joint_method_used == 'Standard Weaver''s Knot':
+            errors.append({
+                'code': 'REJECT_FOR_2400_WARP',
+                'message': 'KNOTS_WILL_JAM_FINE_REED'
+            })
+        if winding_speed_mpm and winding_speed_mpm > 200:
+            warnings.append({
+                'code': 'HIGH_WINDING_SPEED_FRICTION_RISK',
+                'message': 'High winding speed may cause friction heat and fraying on 2400-hook line'
+            })
+        if splice_count_per_bobbin and splice_count_per_bobbin > 1:
+            errors.append({
+                'code': 'ROUTE_DOWNGRADE',
+                'message': 'DOWNGRADE_TO_1536_HOOK_OR_WEFT'
+            })
+    
+    if waste_variance_percent is not None and waste_variance_percent > 0.5:
+        errors.append({
+            'code': 'HIGH_WASTE_VARIANCE',
+            'message': 'Waste variance exceeds 0.5% threshold'
+        })
+    
+    return errors, warnings
+
+@app.route('/api/v1/winding/job-cards', methods=['POST'])
+@jwt_required()
+def create_winding_job_card():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = [
+            'spindle_machine_id', 'input_dyed_lot_no', 'yarn_type',
+            'carrier_destination_type', 'allocated_input_weight_kg',
+            'output_wound_weight_kg', 'winding_scrap_waste_gm',
+            'silk_fiber_variety', 'target_output_carrier_type',
+            'bobbin_traverse_length_config', 'knot_mechanical_join_profiling',
+            'bobbin_structural_build_verdict'
+        ]
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        errors, warnings = validate_winding_guardrails(data)
+        
+        winding_job_card_id = f"WJC-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        status = 'ACTIVE'
+        if errors:
+            status = 'REJECTED'
+        
+        cur.execute("""
+            INSERT INTO winding_job_cards (
+                winding_job_card_id, operator_employee_id, spindle_machine_id,
+                factory_node_id, input_dyed_lot_no, yarn_type,
+                carrier_destination_type, allocated_input_weight_kg,
+                output_wound_weight_kg, winding_scrap_waste_gm,
+                winding_operation_type, winding_machine_type,
+                worker_attendance_shift_code, yarn_processing_profile,
+                silk_fiber_variety, target_output_carrier_type,
+                bobbin_traverse_length_config, knot_mechanical_join_profiling,
+                bobbin_structural_build_verdict, bobbin_hardness_shore_d,
+                splice_count_per_bobbin, bobbin_flange_trapping_found,
+                yarn_break_rate_per_1000m, inventory_output_routing_allocation,
+                winding_speed_mpm, applied_tension_grams, validation_errors, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, winding_job_card_id
+        """, (
+            winding_job_card_id,
+            operator_id,
+            data.get('spindle_machine_id'),
+            factory_node_id,
+            data.get('input_dyed_lot_no'),
+            data.get('yarn_type'),
+            data.get('carrier_destination_type'),
+            data.get('allocated_input_weight_kg'),
+            data.get('output_wound_weight_kg'),
+            data.get('winding_scrap_waste_gm', 0),
+            data.get('winding_operation_type', 'ROUTINE_PRODUCTION'),
+            data.get('winding_machine_type', 'SEMI_AUTOMATIC_BOBBIN_WINDER'),
+            data.get('worker_attendance_shift_code', 'SHIFT_A_MORNING'),
+            data.get('yarn_processing_profile', data.get('yarn_type')),
+            data.get('silk_fiber_variety'),
+            data.get('target_output_carrier_type'),
+            data.get('bobbin_traverse_length_config'),
+            data.get('knot_mechanical_join_profiling'),
+            data.get('bobbin_structural_build_verdict'),
+            data.get('bobbin_hardness_shore_d'),
+            data.get('splice_count_per_bobbin', 0),
+            data.get('bobbin_flange_trapping_found', False),
+            data.get('yarn_break_rate_per_1000m'),
+            data.get('inventory_output_routing_allocation', 'BOBBIN_CLEARED_FOR_WARPING'),
+            data.get('winding_speed_mpm'),
+            data.get('applied_tension_grams'),
+            json.dumps(errors + warnings),
+            status
+        ))
+        
+        job_row = cur.fetchone()
+        job_id = job_row['id']
+        job_ref = job_row['winding_job_card_id']
+        
+        if errors:
+            conn.commit()
+            cur.close()
+            conn.close()
+            return jsonify({
+                'winding_job_card_id': job_ref,
+                'status': 'rejected',
+                'errors': errors,
+                'warnings': warnings
+            }), 400
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'winding_job_card_id': job_ref,
+            'id': str(job_id),
+            'status': status,
+            'warnings': warnings,
+            'message': 'Winding job card created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/job-cards', methods=['GET'])
+@jwt_required()
+def list_winding_job_cards():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wjc.id, wjc.winding_job_card_id, wjc.spindle_machine_id,
+                   wjc.factory_node_id, wjc.input_dyed_lot_no, wjc.yarn_type,
+                   wjc.carrier_destination_type, wjc.allocated_input_weight_kg,
+                   wjc.output_wound_weight_kg, wjc.winding_scrap_waste_gm,
+                   wjc.waste_variance_percent, wjc.status,
+                   wjc.winding_operation_type, wjc.winding_machine_type,
+                   wjc.knot_mechanical_join_profiling, wjc.bobbin_structural_build_verdict,
+                   wjc.inventory_output_routing_allocation,
+                   wjc.certificate_hash, wjc.created_at,
+                   u.full_name AS operator_name
+            FROM winding_job_cards wjc
+            LEFT JOIN users u ON wjc.operator_employee_id = u.id
+            WHERE wjc.operator_employee_id = %s::uuid
+               OR wjc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY wjc.created_at DESC
+            LIMIT 100
+        """, (operator_id, operator_id))
+        
+        cards = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(cards),
+            'job_cards': [
+                {
+                    'id': str(c['id']),
+                    'winding_job_card_id': c['winding_job_card_id'],
+                    'spindle_machine_id': c['spindle_machine_id'],
+                    'factory_node_id': c['factory_node_id'],
+                    'input_dyed_lot_no': c['input_dyed_lot_no'],
+                    'yarn_type': c['yarn_type'],
+                    'carrier_destination_type': c['carrier_destination_type'],
+                    'allocated_input_weight_kg': float(c['allocated_input_weight_kg']),
+                    'output_wound_weight_kg': float(c['output_wound_weight_kg']),
+                    'winding_scrap_waste_gm': float(c['winding_scrap_waste_gm']),
+                    'waste_variance_percent': float(c['waste_variance_percent']) if c['waste_variance_percent'] else 0,
+                    'status': c['status'],
+                    'winding_operation_type': c['winding_operation_type'],
+                    'winding_machine_type': c['winding_machine_type'],
+                    'knot_mechanical_join_profiling': c['knot_mechanical_join_profiling'],
+                    'bobbin_structural_build_verdict': c['bobbin_structural_build_verdict'],
+                    'inventory_output_routing_allocation': c['inventory_output_routing_allocation'],
+                    'certificate_hash': c['certificate_hash'],
+                    'created_at': c['created_at'].isoformat() if c['created_at'] else None,
+                    'operator_name': c['operator_name']
+                }
+                for c in cards
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/job-cards/<job_card_id>', methods=['GET'])
+@jwt_required()
+def get_winding_job_card(job_card_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wjc.*, u.full_name AS operator_name
+            FROM winding_job_cards wjc
+            LEFT JOIN users u ON wjc.operator_employee_id = u.id
+            WHERE wjc.id = %s::uuid OR wjc.winding_job_card_id = %s
+        """, (job_card_id, job_card_id))
+        
+        card = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not card:
+            return jsonify({'error': 'JobCardNotFound'}), 404
+        
+        return jsonify({
+            'id': str(card['id']),
+            'winding_job_card_id': card['winding_job_card_id'],
+            'operator_name': card['operator_name'],
+            'spindle_machine_id': card['spindle_machine_id'],
+            'factory_node_id': card['factory_node_id'],
+            'input_dyed_lot_no': card['input_dyed_lot_no'],
+            'yarn_type': card['yarn_type'],
+            'carrier_destination_type': card['carrier_destination_type'],
+            'allocated_input_weight_kg': float(card['allocated_input_weight_kg']),
+            'output_wound_weight_kg': float(card['output_wound_weight_kg']),
+            'winding_scrap_waste_gm': float(card['winding_scrap_waste_gm']),
+            'process_variance_kg': float(card['process_variance_kg']) if card['process_variance_kg'] else None,
+            'waste_variance_percent': float(card['waste_variance_percent']) if card['waste_variance_percent'] else None,
+            'winding_operation_type': card['winding_operation_type'],
+            'winding_machine_type': card['winding_machine_type'],
+            'worker_attendance_shift_code': card['worker_attendance_shift_code'],
+            'yarn_processing_profile': card['yarn_processing_profile'],
+            'silk_fiber_variety': card['silk_fiber_variety'],
+            'target_output_carrier_type': card['target_output_carrier_type'],
+            'bobbin_traverse_length_config': card['bobbin_traverse_length_config'],
+            'knot_mechanical_join_profiling': card['knot_mechanical_join_profiling'],
+            'bobbin_structural_build_verdict': card['bobbin_structural_build_verdict'],
+            'bobbin_hardness_shore_d': float(card['bobbin_hardness_shore_d']) if card['bobbin_hardness_shore_d'] else None,
+            'splice_count_per_bobbin': card['splice_count_per_bobbin'],
+            'bobbin_flange_trapping_found': card['bobbin_flange_trapping_found'],
+            'yarn_break_rate_per_1000m': float(card['yarn_break_rate_per_1000m']) if card['yarn_break_rate_per_1000m'] else None,
+            'inventory_output_routing_allocation': card['inventory_output_routing_allocation'],
+            'winding_speed_mpm': card['winding_speed_mpm'],
+            'applied_tension_grams': float(card['applied_tension_grams']) if card['applied_tension_grams'] else None,
+            'validation_errors': card['validation_errors'],
+            'status': card['status'],
+            'certificate_hash': card['certificate_hash'],
+            'qr_tag_id': card['qr_tag_id'],
+            'created_at': card['created_at'].isoformat() if card['created_at'] else None
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/job-cards/<job_card_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_winding_job_card(job_card_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, status, validation_errors
+            FROM winding_job_cards
+            WHERE id = %s::uuid OR winding_job_card_id = %s
+        """, (job_card_id, job_card_id))
+        
+        card = cur.fetchone()
+        if not card:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobCardNotFound'}), 404
+        
+        if card['validation_errors'] and len(card['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot approve job card with validation errors'}), 400
+        
+        cur.execute("""
+            UPDATE winding_job_cards
+            SET status = 'CERTIFIED',
+                certificate_hash = encode(digest(id::text || winding_job_card_id || CURRENT_TIMESTAMP::text, 'sha256'), 'hex')
+            WHERE id = %s::uuid
+            RETURNING id, winding_job_card_id, certificate_hash
+        """, (card['id'],))
+        
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'winding_job_card_id': result['winding_job_card_id'],
+            'certificate_hash': result['certificate_hash'],
+            'status': 'CERTIFIED',
+            'message': 'Winding job card approved and certified'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/job-cards/<job_card_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_winding_job_card(job_card_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE winding_job_cards
+            SET status = 'REJECTED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid OR winding_job_card_id = %s
+            RETURNING id, winding_job_card_id
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected')}]),
+            job_card_id, job_card_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobCardNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'winding_job_card_id': result['winding_job_card_id'],
+            'status': 'REJECTED',
+            'message': 'Winding job card rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/bobbins', methods=['GET'])
+@jwt_required()
+def list_bobbin_records():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT br.id, br.bobbin_id, br.job_card_id, br.carrier_type,
+                   br.yarn_type, br.silk_fiber_variety, br.input_dyed_lot_no,
+                   br.net_weight_kg, br.status, br.qr_tag_id, br.certificate_hash,
+                   br.created_at, wjc.winding_job_card_id
+            FROM bobbin_records br
+            JOIN winding_job_cards wjc ON br.job_card_id = wjc.id
+            WHERE wjc.operator_employee_id = %s::uuid
+               OR wjc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY br.created_at DESC
+            LIMIT 100
+        """, (operator_id, operator_id))
+        
+        bobbins = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(bobbins),
+            'bobbins': [
+                {
+                    'id': str(b['id']),
+                    'bobbin_id': b['bobbin_id'],
+                    'job_card_id': str(b['job_card_id']),
+                    'winding_job_card_id': b['winding_job_card_id'],
+                    'carrier_type': b['carrier_type'],
+                    'yarn_type': b['yarn_type'],
+                    'silk_fiber_variety': b['silk_fiber_variety'],
+                    'input_dyed_lot_no': b['input_dyed_lot_no'],
+                    'net_weight_kg': float(b['net_weight_kg']),
+                    'status': b['status'],
+                    'qr_tag_id': b['qr_tag_id'],
+                    'certificate_hash': b['certificate_hash'],
+                    'created_at': b['created_at'].isoformat() if b['created_at'] else None
+                }
+                for b in bobbins
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/bobbins', methods=['POST'])
+@jwt_required()
+def create_bobbin_record():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['job_card_id', 'carrier_type', 'yarn_type', 'silk_fiber_variety', 'input_dyed_lot_no', 'net_weight_kg']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        bobbin_id = f"BOB-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        cur.execute("""
+            INSERT INTO bobbin_records (
+                bobbin_id, job_card_id, operator_id, factory_node_id,
+                carrier_type, yarn_type, silk_fiber_variety, input_dyed_lot_no,
+                net_weight_kg, traverse_length_config, knot_method,
+                structural_verdict, qr_tag_id
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, bobbin_id
+        """, (
+            bobbin_id,
+            data.get('job_card_id'),
+            operator_id,
+            factory_node_id,
+            data.get('carrier_type'),
+            data.get('yarn_type'),
+            data.get('silk_fiber_variety'),
+            data.get('input_dyed_lot_no'),
+            data.get('net_weight_kg'),
+            data.get('traverse_length_config'),
+            data.get('knot_method'),
+            data.get('structural_verdict'),
+            'WIND-' + bobbin_id
+        ))
+        
+        bobbin_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(bobbin_row['id']),
+            'bobbin_id': bobbin_row['bobbin_id'],
+            'message': 'Bobbin record created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/stock-routing', methods=['GET'])
+@jwt_required()
+def get_stock_routing():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT * FROM vw_bobbin_stock_routing
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        routes = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(routes),
+            'routing': [
+                {
+                    'bobbin_id': r['bobbin_id'],
+                    'winding_job_card_id': r['winding_job_card_id'],
+                    'carrier_type': r['carrier_type'],
+                    'yarn_type': r['yarn_type'],
+                    'silk_fiber_variety': r['silk_fiber_variety'],
+                    'input_dyed_lot_no': r['input_dyed_lot_no'],
+                    'net_weight_kg': float(r['net_weight_kg']),
+                    'bobbin_status': r['bobbin_status'],
+                    'inventory_output_routing_allocation': r['inventory_output_routing_allocation'],
+                    'waste_variance_percent': float(r['waste_variance_percent']) if r['waste_variance_percent'] else None,
+                    'bobbin_structural_build_verdict': r['bobbin_structural_build_verdict'],
+                    'knot_mechanical_join_profiling': r['knot_mechanical_join_profiling'],
+                    'recommended_routing': r['recommended_routing'],
+                    'certificate_hash': r['certificate_hash'],
+                    'winding_certificate_qr': r['winding_certificate_qr']
+                }
+                for r in routes
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/waste-alarms', methods=['GET'])
+@jwt_required()
+def list_waste_alarms():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wwa.id, wwa.job_card_id, wwa.factory_node_id,
+                   wwa.allocated_input_weight_kg, wwa.output_wound_weight_kg,
+                   wwa.winding_scrap_waste_gm, wwa.waste_variance_percent,
+                   wwa.threshold_percent, wwa.severity, wwa.message,
+                   wwa.acknowledged, wwa.created_at,
+                   wjc.winding_job_card_id
+            FROM winding_waste_variance_alarms wwa
+            LEFT JOIN winding_job_cards wjc ON wwa.job_card_id = wjc.id
+            WHERE wwa.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY wwa.created_at DESC
+            LIMIT 50
+        """, (operator_id,))
+        
+        alarms = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(alarms),
+            'alarms': [
+                {
+                    'id': str(a['id']),
+                    'job_card_id': str(a['job_card_id']),
+                    'winding_job_card_id': a['winding_job_card_id'],
+                    'allocated_input_weight_kg': float(a['allocated_input_weight_kg']),
+                    'output_wound_weight_kg': float(a['output_wound_weight_kg']),
+                    'winding_scrap_waste_gm': float(a['winding_scrap_waste_gm']),
+                    'waste_variance_percent': float(a['waste_variance_percent']) if a['waste_variance_percent'] else None,
+                    'threshold_percent': float(a['threshold_percent']),
+                    'severity': a['severity'],
+                    'message': a['message'],
+                    'acknowledged': a['acknowledged'],
+                    'created_at': a['created_at'].isoformat() if a['created_at'] else None
+                }
+                for a in alarms
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/winding/waste-alarms', methods=['POST'])
+@jwt_required()
+def create_waste_alarm():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required = ['job_card_id', 'allocated_input_weight_kg', 'output_wound_weight_kg', 'winding_scrap_waste_gm']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        waste_variance_percent = (data['winding_scrap_waste_gm'] / 1000.0) / data['allocated_input_weight_kg'] * 100 if data['allocated_input_weight_kg'] > 0 else 0
+        severity = 'WARNING' if waste_variance_percent > 0.5 else 'INFO'
+        if waste_variance_percent > 1.0:
+            severity = 'CRITICAL'
+        
+        message = data.get('message') or f"High Waste Variance on Job Card {data['job_card_id']} — Waste: {waste_variance_percent:.2f}% exceeds 0.5% threshold. Route to Production Supervisor."
+        
+        cur.execute("""
+            INSERT INTO winding_waste_variance_alarms (
+                job_card_id, factory_node_id, operator_id,
+                allocated_input_weight_kg, output_wound_weight_kg,
+                winding_scrap_waste_gm, waste_variance_percent,
+                threshold_percent, severity, message
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data['job_card_id'],
+            factory_node_id,
+            operator_id,
+            data['allocated_input_weight_kg'],
+            data['output_wound_weight_kg'],
+            data['winding_scrap_waste_gm'],
+            waste_variance_percent,
+            0.5,
+            severity,
+            message
+        ))
+        
+        alarm_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'alarm_id': str(alarm_id),
+            'waste_variance_percent': round(waste_variance_percent, 2),
+            'severity': severity,
+            'message': message
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

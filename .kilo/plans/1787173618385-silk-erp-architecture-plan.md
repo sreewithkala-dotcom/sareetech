@@ -171,8 +171,21 @@ Key constraints:
 - `POST /api/v1/assistant-weaver/logs/{log_id}/reject` — reject unresolved breaks
 - `POST /api/v1/assistant-weaver/loom-alarms` — create breakage alarm when rate > threshold
 - `GET /api/v1/assistant-weaver/loom-alarms` — list alarms for factory
-- Tables: `assistant_weaver_job_logs`, `wage_distributions`, `loom_breakage_alarms`, `assistant_weaver_shift_audits`
 - Validation: Block standard knots on 2400-hook line, loose Zari tails on Feeder 2, bypassed droppers, and unapproved shift handovers
+
+### Task 6.6: Bobbin Winder Module
+- `POST /api/v1/winding/job-cards` — create winding job card with guardrail validation
+- `GET /api/v1/winding/job-cards` — list job cards for operator/factory
+- `GET /api/v1/winding/job-cards/{id}` — get single job card detail
+- `POST /api/v1/winding/job-cards/{id}/approve` — approve and generate certificate
+- `POST /api/v1/winding/job-cards/{id}/reject` — reject with reason
+- `POST /api/v1/winding/bobbins` — create bobbin record linked to job card
+- `GET /api/v1/winding/bobbins` — list bobbin records
+- `GET /api/v1/winding/stock-routing` — get stock routing recommendations from view
+- `POST /api/v1/winding/waste-alarms` — create waste variance alarm when > 0.5%
+- `GET /api/v1/winding/waste-alarms` — list waste alarms for factory
+- Tables: `winding_job_cards`, `bobbin_records`, `winding_waste_variance_alarms`, `winding_production_certificates`, `vw_bobbin_stock_routing`
+- Validation: Block standard knots on 2400-hook line, speed >200 m/min warning, splice count >1 downgrade routing, waste variance >0.5% alarm
 
 ### Task 7: Frontend Dashboard Router
 - JWT-based role detection on login

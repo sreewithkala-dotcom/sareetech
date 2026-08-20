@@ -9,6 +9,7 @@ export default function CulturalKnowledgePanel({ factoryNodeId }) {
   const [facets, setFacets] = useState([])
   const [states, setStates] = useState([])
   const [concepts, setConcepts] = useState([])
+  const [benchmarks, setBenchmarks] = useState([])
   const [selectedFacet, setSelectedFacet] = useState('')
   const [selectedState, setSelectedState] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -18,6 +19,7 @@ export default function CulturalKnowledgePanel({ factoryNodeId }) {
     if (tab === 'facets') fetchFacets()
     else if (tab === 'states') fetchStates()
     else if (tab === 'concepts') fetchConcepts()
+    else if (tab === 'benchmarks') fetchBenchmarks()
   }, [tab])
 
   useEffect(() => {
@@ -84,6 +86,22 @@ export default function CulturalKnowledgePanel({ factoryNodeId }) {
     fetchConcepts()
   }
 
+  const fetchBenchmarks = async () => {
+    setLoading(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`${API_URL}/enterprise/culture/benchmark-sources?limit=100`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok) setBenchmarks(data.sources || [])
+    } catch (error) {
+      console.error('Failed to fetch benchmarks:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Paper sx={{ p: 2, mt: 2 }}>
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
@@ -91,6 +109,7 @@ export default function CulturalKnowledgePanel({ factoryNodeId }) {
           <Tab label={`Concepts (${concepts.length})`} value="concepts" />
           <Tab label={`Facets (${facets.length})`} value="facets" />
           <Tab label={`States (${states.length})`} value="states" />
+          <Tab label={`Benchmarks (${benchmarks.length})`} value="benchmarks" />
         </Tabs>
       </Box>
 
@@ -236,6 +255,54 @@ export default function CulturalKnowledgePanel({ factoryNodeId }) {
                       <TableCell>{state.primary_language} {state.primary_dialect ? `(${state.primary_dialect})` : ''}</TableCell>
                       <TableCell>{state.dominant_silk_type || '-'}</TableCell>
                       <TableCell>{state.dominant_zari_type || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Box>
+      )}
+
+      {tab === 'benchmarks' && (
+        <Box>
+          {loading ? (
+            <Typography>Loading benchmark sources...</Typography>
+          ) : benchmarks.length === 0 ? (
+            <Typography color="text.secondary">No benchmark sources indexed yet.</Typography>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Title</TableCell>
+                    <TableCell>Year</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Culture Scope</TableCell>
+                    <TableCell>Venue</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {benchmarks.map((b) => (
+                    <TableRow key={b.source_id}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">
+                          {b.url ? (
+                            <a href={b.url} target="_blank" rel="noopener noreferrer">{b.title}</a>
+                          ) : (
+                            b.title
+                          )}
+                        </Typography>
+                        {b.authors?.length > 0 && (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {b.authors.slice(0, 3).join(', ')}{b.authors.length > 3 ? ' et al.' : ''}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>{b.year || '-'}</TableCell>
+                      <TableCell><Chip label={b.benchmark_type} size="small" /></TableCell>
+                      <TableCell>{b.culture_scope || '-'}</TableCell>
+                      <TableCell>{b.venue || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

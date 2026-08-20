@@ -15245,5 +15245,221 @@ def list_diwali_translations():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# CULTURAL BENCHMARK REFERENCES
+# Related papers/datasets for DIWALI and cultural alignment
+# ============================================================
+
+# ---------------------------
+# Benchmark Sources CRUD
+# ---------------------------
+
+@app.route('/api/v1/enterprise/culture/benchmark-sources', methods=['POST'])
+@jwt_required()
+def create_benchmark_source():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['source_id', 'factory_node_id', 'title']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO cultural_benchmark_sources (source_id, factory_node_id, title, authors,
+                year, venue, url, doi, abstract, benchmark_type, culture_scope, language_scope,
+                is_active, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('source_id'), data.get('factory_node_id'), data.get('title'),
+            json.dumps(data.get('authors', [])), data.get('year'), data.get('venue'),
+            data.get('url'), data.get('doi'), data.get('abstract'),
+            data.get('benchmark_type'), data.get('culture_scope'), data.get('language_scope'),
+            data.get('is_active', True), json.dumps(data.get('metadata', {}))
+        ))
+        source_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(source_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/culture/benchmark-sources', methods=['GET'])
+@jwt_required()
+def list_benchmark_sources():
+    try:
+        benchmark_type = request.args.get('benchmark_type')
+        year = request.args.get('year')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT source_id, title, authors, year, venue, url, doi, abstract,
+                   benchmark_type, culture_scope, language_scope, is_active, created_at
+            FROM cultural_benchmark_sources
+            WHERE is_active = TRUE
+        """
+        params = []
+        if benchmark_type:
+            query += " AND benchmark_type = %s"
+            params.append(benchmark_type)
+        if year:
+            query += " AND year = %s"
+            params.append(int(year))
+        query += " ORDER BY year DESC, title LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        sources = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(sources), 'sources': [dict(s) for s in sources]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Concept <-> Benchmark Links
+# ---------------------------
+
+@app.route('/api/v1/enterprise/diwali/concepts/<concept_id>/link-benchmark', methods=['POST'])
+@jwt_required()
+def link_diwali_concept_to_benchmark(concept_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['benchmark_source_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO diwali_concept_benchmark_links (concept_id, benchmark_source_id, factory_node_id,
+                link_type, relevance_score, notes, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            concept_id, data.get('benchmark_source_id'),
+            data.get('factory_node_id', 'FACT-BLR-01'),
+            data.get('link_type', 'RELATED'), data.get('relevance_score'),
+            data.get('notes'), operator_id
+        ))
+        link_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(link_id), 'status': 'linked'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/diwali/concepts/<concept_id>/benchmarks', methods=['GET'])
+@jwt_required()
+def list_concept_benchmarks(concept_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT bs.source_id, bs.title, bs.authors, bs.year, bs.venue, bs.url,
+                   dcbl.link_type, dcbl.relevance_score, dcbl.notes
+            FROM diwali_concept_benchmark_links dcbl
+            JOIN cultural_benchmark_sources bs ON dcbl.benchmark_source_id = bs.id
+            WHERE dcbl.concept_id = %s
+            ORDER BY dcbl.relevance_score DESC NULLS LAST, bs.year DESC
+        """, (concept_id,))
+        links = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(links), 'benchmarks': [dict(l) for l in links]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# LLM Cultural Evaluation Logs
+# ---------------------------
+
+@app.route('/api/v1/enterprise/culture/evaluations', methods=['POST'])
+@jwt_required()
+def create_cultural_evaluation():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['evaluation_id', 'factory_node_id', 'llm_model', 'evaluation_type', 'input_text', 'output_text']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO llm_cultural_evaluation_logs (evaluation_id, factory_node_id, llm_model,
+                benchmark_source_id, evaluation_type, input_text, output_text,
+                csi_coverage_score, cultural_alignment_score, bias_score,
+                llm_judge_score, human_evaluation_score, evaluated_by, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid, %s)
+            RETURNING id
+        """, (
+            data.get('evaluation_id'), data.get('factory_node_id'), data.get('llm_model'),
+            data.get('benchmark_source_id'), data.get('evaluation_type'),
+            data.get('input_text'), data.get('output_text'),
+            data.get('csi_coverage_score'), data.get('cultural_alignment_score'),
+            data.get('bias_score'), data.get('llm_judge_score'),
+            data.get('human_evaluation_score'), operator_id,
+            json.dumps(data.get('metadata', {}))
+        ))
+        evaluation_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(evaluation_id), 'status': 'logged'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/culture/evaluations', methods=['GET'])
+@jwt_required()
+def list_cultural_evaluations():
+    try:
+        llm_model = request.args.get('llm_model')
+        benchmark_source_id = request.args.get('benchmark_source_id')
+        evaluation_type = request.args.get('evaluation_type')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT le.evaluation_id, le.llm_model, le.evaluation_type, le.input_text,
+                   le.output_text, le.csi_coverage_score, le.cultural_alignment_score,
+                   le.bias_score, le.llm_judge_score, le.human_evaluation_score,
+                   le.evaluated_at, bs.title AS benchmark_title
+            FROM llm_cultural_evaluation_logs le
+            LEFT JOIN cultural_benchmark_sources bs ON le.benchmark_source_id = bs.id
+            WHERE le.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+        """
+        params = [get_jwt_identity()]
+        if llm_model:
+            query += " AND le.llm_model = %s"
+            params.append(llm_model)
+        if benchmark_source_id:
+            query += " AND le.benchmark_source_id = %s"
+            params.append(benchmark_source_id)
+        if evaluation_type:
+            query += " AND le.evaluation_type = %s"
+            params.append(evaluation_type)
+        query += " ORDER BY le.evaluated_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        evaluations = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(evaluations), 'evaluations': [dict(e) for e in evaluations]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

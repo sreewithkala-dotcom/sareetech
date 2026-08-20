@@ -8497,5 +8497,506 @@ def get_sales_forecast_loom_harness_setter():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# WARP JOINER (TIE-IN MASTER / KNOTTING SPECIALIST) MODULE
+# ============================================================
+
+@app.route('/api/v1/warp-joiner/jobs', methods=['POST'])
+@jwt_required()
+def create_warp_joining_job():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['joining_job_card_id', 'loom_number_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO warp_joining_jobs (
+                joining_job_card_id, loom_number_id, production_lot_id,
+                design_master_id, harness_setup_log_id, warp_beam_production_log_id,
+                card_puncher_job_id, pirn_winding_job_id, bobbin_winder_job_card_id,
+                factory_node_id, warp_joiner_employee_id, status,
+                warp_set_id, tying_machine_model, separation_needle_type,
+                target_tying_speed_kpm, knot_type_selection,
+                knot_tail_length_mm, double_end_detection_status,
+                manual_repair_knot_count, knot_pull_through_mode,
+                knot_pull_through_status, warp_joiner_approval_state,
+                new_warp_beam_lot_no,
+                start_timestamp, end_timestamp,
+                total_ends_to_join, missed_ends_count,
+                total_joining_hours, loom_idle_duration_hours,
+                loom_idle_variance_alert,
+                knots_completed_count, wage_per_hundred_knots, calculated_wage_payout,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'TYING_IN_PROGRESS', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, joining_job_card_id
+        """, (
+            data.get('joining_job_card_id'),
+            data.get('loom_number_id'),
+            data.get('production_lot_id'),
+            data.get('design_master_id'),
+            data.get('harness_setup_log_id'),
+            data.get('warp_beam_production_log_id'),
+            data.get('card_puncher_job_id'),
+            data.get('pirn_winding_job_id'),
+            data.get('bobbin_winder_job_card_id'),
+            factory_node_id,
+            operator_id,
+            data.get('warp_set_id'),
+            data.get('tying_machine_model', 'STAUBLI_TOPMATIC'),
+            data.get('separation_needle_type', 'ULTRA_FINE_SILK_NEEDLE_LE_0_3MM'),
+            data.get('target_tying_speed_kpm'),
+            data.get('knot_type_selection', 'DOUBLE_LOOP_MICRO_KNOT'),
+            data.get('knot_tail_length_mm'),
+            data.get('double_end_detection_status', 'ZERO_DOUBLE_ENDS_DETECTED'),
+            data.get('manual_repair_knot_count', 0),
+            data.get('knot_pull_through_mode', 'MANUAL_HAND_CRANK_CREEP_PULL'),
+            data.get('knot_pull_through_status', 'PASSED_100_PERCENT_KNOTS_CLEARED'),
+            data.get('warp_joiner_approval_state', 'TYING_IN_PROGRESS'),
+            data.get('new_warp_beam_lot_no'),
+            data.get('end_timestamp'),
+            data.get('total_ends_to_join'),
+            data.get('missed_ends_count', 0),
+            data.get('total_joining_hours'),
+            data.get('loom_idle_duration_hours'),
+            data.get('loom_idle_variance_alert', False),
+            data.get('knots_completed_count', 0),
+            data.get('wage_per_hundred_knots'),
+            data.get('calculated_wage_payout'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        job_row = cur.fetchone()
+        job_id = job_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(job_id),
+            'joining_job_card_id': job_row['joining_job_card_id'],
+            'status': 'TYING_IN_PROGRESS',
+            'message': 'Warp joining job created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-joiner/jobs', methods=['GET'])
+@jwt_required()
+def list_warp_joining_jobs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wjj.id, wjj.joining_job_card_id, wjj.loom_number_id,
+                   wjj.tying_machine_model, wjj.separation_needle_type,
+                   wjj.target_tying_speed_kpm, wjj.knot_type_selection,
+                   wjj.knot_tail_length_mm, wjj.double_end_detection_status,
+                   wjj.manual_repair_knot_count, wjj.knot_pull_through_mode,
+                   wjj.knot_pull_through_status, wjj.warp_joiner_approval_state,
+                   wjj.total_ends_to_join, wjj.missed_ends_count,
+                   wjj.loom_idle_variance_alert, wjj.knots_completed_count,
+                   wjj.calculated_wage_payout, wjj.status, wjj.certificate_hash,
+                   wjj.auto_assigned_routing, wjj.created_at,
+                   dm.design_master_id
+            FROM warp_joining_jobs wjj
+            LEFT JOIN design_masters dm ON wjj.design_master_id = dm.id
+            WHERE wjj.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY wjj.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(jobs),
+            'jobs': [
+                {
+                    'id': str(j['id']),
+                    'joining_job_card_id': j['joining_job_card_id'],
+                    'loom_number_id': j['loom_number_id'],
+                    'design_master_id': j['design_master_id'],
+                    'tying_machine_model': j['tying_machine_model'],
+                    'separation_needle_type': j['separation_needle_type'],
+                    'target_tying_speed_kpm': j['target_tying_speed_kpm'],
+                    'knot_type_selection': j['knot_type_selection'],
+                    'knot_tail_length_mm': j['knot_tail_length_mm'],
+                    'double_end_detection_status': j['double_end_detection_status'],
+                    'manual_repair_knot_count': j['manual_repair_knot_count'],
+                    'knot_pull_through_mode': j['knot_pull_through_mode'],
+                    'knot_pull_through_status': j['knot_pull_through_status'],
+                    'warp_joiner_approval_state': j['warp_joiner_approval_state'],
+                    'total_ends_to_join': j['total_ends_to_join'],
+                    'missed_ends_count': j['missed_ends_count'],
+                    'loom_idle_variance_alert': j['loom_idle_variance_alert'],
+                    'knots_completed_count': j['knots_completed_count'],
+                    'calculated_wage_payout': j['calculated_wage_payout'],
+                    'status': j['status'],
+                    'certificate_hash': j['certificate_hash'],
+                    'auto_assigned_routing': j['auto_assigned_routing'],
+                    'created_at': j['created_at'].isoformat() if j['created_at'] else None
+                }
+                for j in jobs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-joiner/jobs/<job_id>', methods=['GET'])
+@jwt_required()
+def get_warp_joining_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wjj.*, dm.design_master_id
+            FROM warp_joining_jobs wjj
+            LEFT JOIN design_masters dm ON wjj.design_master_id = dm.id
+            WHERE wjj.id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not job:
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        return jsonify({
+            'id': str(job['id']),
+            'joining_job_card_id': job['joining_job_card_id'],
+            'loom_number_id': job['loom_number_id'],
+            'design_master_id': job['design_master_id'],
+            'warp_set_id': job['warp_set_id'],
+            'tying_machine_model': job['tying_machine_model'],
+            'separation_needle_type': job['separation_needle_type'],
+            'target_tying_speed_kpm': job['target_tying_speed_kpm'],
+            'knot_type_selection': job['knot_type_selection'],
+            'knot_tail_length_mm': job['knot_tail_length_mm'],
+            'double_end_detection_status': job['double_end_detection_status'],
+            'manual_repair_knot_count': job['manual_repair_knot_count'],
+            'knot_pull_through_mode': job['knot_pull_through_mode'],
+            'knot_pull_through_status': job['knot_pull_through_status'],
+            'warp_joiner_approval_state': job['warp_joiner_approval_state'],
+            'new_warp_beam_lot_no': job['new_warp_beam_lot_no'],
+            'start_timestamp': job['start_timestamp'].isoformat() if job['start_timestamp'] else None,
+            'end_timestamp': job['end_timestamp'].isoformat() if job['end_timestamp'] else None,
+            'total_ends_to_join': job['total_ends_to_join'],
+            'missed_ends_count': job['missed_ends_count'],
+            'total_joining_hours': job['total_joining_hours'],
+            'loom_idle_duration_hours': job['loom_idle_duration_hours'],
+            'loom_idle_variance_alert': job['loom_idle_variance_alert'],
+            'knots_completed_count': job['knots_completed_count'],
+            'wage_per_hundred_knots': job['wage_per_hundred_knots'],
+            'calculated_wage_payout': job['calculated_wage_payout'],
+            'validation_errors': job['validation_errors'],
+            'validation_warnings': job['validation_warnings'],
+            'auto_assigned_routing': job['auto_assigned_routing'],
+            'status': job['status'],
+            'certificate_hash': job['certificate_hash']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-joiner/jobs/<job_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_warp_joining_job(job_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, joining_job_card_id, status, validation_errors, warp_joiner_approval_state
+            FROM warp_joining_jobs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['validation_errors'] and len(job['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify job with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(job_id, job['joining_job_card_id'])
+        qr_tag_id = 'WARP-JOIN-' + job['joining_job_card_id']
+        
+        cur.execute("""
+            UPDATE warp_joining_jobs
+            SET status = 'LOOM_ACTIVE_PRODUCTION',
+                certificate_hash = %s,
+                qr_tag_id = %s,
+                warp_joiner_approval_state = 'PASSED_READY_FOR_WEAVER_START'
+            WHERE id = %s::uuid
+            RETURNING id, joining_job_card_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, job_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO warp_joining_certificates (
+                warp_joining_job_id, certificate_hash, qr_tag_id, joining_job_card_id,
+                loom_number_id, warp_set_id, tying_machine_model,
+                separation_needle_type, target_tying_speed_kpm, knot_type_selection,
+                knot_tail_length_mm, double_end_detection_status,
+                manual_repair_knot_count, knot_pull_through_mode,
+                knot_pull_through_status, warp_joiner_approval_state,
+                total_ends_to_join, missed_ends_count,
+                total_joining_hours, loom_idle_duration_hours,
+                loom_idle_variance_alert, knots_completed_count,
+                calculated_wage_payout,
+                auto_assigned_routing, warp_joiner_employee_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.joining_job_card_id,
+                pj.loom_number_id,
+                pj.warp_set_id,
+                pj.tying_machine_model,
+                pj.separation_needle_type,
+                pj.target_tying_speed_kpm,
+                pj.knot_type_selection,
+                pj.knot_tail_length_mm,
+                pj.double_end_detection_status,
+                pj.manual_repair_knot_count,
+                pj.knot_pull_through_mode,
+                pj.knot_pull_through_status,
+                pj.warp_joiner_approval_state,
+                pj.total_ends_to_join,
+                pj.missed_ends_count,
+                pj.total_joining_hours,
+                pj.loom_idle_duration_hours,
+                pj.loom_idle_variance_alert,
+                pj.knots_completed_count,
+                pj.calculated_wage_payout,
+                pj.auto_assigned_routing,
+                pj.warp_joiner_employee_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'joining_job_card_id', pj.joining_job_card_id,
+                    'loom_number_id', pj.loom_number_id,
+                    'warp_set_id', pj.warp_set_id,
+                    'tying_machine_model', pj.tying_machine_model,
+                    'separation_needle_type', pj.separation_needle_type,
+                    'target_tying_speed_kpm', pj.target_tying_speed_kpm,
+                    'knot_type_selection', pj.knot_type_selection,
+                    'knot_tail_length_mm', pj.knot_tail_length_mm,
+                    'total_ends_to_join', pj.total_ends_to_join,
+                    'knots_completed_count', pj.knots_completed_count,
+                    'calculated_wage_payout', pj.calculated_wage_payout,
+                    'loom_idle_variance_alert', pj.loom_idle_variance_alert
+                )
+            FROM warp_joining_jobs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'joining_job_card_id': result['joining_job_card_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'LOOM_ACTIVE_PRODUCTION',
+            'message': 'Warp joining job certified and loom is active for production'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-joiner/certificates', methods=['GET'])
+@jwt_required()
+def list_warp_joining_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wjc.id, wjc.certificate_hash, wjc.qr_tag_id,
+                   wjc.joining_job_card_id, wjc.loom_number_id,
+                   wjc.warp_set_id, wjc.tying_machine_model,
+                   wjc.separation_needle_type, wjc.target_tying_speed_kpm,
+                   wjc.knot_type_selection, wjc.knot_tail_length_mm,
+                   wjc.double_end_detection_status, wjc.manual_repair_knot_count,
+                   wjc.knot_pull_through_status, wjc.warp_joiner_approval_state,
+                   wjc.total_ends_to_join, wjc.missed_ends_count,
+                   wjc.loom_idle_duration_hours, wjc.loom_idle_variance_alert,
+                   wjc.knots_completed_count, wjc.calculated_wage_payout,
+                   wjc.auto_assigned_routing, wjc.status, wjc.certified_at,
+                   wjj.joining_job_card_id
+            FROM warp_joining_certificates wjc
+            JOIN warp_joining_jobs wjj ON wjc.warp_joining_job_id = wjj.id
+            WHERE wjc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY wjc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'joining_job_card_id': c['joining_job_card_id'],
+                    'loom_number_id': c['loom_number_id'],
+                    'warp_set_id': c['warp_set_id'],
+                    'tying_machine_model': c['tying_machine_model'],
+                    'separation_needle_type': c['separation_needle_type'],
+                    'target_tying_speed_kpm': c['target_tying_speed_kpm'],
+                    'knot_type_selection': c['knot_type_selection'],
+                    'knot_tail_length_mm': c['knot_tail_length_mm'],
+                    'double_end_detection_status': c['double_end_detection_status'],
+                    'manual_repair_knot_count': c['manual_repair_knot_count'],
+                    'knot_pull_through_status': c['knot_pull_through_status'],
+                    'warp_joiner_approval_state': c['warp_joiner_approval_state'],
+                    'total_ends_to_join': c['total_ends_to_join'],
+                    'missed_ends_count': c['missed_ends_count'],
+                    'loom_idle_duration_hours': c['loom_idle_duration_hours'],
+                    'loom_idle_variance_alert': c['loom_idle_variance_alert'],
+                    'knots_completed_count': c['knots_completed_count'],
+                    'calculated_wage_payout': c['calculated_wage_payout'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR WARP JOINER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/warp-joiner', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_warp_joiner():
+    """
+    API plugin endpoint for sales team warp joining material processing forecast.
+    Returns forecasted warp joining requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'tying_machine_model': 'STAUBLI_TOPMATIC',
+                    'separation_needle_type': 'ULTRA_FINE_SILK_NEEDLE_LE_0_3MM',
+                    'estimated_joins': 3,
+                    'total_ends_to_join': 21000,
+                    'target_tying_speed_kpm': 200,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'tying_machine_model': 'STAUBLI_TOPMATIC',
+                    'separation_needle_type': 'ULTRA_FINE_SILK_NEEDLE_LE_0_3MM',
+                    'estimated_joins': 2,
+                    'total_ends_to_join': 19800,
+                    'target_tying_speed_kpm': 200,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'tying_machine_model': 'KNOTEX_AS_3',
+                    'separation_needle_type': 'FINE_NEEDLE_0_5MM',
+                    'estimated_joins': 5,
+                    'total_ends_to_join': 12000,
+                    'target_tying_speed_kpm': 350,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'WARP-JOIN-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_joins': 3,
+                    'loom_number_id': 'LOOM-2400-001',
+                    'tying_machine_model': 'STAUBLI_TOPMATIC'
+                },
+                {
+                    'lot_number': 'WARP-JOIN-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_joins': 2,
+                    'loom_number_id': 'LOOM-2400-002',
+                    'tying_machine_model': 'STAUBLI_TOPMATIC'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

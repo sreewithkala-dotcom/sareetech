@@ -2,6 +2,7 @@ import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Tab
 import { useAuth } from '../contexts/AuthContext'
 import { useDashboard } from '../contexts/DashboardContext'
 import { useNavigate } from 'react-router-dom'
+import EnterprisePanel from '../components/EnterprisePanel'
 
 export default function DashboardGuildManager() {
   const { user } = useAuth()
@@ -148,6 +149,7 @@ export default function DashboardGuildManager() {
           </Paper>
         </Grid>
       </Grid>
+      <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )
 }

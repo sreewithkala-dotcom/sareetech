@@ -1,6 +1,7 @@
 import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import EnterprisePanel from '../components/EnterprisePanel'
 
 export default function DashboardStoreInventoryManager() {
   const { user } = useAuth()
@@ -79,6 +80,7 @@ export default function DashboardStoreInventoryManager() {
           </Paper>
         </Grid>
       </Grid>
+      <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )
 }

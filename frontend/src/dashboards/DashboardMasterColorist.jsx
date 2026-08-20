@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../contexts/DashboardContext'
+import EnterprisePanel from '../components/EnterprisePanel'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5003/api/v1'
 
@@ -919,6 +920,7 @@ export default function DashboardMasterColorist() {
           </Grid>
         </Grid>
       )}
+      <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )
 }

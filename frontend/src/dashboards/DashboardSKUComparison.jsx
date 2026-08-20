@@ -1,6 +1,7 @@
 import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, FormControl, InputLabel, Select, MenuItem, Alert } from '@mui/material'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import EnterprisePanel from '../components/EnterprisePanel'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5009/api/v1'
 
@@ -177,6 +178,7 @@ export default function DashboardSKUComparison() {
           </Grid>
         )}
       </Grid>
+      <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )
 }

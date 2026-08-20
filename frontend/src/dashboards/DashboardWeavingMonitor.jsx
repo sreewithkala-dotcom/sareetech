@@ -6,6 +6,7 @@ import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
 import WarningIcon from '@mui/icons-material/Warning'
+import EnterprisePanel from '../components/EnterprisePanel'
 
 export default function DashboardWeavingMonitor() {
   const { user } = useAuth()
@@ -95,6 +96,7 @@ export default function DashboardWeavingMonitor() {
           </Paper>
         </Grid>
       </Grid>
+      <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )
 }

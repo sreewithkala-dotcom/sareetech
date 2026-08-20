@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination, TextField, InputAdornment, Chip, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import EnterprisePanel from '../components/EnterprisePanel'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5009/api/v1'
 
@@ -318,6 +319,7 @@ export default function DashboardSKUManager() {
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
       </Paper>
+      <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )
 }

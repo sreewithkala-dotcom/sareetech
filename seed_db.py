@@ -39,6 +39,7 @@ def seed():
         ('ROLE-FILATURE-SUPPLIER', 'filature.supplier@factory.com', 'Filature Supplier', 'EMP-005'),
         ('ROLE-GRAPH-DRAFTER', 'graph.drafter@factory.com', 'Graph Drafter', 'EMP-006'),
         ('ROLE-LOG-FINISHING', 'log.finishing@factory.com', 'LOG Finishing Specialist', 'EMP-007'),
+        ('ROLE-LOG-FINISHING-TRANSIT-SPECIALIST', 'log.finishing.transit@factory.com', 'LOG Finishing & Transit Specialist', 'EMP-007A'),
         ('ROLE-LOOM-HARNESS-SETTER', 'loom.harness@factory.com', 'Loom Harness Setter', 'EMP-008'),
         ('ROLE-MASTER-COLORIST', 'master.colorist@factory.com', 'Master Colorist', 'EMP-009'),
         ('ROLE-MASTER-WEAVER', 'master.weaver@factory.com', 'Master Weaver', 'EMP-010'),

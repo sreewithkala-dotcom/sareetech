@@ -13724,5 +13724,914 @@ def get_sales_forecast_store_inventory_manager():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# ENTERPRISE MODULES: AI/ML, Finance, HR, Procurement,
+# Supply Chain, IoT, B2B, Buy-Back, Notifications
+# ============================================================
+
+# ---------------------------
+# AI/ML Inference Logs
+# ---------------------------
+
+@app.route('/api/v1/enterprise/ai/inference-logs', methods=['POST'])
+@jwt_required()
+def create_ai_inference_log():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['inference_id', 'factory_node_id', 'service_name']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO ai_inference_logs (inference_id, factory_node_id, service_name, model_version,
+                entity_type, entity_id, input_features, prediction, confidence_score,
+                inference_latency_ms, edge_deployed, operator_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('inference_id'), data.get('factory_node_id'), data.get('service_name'),
+            data.get('model_version'), data.get('entity_type'), data.get('entity_id'),
+            json.dumps(data.get('input_features', {})), json.dumps(data.get('prediction', {})),
+            data.get('confidence_score'), data.get('inference_latency_ms'),
+            data.get('edge_deployed', False), operator_id
+        ))
+        log_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(log_id), 'status': 'logged'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/ai/inference-logs', methods=['GET'])
+@jwt_required()
+def list_ai_inference_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT inference_id, service_name, entity_type, entity_id, confidence_score,
+                   inference_latency_ms, edge_deployed, created_at
+            FROM ai_inference_logs
+            WHERE operator_id = %s::uuid
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(logs), 'logs': [dict(log) for log in logs]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Finance: Journal Entries
+# ---------------------------
+
+@app.route('/api/v1/enterprise/finance/journal-entries', methods=['POST'])
+@jwt_required()
+def create_finance_journal_entry():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['journal_id', 'factory_node_id', 'debit_account', 'credit_account', 'amount']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO finance_journal_entries (journal_id, factory_node_id, entry_type,
+                debit_account, credit_account, amount, currency, reference_entity_type,
+                reference_entity_id, supplier_id, weaver_id, description, posted_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('journal_id'), data.get('factory_node_id'), data.get('entry_type', 'STANDARD'),
+            data.get('debit_account'), data.get('credit_account'), data.get('amount'),
+            data.get('currency', 'INR'), data.get('reference_entity_type'), data.get('reference_entity_id'),
+            data.get('supplier_id'), data.get('weaver_id'), data.get('description'), operator_id
+        ))
+        entry_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(entry_id), 'status': 'posted'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/finance/journal-entries', methods=['GET'])
+@jwt_required()
+def list_finance_journal_entries():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT journal_id, entry_type, debit_account, credit_account, amount, currency,
+                   reference_entity_type, reference_entity_id, posted_at
+            FROM finance_journal_entries
+            WHERE posted_by = %s::uuid
+            ORDER BY posted_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        entries = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(entries), 'entries': [dict(e) for e in entries]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Finance: Supplier Payouts
+# ---------------------------
+
+@app.route('/api/v1/enterprise/finance/supplier-payouts', methods=['POST'])
+@jwt_required()
+def create_supplier_payout():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['payout_id', 'factory_node_id', 'supplier_id', 'payout_amount']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO supplier_payouts (payout_id, factory_node_id, supplier_id, raw_lot_id,
+                payout_amount, currency, payout_type, payment_method, transaction_ref,
+                smart_contract_tx_hash, released_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('payout_id'), data.get('factory_node_id'), data.get('supplier_id'),
+            data.get('raw_lot_id'), data.get('payout_amount'), data.get('currency', 'INR'),
+            data.get('payout_type', 'FULL'), data.get('payment_method', 'UPI'),
+            data.get('transaction_ref'), data.get('smart_contract_tx_hash'), operator_id
+        ))
+        payout_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(payout_id), 'status': 'released'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/finance/supplier-payouts', methods=['GET'])
+@jwt_required()
+def list_supplier_payouts():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT payout_id, supplier_id, raw_lot_id, payout_amount, payout_type,
+                   payment_method, released_at
+            FROM supplier_payouts
+            WHERE released_by = %s::uuid
+            ORDER BY released_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        payouts = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(payouts), 'payouts': [dict(p) for p in payouts]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# HR: Weaver Profiles
+# ---------------------------
+
+@app.route('/api/v1/enterprise/hr/weaver-profiles', methods=['POST'])
+@jwt_required()
+def create_hr_weaver_profile():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['user_id', 'factory_node_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO hr_weaver_profiles (user_id, factory_node_id, guild_id, skill_level,
+                primary_skill_set, loom_type_preference, max_loom_speed_ppm, average_yield_score,
+                defect_rate_pct, attendance_score, is_active, joined_at, certified_at)
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('user_id'), data.get('factory_node_id'), data.get('guild_id'),
+            data.get('skill_level', 'JOURNEYMAN'), json.dumps(data.get('primary_skill_set', [])),
+            json.dumps(data.get('loom_type_preference', [])), data.get('max_loom_speed_ppm'),
+            data.get('average_yield_score'), data.get('defect_rate_pct'), data.get('attendance_score'),
+            data.get('is_active', True), data.get('joined_at'), data.get('certified_at')
+        ))
+        profile_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(profile_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/hr/weaver-profiles', methods=['GET'])
+@jwt_required()
+def list_hr_weaver_profiles():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT wp.user_id, wp.skill_level, wp.primary_skill_set, wp.loom_type_preference,
+                   wp.average_yield_score, wp.defect_rate_pct, wp.attendance_score,
+                   u.full_name, u.email
+            FROM hr_weaver_profiles wp
+            LEFT JOIN users u ON wp.user_id = u.id
+            WHERE wp.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY wp.average_yield_score DESC
+            LIMIT 100
+        """, (operator_id,))
+        profiles = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(profiles), 'profiles': [dict(p) for p in profiles]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# HR: Guild Members
+# ---------------------------
+
+@app.route('/api/v1/enterprise/hr/guild-members', methods=['POST'])
+@jwt_required()
+def create_hr_guild_member():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['guild_id', 'user_id', 'factory_node_id', 'joined_at']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO hr_guild_members (guild_id, user_id, factory_node_id, role_in_guild,
+                joined_at, performance_score, certification_level)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('guild_id'), data.get('user_id'), data.get('factory_node_id'),
+            data.get('role_in_guild', 'MEMBER'), data.get('joined_at'),
+            data.get('performance_score'), data.get('certification_level')
+        ))
+        member_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(member_id), 'status': 'added'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/hr/guild-members', methods=['GET'])
+@jwt_required()
+def list_hr_guild_members():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT gm.guild_id, gm.user_id, gm.role_in_guild, gm.joined_at,
+                   gm.performance_score, gm.certification_level,
+                   u.full_name, u.email
+            FROM hr_guild_members gm
+            LEFT JOIN users u ON gm.user_id = u.id
+            WHERE gm.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY gm.performance_score DESC
+            LIMIT 100
+        """, (operator_id,))
+        members = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(members), 'members': [dict(m) for m in members]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Procurement: Requisitions
+# ---------------------------
+
+@app.route('/api/v1/enterprise/procurement/requisitions', methods=['POST'])
+@jwt_required()
+def create_procurement_requisition():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['requisition_id', 'factory_node_id', 'item_category', 'quantity_requested']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO procurement_requisitions (requisition_id, factory_node_id, requested_by,
+                item_category, item_description, quantity_requested, unit_of_measure,
+                estimated_unit_cost, total_estimated_cost, priority, status, auto_generated,
+                ai_confidence_score)
+            VALUES (%s, %s, %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('requisition_id'), data.get('factory_node_id'), operator_id,
+            data.get('item_category'), data.get('item_description'), data.get('quantity_requested'),
+            data.get('unit_of_measure', 'KG'), data.get('estimated_unit_cost'),
+            data.get('total_estimated_cost'), data.get('priority', 'MEDIUM'),
+            data.get('status', 'DRAFT'), data.get('auto_generated', False),
+            data.get('ai_confidence_score')
+        ))
+        req_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(req_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/procurement/requisitions', methods=['GET'])
+@jwt_required()
+def list_procurement_requisitions():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT requisition_id, item_category, quantity_requested, priority, status,
+                   auto_generated, ai_confidence_score, created_at
+            FROM procurement_requisitions
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        reqs = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(reqs), 'requisitions': [dict(r) for r in reqs]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Procurement: Orders
+# ---------------------------
+
+@app.route('/api/v1/enterprise/procurement/orders', methods=['POST'])
+@jwt_required()
+def create_procurement_order():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['po_id', 'factory_node_id', 'supplier_id', 'item_category', 'quantity_ordered', 'unit_price']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO procurement_orders (po_id, factory_node_id, requisition_id, supplier_id,
+                item_category, quantity_ordered, unit_price, total_amount, currency,
+                payment_terms, delivery_terms, expected_delivery_date, status, issued_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('po_id'), data.get('factory_node_id'), data.get('requisition_id'),
+            data.get('supplier_id'), data.get('item_category'), data.get('quantity_ordered'),
+            data.get('unit_price'), data.get('total_amount'), data.get('currency', 'INR'),
+            data.get('payment_terms', 'NET_30'), data.get('delivery_terms', 'FACTORY_GATE'),
+            data.get('expected_delivery_date'), data.get('status', 'ISSUED'), operator_id
+        ))
+        po_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(po_id), 'status': 'issued'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/procurement/orders', methods=['GET'])
+@jwt_required()
+def list_procurement_orders():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT po_id, supplier_id, item_category, quantity_ordered, unit_price,
+                   total_amount, status, expected_delivery_date, created_at
+            FROM procurement_orders
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        pos = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(pos), 'orders': [dict(po) for po in pos]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Supply Chain: B2B Orders
+# ---------------------------
+
+@app.route('/api/v1/enterprise/supply-chain/b2b-orders', methods=['POST'])
+@jwt_required()
+def create_b2b_order():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['b2b_order_id', 'factory_node_id', 'buyer_id', 'quantity', 'unit_price', 'total_amount', 'delivery_date']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO b2b_orders (b2b_order_id, factory_node_id, buyer_id, sku_id, design_code,
+                quantity, unit_price, total_amount, currency, grade_requirement, delivery_date,
+                status, matched_saree_ids, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('b2b_order_id'), data.get('factory_node_id'), data.get('buyer_id'),
+            data.get('sku_id'), data.get('design_code'), data.get('quantity'),
+            data.get('unit_price'), data.get('total_amount'), data.get('currency', 'INR'),
+            data.get('grade_requirement', 'GRADE_A_EXPORT_PREMIUM'), data.get('delivery_date'),
+            data.get('status', 'PENDING'), json.dumps(data.get('matched_saree_ids', [])), operator_id
+        ))
+        order_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(order_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/supply-chain/b2b-orders', methods=['GET'])
+@jwt_required()
+def list_b2b_orders():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT b2b_order_id, buyer_id, sku_id, quantity, unit_price, total_amount,
+                   grade_requirement, delivery_date, status, created_at
+            FROM b2b_orders
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        orders = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(orders), 'orders': [dict(o) for o in orders]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Supply Chain: Inventory Bins
+# ---------------------------
+
+@app.route('/api/v1/enterprise/supply-chain/inventory-bins', methods=['POST'])
+@jwt_required()
+def create_inventory_bin():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['bin_id', 'factory_node_id', 'warehouse_zone']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO inventory_bins (bin_id, factory_node_id, warehouse_zone, aisle, shelf,
+                bin_type, item_category, current_quantity, unit_of_measure, reorder_point,
+                max_capacity, vault_climate_status, current_humidity_pct, current_temperature_celsius,
+                managed_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('bin_id'), data.get('factory_node_id'), data.get('warehouse_zone'),
+            data.get('aisle'), data.get('shelf'), data.get('bin_type', 'STANDARD'),
+            data.get('item_category'), data.get('current_quantity', 0),
+            data.get('unit_of_measure', 'KG'), data.get('reorder_point'),
+            data.get('max_capacity'), data.get('vault_climate_status', 'OPTIMAL_CLIMATE_LOCKED'),
+            data.get('current_humidity_pct'), data.get('current_temperature_celsius'), operator_id
+        ))
+        bin_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(bin_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/supply-chain/inventory-bins', methods=['GET'])
+@jwt_required()
+def list_inventory_bins():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT bin_id, warehouse_zone, aisle, shelf, bin_type, item_category,
+                   current_quantity, unit_of_measure, reorder_point, max_capacity,
+                   vault_climate_status, current_humidity_pct, current_temperature_celsius
+            FROM inventory_bins
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY warehouse_zone, aisle, shelf
+            LIMIT 100
+        """, (operator_id,))
+        bins = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(bins), 'bins': [dict(b) for b in bins]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Supply Chain: Inventory Movements
+# ---------------------------
+
+@app.route('/api/v1/enterprise/supply-chain/inventory-movements', methods=['POST'])
+@jwt_required()
+def create_inventory_movement():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['movement_id', 'factory_node_id', 'bin_id', 'item_type', 'movement_type', 'quantity']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO inventory_movements (movement_id, factory_node_id, bin_id, item_type,
+                lot_batch_id, movement_type, quantity, unit_of_measure, reference_document_type,
+                reference_document_id, from_bin_id, to_bin_id, authorized_by, received_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('movement_id'), data.get('factory_node_id'), data.get('bin_id'),
+            data.get('item_type'), data.get('lot_batch_id'), data.get('movement_type'),
+            data.get('quantity'), data.get('unit_of_measure', 'KG'),
+            data.get('reference_document_type'), data.get('reference_document_id'),
+            data.get('from_bin_id'), data.get('to_bin_id'), operator_id, operator_id
+        ))
+        movement_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(movement_id), 'status': 'recorded'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/supply-chain/inventory-movements', methods=['GET'])
+@jwt_required()
+def list_inventory_movements():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT movement_id, item_type, lot_batch_id, movement_type, quantity,
+                   unit_of_measure, reference_document_type, movement_date
+            FROM inventory_movements
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY movement_date DESC
+            LIMIT 100
+        """, (operator_id,))
+        movements = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(movements), 'movements': [dict(m) for m in movements]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# IoT: Device Registry
+# ---------------------------
+
+@app.route('/api/v1/enterprise/iot/devices', methods=['POST'])
+@jwt_required()
+def create_iot_device():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['device_id', 'factory_node_id', 'device_type']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO iot_device_registry (device_id, factory_node_id, device_type, loom_id,
+                location_description, firmware_version, mqtt_topic, is_active, last_heartbeat_at,
+                deployed_ai_models)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('device_id'), data.get('factory_node_id'), data.get('device_type'),
+            data.get('loom_id'), data.get('location_description'), data.get('firmware_version'),
+            data.get('mqtt_topic'), data.get('is_active', True), data.get('last_heartbeat_at'),
+            json.dumps(data.get('deployed_ai_models', []))
+        ))
+        device_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(device_id), 'status': 'registered'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/iot/devices', methods=['GET'])
+@jwt_required()
+def list_iot_devices():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT device_id, device_type, loom_id, location_description, firmware_version,
+                   is_active, last_heartbeat_at, created_at
+            FROM iot_device_registry
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY device_type, device_id
+            LIMIT 100
+        """, (operator_id,))
+        devices = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(devices), 'devices': [dict(d) for d in devices]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# IoT: Loom Telemetry
+# ---------------------------
+
+@app.route('/api/v1/enterprise/iot/loom-telemetry', methods=['POST'])
+@jwt_required()
+def create_loom_telemetry():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['telemetry_id', 'factory_node_id', 'loom_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO loom_telemetry (telemetry_id, factory_node_id, loom_id, device_id,
+                picks_per_minute, warp_tension_cn, temperature_celsius, humidity_pct,
+                vibration_mm_s, motor_current_a, ai_anomaly_score, ai_anomaly_classification,
+                ai_auto_paused, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('telemetry_id'), data.get('factory_node_id'), data.get('loom_id'),
+            data.get('device_id'), data.get('picks_per_minute'), data.get('warp_tension_cn'),
+            data.get('temperature_celsius'), data.get('humidity_pct'), data.get('vibration_mm_s'),
+            data.get('motor_current_a'), data.get('ai_anomaly_score'),
+            data.get('ai_anomaly_classification'), data.get('ai_auto_paused', False),
+            json.dumps(data.get('metadata', {}))
+        ))
+        telemetry_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(telemetry_id), 'status': 'recorded'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/iot/loom-telemetry', methods=['GET'])
+@jwt_required()
+def list_loom_telemetry():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT telemetry_id, loom_id, picks_per_minute, warp_tension_cn, temperature_celsius,
+                   humidity_pct, vibration_mm_s, motor_current_a, ai_anomaly_score,
+                   ai_anomaly_classification, ai_auto_paused, recorded_at
+            FROM loom_telemetry
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY recorded_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        telemetry = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(telemetry), 'telemetry': [dict(t) for t in telemetry]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Notifications
+# ---------------------------
+
+@app.route('/api/v1/enterprise/notifications', methods=['POST'])
+@jwt_required()
+def create_notification():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['notification_id', 'notification_type', 'title', 'message']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO enterprise_notifications (notification_id, factory_node_id, recipient_user_id,
+                recipient_role_id, channel, notification_type, priority, title, message,
+                reference_entity_type, reference_entity_id)
+            VALUES (%s, %s, %s::uuid, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('notification_id'), data.get('factory_node_id'), data.get('recipient_user_id', operator_id),
+            data.get('recipient_role_id'), data.get('channel', 'IN_APP'), data.get('notification_type'),
+            data.get('priority', 'NORMAL'), data.get('title'), data.get('message'),
+            data.get('reference_entity_type'), data.get('reference_entity_id')
+        ))
+        notification_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(notification_id), 'status': 'sent'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/notifications', methods=['GET'])
+@jwt_required()
+def list_notifications():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT notification_id, channel, notification_type, priority, title, message,
+                   is_read, read_at, created_at
+            FROM enterprise_notifications
+            WHERE recipient_user_id = %s::uuid
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        notifications = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(notifications), 'notifications': [dict(n) for n in notifications]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# SKU Catalog
+# ---------------------------
+
+@app.route('/api/v1/enterprise/sku-catalog', methods=['POST'])
+@jwt_required()
+def create_sku():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['sku_id', 'factory_node_id', 'sku_name']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO sku_catalog (sku_id, factory_node_id, sku_name, category, subcategory,
+                hook_count, silk_type, zari_type, design_code, base_price, market_segment,
+                is_active, launched_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('sku_id'), data.get('factory_node_id'), data.get('sku_name'),
+            data.get('category'), data.get('subcategory'), data.get('hook_count'),
+            data.get('silk_type'), data.get('zari_type'), data.get('design_code'),
+            data.get('base_price'), data.get('market_segment'), data.get('is_active', True),
+            data.get('launched_at')
+        ))
+        sku_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(sku_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/sku-catalog', methods=['GET'])
+@jwt_required()
+def list_sku_catalog():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT sku_id, sku_name, category, subcategory, hook_count, silk_type, zari_type,
+                   design_code, base_price, market_segment, is_active, launched_at
+            FROM sku_catalog
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        skus = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(skus), 'skus': [dict(s) for s in skus]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Buy-Back Guarantees
+# ---------------------------
+
+@app.route('/api/v1/enterprise/buyback/guarantees', methods=['POST'])
+@jwt_required()
+def create_buyback_guarantee():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['guarantee_id', 'factory_node_id', 'saree_id', 'purchase_date']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO buyback_guarantees (guarantee_id, factory_node_id, saree_id, buyer_id,
+                purchase_date, guarantee_period_months, risk_score, premium_amount,
+                reserve_provision, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('guarantee_id'), data.get('factory_node_id'), data.get('saree_id'),
+            data.get('buyer_id'), data.get('purchase_date'), data.get('guarantee_period_months', 12),
+            data.get('risk_score'), data.get('premium_amount'), data.get('reserve_provision'),
+            data.get('status', 'ACTIVE')
+        ))
+        guarantee_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(guarantee_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/buyback/guarantees', methods=['GET'])
+@jwt_required()
+def list_buyback_guarantees():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT guarantee_id, saree_id, buyer_id, purchase_date, guarantee_period_months,
+                   risk_score, premium_amount, reserve_provision, status, created_at
+            FROM buyback_guarantees
+            WHERE factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        guarantees = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(guarantees), 'guarantees': [dict(g) for g in guarantees]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

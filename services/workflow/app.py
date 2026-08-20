@@ -14838,5 +14838,412 @@ def map_style_reference_to_sku():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# DIWALI CULTURAL KNOWLEDGE DATABASE
+# Dataset: nlip/DIWALI
+# ============================================================
+
+# ---------------------------
+# Facets
+# ---------------------------
+
+@app.route('/api/v1/enterprise/diwali/facets', methods=['POST'])
+@jwt_required()
+def create_diwali_facet():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['facet_id', 'factory_node_id', 'facet_name']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO diwali_cultural_facets (facet_id, factory_node_id, facet_name,
+                facet_description, sort_order, is_active, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('facet_id'), data.get('factory_node_id'), data.get('facet_name'),
+            data.get('facet_description'), data.get('sort_order', 0), data.get('is_active', True),
+            json.dumps(data.get('metadata', {}))
+        ))
+        facet_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(facet_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/diwali/facets', methods=['GET'])
+@jwt_required()
+def list_diwali_facets():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT facet_id, facet_name, facet_description, sort_order, is_active, created_at
+            FROM diwali_cultural_facets
+            WHERE is_active = TRUE
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        query += " ORDER BY sort_order, facet_name"
+        cur.execute(query, params)
+        facets = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(facets), 'facets': [dict(f) for f in facets]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# States (sub-regions)
+# ---------------------------
+
+@app.route('/api/v1/enterprise/diwali/states', methods=['POST'])
+@jwt_required()
+def create_diwali_state():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['state_id', 'factory_node_id', 'state_name']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO diwali_cultural_states (state_id, factory_node_id, state_name, region,
+                latitude, longitude, primary_language, primary_dialect, festival_calendar,
+                dominant_silk_type, dominant_zari_type, typical_color_palette, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('state_id'), data.get('factory_node_id'), data.get('state_name'),
+            data.get('region'), data.get('latitude'), data.get('longitude'),
+            data.get('primary_language'), data.get('primary_dialect'),
+            json.dumps(data.get('festival_calendar', [])), data.get('dominant_silk_type'),
+            data.get('dominant_zari_type'), json.dumps(data.get('typical_color_palette', [])),
+            json.dumps(data.get('metadata', {}))
+        ))
+        state_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(state_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/diwali/states', methods=['GET'])
+@jwt_required()
+def list_diwali_states():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        region = request.args.get('region')
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT state_id, state_name, region, latitude, longitude, primary_language,
+                   primary_dialect, festival_calendar, dominant_silk_type, dominant_zari_type,
+                   typical_color_palette, created_at
+            FROM diwali_cultural_states
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if region:
+            query += " AND region ILIKE %s"
+            params.append(f"%{region}%")
+        query += " ORDER BY state_name"
+        cur.execute(query, params)
+        states = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(states), 'states': [dict(s) for s in states]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Cultural Concepts
+# ---------------------------
+
+@app.route('/api/v1/enterprise/diwali/concepts', methods=['POST'])
+@jwt_required()
+def create_diwali_concept():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['concept_id', 'factory_node_id', 'concept']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO diwali_cultural_concepts (concept_id, factory_node_id, facet_id, state_id,
+                concept, description, source, hf_row_index, ai_localized_concept,
+                ai_localized_description, ai_confidence_score, language_code, dialect_code,
+                usage_context, related_concepts, is_active, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('concept_id'), data.get('factory_node_id'), data.get('facet_id'),
+            data.get('state_id'), data.get('concept'), data.get('description'),
+            data.get('source'), data.get('hf_row_index'), data.get('ai_localized_concept'),
+            data.get('ai_localized_description'), data.get('ai_confidence_score'),
+            data.get('language_code', 'en'), data.get('dialect_code'),
+            json.dumps(data.get('usage_context', [])), json.dumps(data.get('related_concepts', [])),
+            data.get('is_active', True), json.dumps(data.get('metadata', {}))
+        ))
+        concept_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(concept_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/diwali/concepts', methods=['GET'])
+@jwt_required()
+def list_diwali_concepts():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        facet_id = request.args.get('facet_id')
+        state_id = request.args.get('state_id')
+        language_code = request.args.get('language_code')
+        search_query = request.args.get('q')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT dc.concept_id, dc.concept, dc.description, dc.source, dc.language_code,
+                   dc.dialect_code, dc.ai_localized_concept, dc.ai_confidence_score,
+                   dc.hf_row_index, dc.created_at,
+                   df.facet_name, ds.state_name, ds.region
+            FROM diwali_cultural_concepts dc
+            LEFT JOIN diwali_cultural_facets df ON dc.facet_id = df.id
+            LEFT JOIN diwali_cultural_states ds ON dc.state_id = ds.id
+            WHERE dc.is_active = TRUE
+        """
+        params = []
+        if factory_node_id:
+            query += " AND dc.factory_node_id = %s"
+            params.append(factory_node_id)
+        if facet_id:
+            query += " AND dc.facet_id = %s"
+            params.append(facet_id)
+        if state_id:
+            query += " AND dc.state_id = %s"
+            params.append(state_id)
+        if language_code:
+            query += " AND dc.language_code = %s"
+            params.append(language_code)
+        if search_query:
+            query += " AND (dc.concept ILIKE %s OR dc.description ILIKE %s)"
+            params.extend([f"%{search_query}%", f"%{search_query}%"])
+        query += " ORDER BY dc.concept LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        concepts = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(concepts), 'concepts': [dict(c) for c in concepts]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/diwali/concepts/search', methods=['GET'])
+@jwt_required()
+def search_diwali_concepts():
+    try:
+        query_text = request.args.get('q')
+        facet = request.args.get('facet')
+        state = request.args.get('state')
+        limit = int(request.args.get('limit', 50))
+
+        if not query_text:
+            return jsonify({'error': 'MissingFields', 'message': "q is required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        sql = """
+            SELECT dc.concept_id, dc.concept, dc.description, dc.language_code,
+                   df.facet_name, ds.state_name, ds.region,
+                   ts_rank(to_tsvector('english', dc.concept || ' ' || COALESCE(dc.description, '')), plainto_tsquery('english', %s)) AS rank
+            FROM diwali_cultural_concepts dc
+            LEFT JOIN diwali_cultural_facets df ON dc.facet_id = df.id
+            LEFT JOIN diwali_cultural_states ds ON dc.state_id = ds.id
+            WHERE dc.is_active = TRUE
+              AND to_tsvector('english', dc.concept || ' ' || COALESCE(dc.description, '')) @@ plainto_tsquery('english', %s)
+        """
+        params = [query_text, query_text]
+        if facet:
+            sql += " AND df.facet_name = %s"
+            params.append(facet)
+        if state:
+            sql += " AND ds.state_name = %s"
+            params.append(state)
+        sql += " ORDER BY rank DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(sql, params)
+        concepts = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(concepts), 'concepts': [dict(c) for c in concepts]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Concept -> Design mappings
+# ---------------------------
+
+@app.route('/api/v1/enterprise/diwali/concepts/<concept_id>/map-design', methods=['POST'])
+@jwt_required()
+def map_diwali_concept_to_design(concept_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['design_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO diwali_concept_design_mappings (concept_id, design_id, factory_node_id,
+                relevance_score, mapping_type, mapped_by)
+            VALUES (%s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            concept_id, data.get('design_id'),
+            data.get('factory_node_id', 'FACT-BLR-01'),
+            data.get('relevance_score'), data.get('mapping_type', 'THEMATIC'), operator_id
+        ))
+        mapping_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(mapping_id), 'status': 'mapped'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Concept -> SKU mappings
+# ---------------------------
+
+@app.route('/api/v1/enterprise/diwali/concepts/<concept_id>/map-sku', methods=['POST'])
+@jwt_required()
+def map_diwali_concept_to_sku(concept_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['sku_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO diwali_concept_sku_mappings (concept_id, sku_id, factory_node_id,
+                relevance_score, mapping_type, mapped_by)
+            VALUES (%s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            concept_id, data.get('sku_id'),
+            data.get('factory_node_id', 'FACT-BLR-01'),
+            data.get('relevance_score'), data.get('mapping_type', 'THEMATIC'), operator_id
+        ))
+        mapping_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(mapping_id), 'status': 'mapped'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Translation Cache
+# ---------------------------
+
+@app.route('/api/v1/enterprise/diwali/translations', methods=['POST'])
+@jwt_required()
+def create_diwali_translation():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['concept_id', 'source_language_code', 'target_language_code', 'translated_concept']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO diwali_concept_translation_cache (concept_id, source_language_code,
+                target_language_code, translated_concept, translated_description,
+                translation_quality_score, ai_translated, human_reviewed, reviewed_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::uuid)
+            RETURNING id
+        """, (
+            data.get('concept_id'), data.get('source_language_code'),
+            data.get('target_language_code'), data.get('translated_concept'),
+            data.get('translated_description'), data.get('translation_quality_score'),
+            data.get('ai_translated', True), data.get('human_reviewed', False), operator_id
+        ))
+        translation_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(translation_id), 'status': 'cached'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/enterprise/diwali/translations', methods=['GET'])
+@jwt_required()
+def list_diwali_translations():
+    try:
+        concept_id = request.args.get('concept_id')
+        target_language_code = request.args.get('target_language_code')
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT dct.translated_concept, dct.translated_description, dct.translation_quality_score,
+                   dct.ai_translated, dct.human_reviewed, dct.created_at,
+                   dc.concept AS source_concept
+            FROM diwali_concept_translation_cache dct
+            JOIN diwali_cultural_concepts dc ON dct.concept_id = dc.id
+            WHERE 1=1
+        """
+        params = []
+        if concept_id:
+            query += " AND dct.concept_id = %s"
+            params.append(concept_id)
+        if target_language_code:
+            query += " AND dct.target_language_code = %s"
+            params.append(target_language_code)
+        query += " ORDER BY dct.translation_quality_score DESC"
+        cur.execute(query, params)
+        translations = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(translations), 'translations': [dict(t) for t in translations]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

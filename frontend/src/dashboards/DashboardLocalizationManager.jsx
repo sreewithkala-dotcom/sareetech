@@ -1,12 +1,16 @@
-import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
-import { useState } from 'react'
+import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, FormControl, InputLabel, Select, MenuItem, Tabs, Tab, TextField, InputAdornment, IconButton } from '@mui/material'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useDashboard } from '../contexts/DashboardContext'
 import EnterprisePanel from '../components/EnterprisePanel'
+import CulturalKnowledgePanel from '../components/CulturalKnowledgePanel'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5003/api/v1'
 
 export default function DashboardLocalizationManager() {
   const { user } = useAuth()
   const { addNotification } = useDashboard()
+  const [tab, setTab] = useState('translations')
   const [selectedLanguage, setSelectedLanguage] = useState('te-IN')
 
   const languages = [
@@ -54,78 +58,87 @@ export default function DashboardLocalizationManager() {
         </div>
       </Box>
 
-      <Grid container spacing={3}>
-        {/* Language Overview */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Supported Languages
-            </Typography>
-            <Box display="flex" flexDirection="column" gap={2}>
-              {languages.map((lang) => (
-                <Card key={lang.code} variant="outlined">
-                  <CardContent>
-                    <Typography variant="subtitle1">{lang.name}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {lang.native} | {lang.speakers} speakers
-                    </Typography>
-                    <Chip
-                      label={lang.code === selectedLanguage ? 'Active' : 'Inactive'}
-                      color={lang.code === selectedLanguage ? 'success' : 'default'}
-                      size="small"
-                      sx={{ mt: 1 }}
-                    />
-                  </CardContent>
-                </Card>
-              ))}
-            </Box>
-          </Paper>
-        </Grid>
+      <Paper sx={{ mb: 3 }}>
+        <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
+          <Tab label="Translation Keys" value="translations" />
+          <Tab label="TTS Requests" value="tts" />
+          <Tab label="DIWALI Cultural Knowledge" value="diwali" />
+        </Tabs>
+      </Paper>
 
-        {/* Translation Editor */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">
-                Translation Keys
+      {tab === 'translations' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Supported Languages
               </Typography>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Language</InputLabel>
-                <Select
-                  value={selectedLanguage}
-                  label="Language"
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                >
-                  {languages.map((lang) => (
-                    <MenuItem key={lang.code} value={lang.code}>
-                      {lang.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Key</TableCell>
-                    <TableCell>Translation</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {translations.map((t) => (
-                    <TableRow key={t.key}>
-                      <TableCell>{t.key}</TableCell>
-                      <TableCell>{t[selectedLanguage.split('-')[0].toLowerCase()] || t.hi}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
+              <Box display="flex" flexDirection="column" gap={2}>
+                {languages.map((lang) => (
+                  <Card key={lang.code} variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle1">{lang.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {lang.native} | {lang.speakers} speakers
+                      </Typography>
+                      <Chip
+                        label={lang.code === selectedLanguage ? 'Active' : 'Inactive'}
+                        color={lang.code === selectedLanguage ? 'success' : 'default'}
+                        size="small"
+                        sx={{ mt: 1 }}
+                      />
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            </Paper>
+          </Grid>
 
-        {/* TTS Requests */}
+          <Grid item xs={12} md={8}>
+            <Paper sx={{ p: 2 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">
+                  Translation Keys
+                </Typography>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Language</InputLabel>
+                  <Select
+                    value={selectedLanguage}
+                    label="Language"
+                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                  >
+                    {languages.map((lang) => (
+                      <MenuItem key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Key</TableCell>
+                      <TableCell>Translation</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {translations.map((t) => (
+                      <TableRow key={t.key}>
+                        <TableCell>{t.key}</TableCell>
+                        <TableCell>{t[selectedLanguage.split('-')[0].toLowerCase()] || t.hi}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {tab === 'tts' && (
         <Grid item xs={12}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
@@ -161,7 +174,23 @@ export default function DashboardLocalizationManager() {
             </TableContainer>
           </Paper>
         </Grid>
-      </Grid>
+      )}
+
+      {tab === 'diwali' && (
+        <Box>
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              DIWALI Cultural Knowledge Base
+            </Typography>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Dataset: nlip/DIWALI — 8,817 cultural concepts across 36 sub-regions and 17 facets.
+              Use this for culturally grounded design, SKU, and localization decisions.
+            </Typography>
+          </Paper>
+          <CulturalKnowledgePanel factoryNodeId={user?.factory_node_id} />
+        </Box>
+      )}
+
       <EnterprisePanel userId={user?.id} factoryNodeId={user?.factory_node_id} />
     </Container>
   )

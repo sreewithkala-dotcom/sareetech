@@ -11099,5 +11099,547 @@ def get_sales_forecast_sup_supervisor():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# QUALITY INSPECTOR (FABRIC QA SPECIALIST) MODULE
+# ============================================================
+
+def validate_quality_inspector_guardrails(data):
+    """Validate quality inspector inputs against business guardrails."""
+    errors = []
+    warnings = []
+    
+    primary_fabric_defect_code = data.get('primary_fabric_defect_code')
+    total_saree_length_measured_meters = data.get('total_saree_length_measured_meters')
+    qa_inspector_approval_state = data.get('qa_inspector_approval_state')
+    final_fabric_quality_grade = data.get('final_fabric_quality_grade')
+    
+    if primary_fabric_defect_code == 'ZARI_FLOAT_TENSION_FAULT':
+        errors.append({
+            'code': 'GRADE_A_DISQUALIFICATION',
+            'message': 'LOOSE_ZARI_FLOATS_CANNOT_BE_GRADED_PREMIUM'
+        })
+    
+    if total_saree_length_measured_meters is not None:
+        if total_saree_length_measured_meters < 6.25 or total_saree_length_measured_meters > 6.35:
+            errors.append({
+                'code': 'REJECT_OUT_OF_SPEC_LENGTH',
+                'message': 'MUST_BE_WITHIN_6.28m_TO_6.32m_RANGE'
+            })
+    
+    if primary_fabric_defect_code == 'HOOK_MISLIFT_PATTERN_ERROR':
+        warnings.append({
+            'code': 'AUTO_ALERT_LOOM_SUPERVISOR',
+            'message': 'CHECK_SOLENOID_BOARD_ON_LOOM_LINE'
+        })
+    
+    if qa_inspector_approval_state is not None and qa_inspector_approval_state != 'PASSED_CLEARED_FOR_PACKING':
+        errors.append({
+            'code': 'DENY_FINISHED_GOODS_WAREHOUSE_TRANSFER',
+            'message': 'INSPECTION_NOT_CLEARED_FOR_PACKING'
+        })
+    
+    return errors, warnings
+
+@app.route('/api/v1/quality-inspector/logs', methods=['POST'])
+@jwt_required()
+def create_quality_inspector_log():
+    try:
+        inspector_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['saree_serial_barcode']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (inspector_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        validation_errors, validation_warnings = validate_quality_inspector_guardrails(data)
+        
+        inspection_id = f"QI-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        cur.execute("""
+            INSERT INTO quality_inspector_logs (
+                inspection_id, saree_serial_barcode, loom_id_ref, factory_node_id,
+                inspector_employee_id, sup_supervisor_log_id,
+                assistant_weaver_job_log_id, master_weaver_job_id, petni_master_job_id,
+                warp_joining_job_id, harness_setup_log_id,
+                inspection_table_type, fabric_weight_grams_per_sqm,
+                pick_density_measured_ppi, warp_density_measured_epi,
+                primary_fabric_defect_code, pallu_length_measured_cm,
+                total_saree_length_measured_meters, border_width_symmetry_offset_mm,
+                zari_tarnish_visual_check, actual_body_length_meters,
+                actual_blouse_length_meters, actual_width_inches,
+                total_finished_weight_grams, warp_break_streaks_count,
+                weft_barriness_detected, zari_tarnishing_present,
+                has_oil_grease_stains, loose_zari_floats_count,
+                final_fabric_quality_grade, qa_inspector_approval_state,
+                piece_rate_penalty_applied, piece_rate_penalty_percent,
+                piece_rate_release_status, b2b_order_matched, b2b_order_status,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, inspection_id
+        """, (
+            inspection_id,
+            data.get('saree_serial_barcode'),
+            data.get('loom_id_ref'),
+            factory_node_id,
+            inspector_id,
+            data.get('sup_supervisor_log_id'),
+            data.get('assistant_weaver_job_log_id'),
+            data.get('master_weaver_job_id'),
+            data.get('petni_master_job_id'),
+            data.get('warp_joining_job_id'),
+            data.get('harness_setup_log_id'),
+            data.get('inspection_table_type', 'ILLUMINATED_LED_DUAL_SURFACE_TABLE'),
+            data.get('fabric_weight_grams_per_sqm'),
+            data.get('pick_density_measured_ppi'),
+            data.get('warp_density_measured_epi'),
+            data.get('primary_fabric_defect_code', 'DEFECT_NONE_CLEAN_PIECE'),
+            data.get('pallu_length_measured_cm'),
+            data.get('total_saree_length_measured_meters'),
+            data.get('border_width_symmetry_offset_mm'),
+            data.get('zari_tarnish_visual_check', 'PASSED_FULL_LUSTER'),
+            data.get('actual_body_length_meters'),
+            data.get('actual_blouse_length_meters'),
+            data.get('actual_width_inches'),
+            data.get('total_finished_weight_grams'),
+            data.get('warp_break_streaks_count', 0),
+            data.get('weft_barriness_detected', False),
+            data.get('zari_tarnishing_present', False),
+            data.get('has_oil_grease_stains', False),
+            data.get('loose_zari_floats_count', 0),
+            data.get('final_fabric_quality_grade', 'GRADE_A_EXPORT_PREMIUM'),
+            data.get('qa_inspector_approval_state', 'INSPECTION_IN_PROGRESS'),
+            data.get('piece_rate_penalty_applied', False),
+            data.get('piece_rate_penalty_percent', 0.0),
+            data.get('piece_rate_release_status', 'PENDING_RELEASE'),
+            data.get('b2b_order_matched', False),
+            data.get('b2b_order_status', 'PENDING_MATCH'),
+            json.dumps(validation_errors),
+            json.dumps(validation_warnings),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'inspection_id': log_row['inspection_id'],
+            'validation_errors': validation_errors,
+            'validation_warnings': validation_warnings,
+            'status': 'submitted'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality-inspector/logs', methods=['GET'])
+@jwt_required()
+def list_quality_inspector_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qil.id, qil.inspection_id, qil.saree_serial_barcode, qil.loom_id_ref,
+                   qil.inspection_timestamp, qil.final_fabric_quality_grade,
+                   qil.qa_inspector_approval_state, qil.auto_assigned_routing,
+                   qil.piece_rate_release_status, qil.b2b_order_status,
+                   qil.primary_fabric_defect_code, qil.total_saree_length_measured_meters,
+                   qil.pallu_length_measured_cm, qil.border_width_symmetry_offset_mm,
+                   qil.zari_tarnish_visual_check,
+                   u_inspector.full_name AS inspector_name
+            FROM quality_inspector_logs qil
+            LEFT JOIN users u_inspector ON qil.inspector_employee_id = u_inspector.id
+            WHERE qil.inspector_employee_id = %s::uuid
+            ORDER BY qil.inspection_timestamp DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(log['id']),
+                    'inspection_id': log['inspection_id'],
+                    'saree_serial_barcode': log['saree_serial_barcode'],
+                    'loom_id_ref': log['loom_id_ref'],
+                    'inspection_timestamp': log['inspection_timestamp'].isoformat() if log['inspection_timestamp'] else None,
+                    'final_fabric_quality_grade': log['final_fabric_quality_grade'],
+                    'qa_inspector_approval_state': log['qa_inspector_approval_state'],
+                    'auto_assigned_routing': log['auto_assigned_routing'],
+                    'piece_rate_release_status': log['piece_rate_release_status'],
+                    'b2b_order_status': log['b2b_order_status'],
+                    'primary_fabric_defect_code': log['primary_fabric_defect_code'],
+                    'total_saree_length_measured_meters': float(log['total_saree_length_measured_meters']) if log['total_saree_length_measured_meters'] else None,
+                    'pallu_length_measured_cm': float(log['pallu_length_measured_cm']) if log['pallu_length_measured_cm'] else None,
+                    'border_width_symmetry_offset_mm': float(log['border_width_symmetry_offset_mm']) if log['border_width_symmetry_offset_mm'] else None,
+                    'zari_tarnish_visual_check': log['zari_tarnish_visual_check'],
+                    'inspector_name': log['inspector_name']
+                }
+                for log in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality-inspector/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_quality_inspector_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qil.*,
+                   u_inspector.full_name AS inspector_name
+            FROM quality_inspector_logs qil
+            LEFT JOIN users u_inspector ON qil.inspector_employee_id = u_inspector.id
+            WHERE qil.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'inspection_id': log['inspection_id'],
+            'saree_serial_barcode': log['saree_serial_barcode'],
+            'loom_id_ref': log['loom_id_ref'],
+            'factory_node_id': log['factory_node_id'],
+            'inspector_employee_id': str(log['inspector_employee_id']),
+            'sup_supervisor_log_id': str(log['sup_supervisor_log_id']) if log['sup_supervisor_log_id'] else None,
+            'inspection_timestamp': log['inspection_timestamp'].isoformat() if log['inspection_timestamp'] else None,
+            'inspection_table_type': log['inspection_table_type'],
+            'fabric_weight_grams_per_sqm': float(log['fabric_weight_grams_per_sqm']) if log['fabric_weight_grams_per_sqm'] else None,
+            'pick_density_measured_ppi': float(log['pick_density_measured_ppi']) if log['pick_density_measured_ppi'] else None,
+            'warp_density_measured_epi': float(log['warp_density_measured_epi']) if log['warp_density_measured_epi'] else None,
+            'primary_fabric_defect_code': log['primary_fabric_defect_code'],
+            'pallu_length_measured_cm': float(log['pallu_length_measured_cm']) if log['pallu_length_measured_cm'] else None,
+            'total_saree_length_measured_meters': float(log['total_saree_length_measured_meters']) if log['total_saree_length_measured_meters'] else None,
+            'border_width_symmetry_offset_mm': float(log['border_width_symmetry_offset_mm']) if log['border_width_symmetry_offset_mm'] else None,
+            'zari_tarnish_visual_check': log['zari_tarnish_visual_check'],
+            'actual_body_length_meters': float(log['actual_body_length_meters']) if log['actual_body_length_meters'] else None,
+            'actual_blouse_length_meters': float(log['actual_blouse_length_meters']) if log['actual_blouse_length_meters'] else None,
+            'actual_width_inches': float(log['actual_width_inches']) if log['actual_width_inches'] else None,
+            'total_finished_weight_grams': log['total_finished_weight_grams'],
+            'warp_break_streaks_count': log['warp_break_streaks_count'],
+            'weft_barriness_detected': log['weft_barriness_detected'],
+            'zari_tarnishing_present': log['zari_tarnishing_present'],
+            'has_oil_grease_stains': log['has_oil_grease_stains'],
+            'loose_zari_floats_count': log['loose_zari_floats_count'],
+            'final_fabric_quality_grade': log['final_fabric_quality_grade'],
+            'qa_inspector_approval_state': log['qa_inspector_approval_state'],
+            'piece_rate_penalty_applied': log['piece_rate_penalty_applied'],
+            'piece_rate_penalty_percent': float(log['piece_rate_penalty_percent']) if log['piece_rate_penalty_percent'] else None,
+            'piece_rate_release_status': log['piece_rate_release_status'],
+            'b2b_order_matched': log['b2b_order_matched'],
+            'b2b_order_status': log['b2b_order_status'],
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'certificate_hash': log['certificate_hash'],
+            'qr_tag_id': log['qr_tag_id'],
+            'inspector_name': log['inspector_name']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality-inspector/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_quality_inspector_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, inspection_id, validation_errors, qa_inspector_approval_state, final_fabric_quality_grade
+            FROM quality_inspector_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['inspection_id'])
+        qr_tag_id = 'QI-' + log['inspection_id']
+        
+        cur.execute("""
+            UPDATE quality_inspector_logs
+            SET certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, inspection_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO quality_inspector_certificates (
+                quality_inspector_log_id, certificate_hash, qr_tag_id, inspection_id,
+                saree_serial_barcode, loom_id_ref, sup_supervisor_log_id,
+                assistant_weaver_job_log_id, master_weaver_job_id,
+                actual_body_length_meters, actual_blouse_length_meters,
+                actual_width_inches, total_finished_weight_grams,
+                warp_break_streaks_count, weft_barriness_detected,
+                zari_tarnishing_present, has_oil_grease_stains,
+                loose_zari_floats_count, primary_fabric_defect_code,
+                pallu_length_measured_cm, total_saree_length_measured_meters,
+                border_width_symmetry_offset_mm, zari_tarnish_visual_check,
+                final_fabric_quality_grade, qa_inspector_approval_state,
+                piece_rate_penalty_applied, piece_rate_penalty_percent,
+                piece_rate_release_status, b2b_order_matched, b2b_order_status,
+                inspector_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.inspection_id,
+                pj.saree_serial_barcode,
+                pj.loom_id_ref,
+                pj.sup_supervisor_log_id,
+                pj.assistant_weaver_job_log_id,
+                pj.master_weaver_job_id,
+                pj.actual_body_length_meters, pj.actual_blouse_length_meters,
+                pj.actual_width_inches, pj.total_finished_weight_grams,
+                pj.warp_break_streaks_count, pj.weft_barriness_detected,
+                pj.zari_tarnishing_present, pj.has_oil_grease_stains,
+                pj.loose_zari_floats_count, pj.primary_fabric_defect_code,
+                pj.pallu_length_measured_cm, pj.total_saree_length_measured_meters,
+                pj.border_width_symmetry_offset_mm, pj.zari_tarnish_visual_check,
+                pj.final_fabric_quality_grade, pj.qa_inspector_approval_state,
+                pj.piece_rate_penalty_applied, pj.piece_rate_penalty_percent,
+                pj.piece_rate_release_status, pj.b2b_order_matched, pj.b2b_order_status,
+                pj.inspector_employee_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'inspection_id', pj.inspection_id,
+                    'saree_serial_barcode', pj.saree_serial_barcode,
+                    'final_fabric_quality_grade', pj.final_fabric_quality_grade,
+                    'qa_inspector_approval_state', pj.qa_inspector_approval_state,
+                    'piece_rate_release_status', pj.piece_rate_release_status,
+                    'b2b_order_status', pj.b2b_order_status,
+                    'total_saree_length_measured_meters', pj.total_saree_length_measured_meters,
+                    'pallu_length_measured_cm', pj.pallu_length_measured_cm,
+                    'primary_fabric_defect_code', pj.primary_fabric_defect_code
+                )
+            FROM quality_inspector_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'inspection_id': result['inspection_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'PASSED_CLEARED_FOR_PACKING',
+            'message': 'Quality inspection certified and cleared for packing'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality-inspector/certificates', methods=['GET'])
+@jwt_required()
+def list_quality_inspector_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qic.id, qic.certificate_hash, qic.qr_tag_id,
+                   qic.inspection_id, qic.saree_serial_barcode, qic.loom_id_ref,
+                   qic.actual_body_length_meters, qic.actual_blouse_length_meters,
+                   qic.actual_width_inches, qic.total_finished_weight_grams,
+                   qic.warp_break_streaks_count, qic.weft_barriness_detected,
+                   qic.zari_tarnishing_present, qic.has_oil_grease_stains,
+                   qic.loose_zari_floats_count, qic.primary_fabric_defect_code,
+                   qic.pallu_length_measured_cm, qic.total_saree_length_measured_meters,
+                   qic.border_width_symmetry_offset_mm, qic.zari_tarnish_visual_check,
+                   qic.final_fabric_quality_grade, qic.qa_inspector_approval_state,
+                   qic.piece_rate_penalty_applied, qic.piece_rate_penalty_percent,
+                   qic.piece_rate_release_status, qic.b2b_order_matched,
+                   qic.b2b_order_status, qic.status, qic.certified_at
+            FROM quality_inspector_certificates qic
+            WHERE qic.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY qic.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'inspection_id': c['inspection_id'],
+                    'saree_serial_barcode': c['saree_serial_barcode'],
+                    'loom_id_ref': c['loom_id_ref'],
+                    'actual_body_length_meters': float(c['actual_body_length_meters']) if c['actual_body_length_meters'] else None,
+                    'actual_blouse_length_meters': float(c['actual_blouse_length_meters']) if c['actual_blouse_length_meters'] else None,
+                    'actual_width_inches': float(c['actual_width_inches']) if c['actual_width_inches'] else None,
+                    'total_finished_weight_grams': c['total_finished_weight_grams'],
+                    'warp_break_streaks_count': c['warp_break_streaks_count'],
+                    'weft_barriness_detected': c['weft_barriness_detected'],
+                    'zari_tarnishing_present': c['zari_tarnishing_present'],
+                    'has_oil_grease_stains': c['has_oil_grease_stains'],
+                    'loose_zari_floats_count': c['loose_zari_floats_count'],
+                    'primary_fabric_defect_code': c['primary_fabric_defect_code'],
+                    'pallu_length_measured_cm': float(c['pallu_length_measured_cm']) if c['pallu_length_measured_cm'] else None,
+                    'total_saree_length_measured_meters': float(c['total_saree_length_measured_meters']) if c['total_saree_length_measured_meters'] else None,
+                    'border_width_symmetry_offset_mm': float(c['border_width_symmetry_offset_mm']) if c['border_width_symmetry_offset_mm'] else None,
+                    'zari_tarnish_visual_check': c['zari_tarnish_visual_check'],
+                    'final_fabric_quality_grade': c['final_fabric_quality_grade'],
+                    'qa_inspector_approval_state': c['qa_inspector_approval_state'],
+                    'piece_rate_penalty_applied': c['piece_rate_penalty_applied'],
+                    'piece_rate_penalty_percent': float(c['piece_rate_penalty_percent']) if c['piece_rate_penalty_percent'] else None,
+                    'piece_rate_release_status': c['piece_rate_release_status'],
+                    'b2b_order_matched': c['b2b_order_matched'],
+                    'b2b_order_status': c['b2b_order_status'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR QUALITY INSPECTOR
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/quality-inspector', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_quality_inspector():
+    """
+    API plugin endpoint for sales team quality inspector material processing forecast.
+    Returns forecasted quality inspection requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'inspection_table_type': 'ILLUMINATED_LED_DUAL_SURFACE_TABLE',
+                    'pick_density_tolerance': 0.5,
+                    'zari_float_tolerance_mm': 0.0,
+                    'dimensional_tolerance_cm': 1.5,
+                    'estimated_inspections': 80,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'inspection_table_type': 'ILLUMINATED_LED_DUAL_SURFACE_TABLE',
+                    'pick_density_tolerance': 0.5,
+                    'zari_float_tolerance_mm': 0.0,
+                    'dimensional_tolerance_cm': 1.5,
+                    'estimated_inspections': 60,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'inspection_table_type': 'STANDARD_OVERHEAD_LIGHT_TABLE',
+                    'pick_density_tolerance': 2.0,
+                    'zari_float_tolerance_mm': 2.0,
+                    'dimensional_tolerance_cm': 5.0,
+                    'estimated_inspections': 120,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'QI-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_inspections': 80,
+                    'inspection_table_type': 'ILLUMINATED_LED_DUAL_SURFACE_TABLE'
+                },
+                {
+                    'lot_number': 'QI-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_inspections': 60,
+                    'inspection_table_type': 'ILLUMINATED_LED_DUAL_SURFACE_TABLE'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

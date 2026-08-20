@@ -5127,5 +5127,644 @@ def get_sales_forecast_colorist():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# SKEIN DYE MASTER MODULE
+# ============================================================
+
+@app.route('/api/v1/skein-dye/jobs', methods=['POST'])
+@jwt_required()
+def create_skein_dye_job():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['job_id', 'allocated_machine_id', 'input_skein_dry_weight_kg']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO skein_dye_jobs (
+                job_id, master_colorist_recipe_id, master_colorist_certificate_id,
+                throwster_record_id, throwster_batch_id, production_lot_id,
+                factory_node_id, operator_id, status,
+                allocated_machine_id, vessel_type_allocated, operator_name,
+                actual_liquor_volume_liters, bath_start_time, bath_end_time,
+                peak_boil_temperature_celsius, fixation_duration_minutes,
+                hank_unit_weight_g, lease_tie_type, machine_type, pump_flow_rate_lpm,
+                liquor_ratio, pre_boil_hardness_ppm, water_treatment_status,
+                peak_heating_temperature_bracket, input_skein_dry_weight_kg,
+                output_skein_dry_weight_kg, post_dye_softening_type,
+                core_to_surface_shade_match, tie_mark_spot_found,
+                post_dye_winding_break_count, hank_entanglement_rating,
+                recipe_scaler_multiplier, validation_errors, validation_warnings,
+                auto_assigned_routing, target_machine_type
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'DRAFT', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, job_id
+        """, (
+            data.get('job_id'),
+            data.get('master_colorist_recipe_id'),
+            data.get('master_colorist_certificate_id'),
+            data.get('throwster_record_id'),
+            data.get('throwster_batch_id'),
+            data.get('production_lot_id'),
+            factory_node_id,
+            operator_id,
+            data.get('allocated_machine_id'),
+            data.get('vessel_type_allocated'),
+            data.get('operator_name'),
+            data.get('actual_liquor_volume_liters'),
+            data.get('bath_start_time'),
+            data.get('bath_end_time'),
+            data.get('peak_boil_temperature_celsius'),
+            data.get('fixation_duration_minutes'),
+            data.get('hank_unit_weight_g'),
+            data.get('lease_tie_type'),
+            data.get('machine_type'),
+            data.get('pump_flow_rate_lpm'),
+            data.get('liquor_ratio'),
+            data.get('pre_boil_hardness_ppm'),
+            data.get('water_treatment_status'),
+            data.get('peak_heating_temperature_bracket'),
+            data.get('input_skein_dry_weight_kg'),
+            data.get('output_skein_dry_weight_kg'),
+            data.get('post_dye_softening_type'),
+            data.get('core_to_surface_shade_match'),
+            data.get('tie_mark_spot_found', False),
+            data.get('post_dye_winding_break_count', 0),
+            data.get('hank_entanglement_rating'),
+            data.get('recipe_scaler_multiplier', 1.0),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing'),
+            data.get('target_machine_type', '1536_HOOK_JACQUARD')
+        ))
+        
+        job_row = cur.fetchone()
+        job_id = job_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status
+            FROM skein_dye_jobs WHERE id = %s::uuid
+        """, (job_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'IN_PROGRESS'
+        else:
+            status = 'IN_PROGRESS'
+        
+        cur.execute("""
+            UPDATE skein_dye_jobs SET status = %s WHERE id = %s::uuid
+        """, (status, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(job_id),
+            'job_id': job_row['job_id'],
+            'status': status,
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Skein Dye job created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/skein-dye/jobs', methods=['GET'])
+@jwt_required()
+def list_skein_dye_jobs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sdj.id, sdj.job_id, sdj.allocated_machine_id, sdj.vessel_type_allocated,
+                   sdj.peak_boil_temperature_celsius, sdj.fixation_duration_minutes,
+                   sdj.hank_unit_weight_g, sdj.lease_tie_type, sdj.machine_type,
+                   sdj.input_skein_dry_weight_kg, sdj.output_skein_dry_weight_kg,
+                   sdj.dye_house_yield_variance, sdj.core_to_surface_shade_match,
+                   sdj.tie_mark_spot_found, sdj.post_dye_winding_break_count,
+                   sdj.hank_entanglement_rating, sdj.post_dye_softening_type,
+                   sdj.auto_assigned_routing, sdj.status, sdj.certificate_hash,
+                   sdj.created_at, mcr.recipe_code, mcr.internal_shade_code
+            FROM skein_dye_jobs sdj
+            LEFT JOIN master_colorist_recipes mcr ON sdj.master_colorist_recipe_id = mcr.id
+            WHERE sdj.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY sdj.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(jobs),
+            'jobs': [
+                {
+                    'id': str(j['id']),
+                    'job_id': j['job_id'],
+                    'allocated_machine_id': j['allocated_machine_id'],
+                    'vessel_type_allocated': j['vessel_type_allocated'],
+                    'peak_boil_temperature_celsius': j['peak_boil_temperature_celsius'],
+                    'fixation_duration_minutes': j['fixation_duration_minutes'],
+                    'hank_unit_weight_g': j['hank_unit_weight_g'],
+                    'lease_tie_type': j['lease_tie_type'],
+                    'machine_type': j['machine_type'],
+                    'input_skein_dry_weight_kg': float(j['input_skein_dry_weight_kg']) if j['input_skein_dry_weight_kg'] else None,
+                    'output_skein_dry_weight_kg': float(j['output_skein_dry_weight_kg']) if j['output_skein_dry_weight_kg'] else None,
+                    'dye_house_yield_variance': float(j['dye_house_yield_variance']) if j['dye_house_yield_variance'] else None,
+                    'core_to_surface_shade_match': j['core_to_surface_shade_match'],
+                    'tie_mark_spot_found': j['tie_mark_spot_found'],
+                    'post_dye_winding_break_count': j['post_dye_winding_break_count'],
+                    'hank_entanglement_rating': j['hank_entanglement_rating'],
+                    'post_dye_softening_type': j['post_dye_softening_type'],
+                    'auto_assigned_routing': j['auto_assigned_routing'],
+                    'status': j['status'],
+                    'certificate_hash': j['certificate_hash'],
+                    'recipe_code': j['recipe_code'],
+                    'internal_shade_code': j['internal_shade_code'],
+                    'created_at': j['created_at'].isoformat() if j['created_at'] else None
+                }
+                for j in jobs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/skein-dye/jobs/<job_id>', methods=['GET'])
+@jwt_required()
+def get_skein_dye_job(job_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sdj.*, mcr.recipe_code, mcr.internal_shade_code, mcr.dye_class_used
+            FROM skein_dye_jobs sdj
+            LEFT JOIN master_colorist_recipes mcr ON sdj.master_colorist_recipe_id = mcr.id
+            WHERE sdj.id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not job:
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        return jsonify({
+            'id': str(job['id']),
+            'job_id': job['job_id'],
+            'allocated_machine_id': job['allocated_machine_id'],
+            'vessel_type_allocated': job['vessel_type_allocated'],
+            'operator_name': job['operator_name'],
+            'actual_liquor_volume_liters': float(job['actual_liquor_volume_liters']) if job['actual_liquor_volume_liters'] else None,
+            'bath_start_time': job['bath_start_time'].isoformat() if job['bath_start_time'] else None,
+            'bath_end_time': job['bath_end_time'].isoformat() if job['bath_end_time'] else None,
+            'peak_boil_temperature_celsius': job['peak_boil_temperature_celsius'],
+            'fixation_duration_minutes': job['fixation_duration_minutes'],
+            'hank_unit_weight_g': job['hank_unit_weight_g'],
+            'lease_tie_type': job['lease_tie_type'],
+            'machine_type': job['machine_type'],
+            'pump_flow_rate_lpm': float(job['pump_flow_rate_lpm']) if job['pump_flow_rate_lpm'] else None,
+            'liquor_ratio': job['liquor_ratio'],
+            'pre_boil_hardness_ppm': job['pre_boil_hardness_ppm'],
+            'water_treatment_status': job['water_treatment_status'],
+            'peak_heating_temperature_bracket': job['peak_heating_temperature_bracket'],
+            'input_skein_dry_weight_kg': float(job['input_skein_dry_weight_kg']) if job['input_skein_dry_weight_kg'] else None,
+            'output_skein_dry_weight_kg': float(job['output_skein_dry_weight_kg']) if job['output_skein_dry_weight_kg'] else None,
+            'dye_house_yield_variance': float(job['dye_house_yield_variance']) if job['dye_house_yield_variance'] else None,
+            'post_dye_softening_type': job['post_dye_softening_type'],
+            'core_to_surface_shade_match': job['core_to_surface_shade_match'],
+            'tie_mark_spot_found': job['tie_mark_spot_found'],
+            'post_dye_winding_break_count': job['post_dye_winding_break_count'],
+            'hank_entanglement_rating': job['hank_entanglement_rating'],
+            'recipe_scaler_multiplier': float(job['recipe_scaler_multiplier']) if job['recipe_scaler_multiplier'] else 1.0,
+            'validation_errors': job['validation_errors'],
+            'validation_warnings': job['validation_warnings'],
+            'auto_assigned_routing': job['auto_assigned_routing'],
+            'status': job['status'],
+            'certificate_hash': job['certificate_hash'],
+            'recipe_code': job['recipe_code'],
+            'internal_shade_code': job['internal_shade_code'],
+            'dye_class_used': job['dye_class_used']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/skein-dye/jobs/<job_id>/complete', methods=['POST'])
+@jwt_required()
+def complete_skein_dye_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE skein_dye_jobs
+            SET status = 'COMPLETED',
+                bath_end_time = COALESCE(%s::timestamptz, bath_end_time),
+                output_skein_dry_weight_kg = COALESCE(%s, output_skein_dry_weight_kg),
+                dye_house_yield_variance = COALESCE(
+                    output_skein_dry_weight_kg - input_skein_dry_weight_kg,
+                    dye_house_yield_variance
+                )
+            WHERE id = %s::uuid
+            RETURNING id, job_id, status
+        """, (
+            data.get('bath_end_time'),
+            data.get('output_skein_dry_weight_kg'),
+            job_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'job_id': result['job_id'],
+            'status': result['status'],
+            'message': 'Skein Dye job completed'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/skein-dye/jobs/<job_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_skein_dye_job(job_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, job_id, status, validation_errors, auto_assigned_routing
+            FROM skein_dye_jobs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['validation_errors'] and len(job['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify job with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(job_id, job['job_id'])
+        qr_tag_id = 'SKEIN-' + job['job_id']
+        
+        cur.execute("""
+            UPDATE skein_dye_jobs
+            SET status = 'CERTIFIED',
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, job_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, job_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO skein_dye_certificates (
+                job_id, certificate_hash, qr_tag_id, job_id_ref,
+                allocated_machine_id, vessel_type_allocated,
+                peak_boil_temperature_celsius, fixation_duration_minutes,
+                input_skein_dry_weight_kg, output_skein_dry_weight_kg,
+                dye_house_yield_variance, core_to_surface_shade_match,
+                tie_mark_spot_found, post_dye_winding_break_count,
+                hank_entanglement_rating, post_dye_softening_type,
+                auto_assigned_routing, operator_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                sdj.id,
+                sdj.certificate_hash,
+                sdj.qr_tag_id,
+                sdj.job_id,
+                sdj.allocated_machine_id,
+                sdj.vessel_type_allocated,
+                sdj.peak_boil_temperature_celsius,
+                sdj.fixation_duration_minutes,
+                sdj.input_skein_dry_weight_kg,
+                sdj.output_skein_dry_weight_kg,
+                sdj.dye_house_yield_variance,
+                sdj.core_to_surface_shade_match,
+                sdj.tie_mark_spot_found,
+                sdj.post_dye_winding_break_count,
+                sdj.hank_entanglement_rating,
+                sdj.post_dye_softening_type,
+                sdj.auto_assigned_routing,
+                sdj.operator_id,
+                %s,
+                sdj.factory_node_id,
+                jsonb_build_object(
+                    'job_id', sdj.job_id,
+                    'recipe_code', mcr.recipe_code,
+                    'internal_shade_code', mcr.internal_shade_code,
+                    'dye_class_used', mcr.dye_class_used,
+                    'hank_unit_weight_g', sdj.hank_unit_weight_g,
+                    'lease_tie_type', sdj.lease_tie_type,
+                    'machine_type', sdj.machine_type,
+                    'liquor_ratio', sdj.liquor_ratio,
+                    'water_treatment_status', sdj.water_treatment_status,
+                    'peak_heating_temperature_bracket', sdj.peak_heating_temperature_bracket
+                )
+            FROM skein_dye_jobs sdj
+            LEFT JOIN master_colorist_recipes mcr ON sdj.master_colorist_recipe_id = mcr.id
+            WHERE sdj.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM skein_dye_certificates WHERE job_id = sdj.id
+            )
+        """, (approver_id, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'job_id': result['job_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'CERTIFIED',
+            'message': 'Skein Dye job certified successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/skein-dye/jobs/<job_id>/chemicals', methods=['POST'])
+@jwt_required()
+def add_skein_dye_job_chemical(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['chemical_name', 'quantity_grams']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            INSERT INTO skein_dye_job_chemicals (
+                job_id, chemical_name, quantity_grams, volume_ml,
+                component_type, sequence_order, notes
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            job_id,
+            data.get('chemical_name'),
+            data.get('quantity_grams'),
+            data.get('volume_ml'),
+            data.get('component_type'),
+            data.get('sequence_order'),
+            data.get('notes')
+        ))
+        
+        chemical_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(chemical_row['id']),
+            'job_id': str(job_id),
+            'message': 'Chemical added to job successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/skein-dye/jobs/<job_id>/chemicals', methods=['GET'])
+@jwt_required()
+def list_skein_dye_job_chemicals(job_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, chemical_name, quantity_grams, volume_ml,
+                   component_type, sequence_order, notes
+            FROM skein_dye_job_chemicals
+            WHERE job_id = %s::uuid
+            ORDER BY sequence_order ASC
+        """, (job_id,))
+        
+        chemicals = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(chemicals),
+            'chemicals': [
+                {
+                    'id': str(c['id']),
+                    'chemical_name': c['chemical_name'],
+                    'quantity_grams': float(c['quantity_grams']) if c['quantity_grams'] else None,
+                    'volume_ml': float(c['volume_ml']) if c['volume_ml'] else None,
+                    'component_type': c['component_type'],
+                    'sequence_order': c['sequence_order'],
+                    'notes': c['notes']
+                }
+                for c in chemicals
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/skein-dye/certificates', methods=['GET'])
+@jwt_required()
+def list_skein_dye_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sdc.id, sdc.certificate_hash, sdc.qr_tag_id, sdc.job_id_ref,
+                   sdc.allocated_machine_id, sdc.vessel_type_allocated,
+                   sdc.peak_boil_temperature_celsius, sdc.fixation_duration_minutes,
+                   sdc.input_skein_dry_weight_kg, sdc.output_skein_dry_weight_kg,
+                   sdc.dye_house_yield_variance, sdc.core_to_surface_shade_match,
+                   sdc.tie_mark_spot_found, sdc.post_dye_winding_break_count,
+                   sdc.hank_entanglement_rating, sdc.post_dye_softening_type,
+                   sdc.auto_assigned_routing, sdc.status, sdc.certified_at,
+                   sdj.job_id, mcr.recipe_code, mcr.internal_shade_code
+            FROM skein_dye_certificates sdc
+            JOIN skein_dye_jobs sdj ON sdc.job_id = sdj.id
+            LEFT JOIN master_colorist_recipes mcr ON sdj.master_colorist_recipe_id = mcr.id
+            WHERE sdc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY sdc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'job_id': c['job_id'],
+                    'job_id_ref': c['job_id_ref'],
+                    'allocated_machine_id': c['allocated_machine_id'],
+                    'vessel_type_allocated': c['vessel_type_allocated'],
+                    'peak_boil_temperature_celsius': c['peak_boil_temperature_celsius'],
+                    'fixation_duration_minutes': c['fixation_duration_minutes'],
+                    'input_skein_dry_weight_kg': float(c['input_skein_dry_weight_kg']) if c['input_skein_dry_weight_kg'] else None,
+                    'output_skein_dry_weight_kg': float(c['output_skein_dry_weight_kg']) if c['output_skein_dry_weight_kg'] else None,
+                    'dye_house_yield_variance': float(c['dye_house_yield_variance']) if c['dye_house_yield_variance'] else None,
+                    'core_to_surface_shade_match': c['core_to_surface_shade_match'],
+                    'tie_mark_spot_found': c['tie_mark_spot_found'],
+                    'post_dye_winding_break_count': c['post_dye_winding_break_count'],
+                    'hank_entanglement_rating': c['hank_entanglement_rating'],
+                    'post_dye_softening_type': c['post_dye_softening_type'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None,
+                    'recipe_code': c['recipe_code'],
+                    'internal_shade_code': c['internal_shade_code']
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR SKEIN DYE MASTER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/skein-dye', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_skein_dye():
+    """
+    API plugin endpoint for sales team skein dye material processing forecast.
+    Returns forecasted dyeing requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'dye_class': 'ACID_PRE_METALLISED_1_2',
+                    'estimated_silk_kg': 200.0,
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 80,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'dye_class': 'REACTIVE_CIBACRON_F',
+                    'estimated_silk_kg': 150.0,
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 60,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'shade_code': 'MID-MNG-402',
+                    'dye_class': 'ACID_MILL_MILLING',
+                    'estimated_silk_kg': 180.0,
+                    'target_machine': '1536_HOOK_JACQUARD',
+                    'estimated_sarees': 100,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'SKEIN-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'estimated_sarees': 80,
+                    'estimated_silk_kg': 200.0,
+                    'dye_class': 'ACID_PRE_METALLISED_1_2',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                },
+                {
+                    'lot_number': 'SKEIN-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'estimated_sarees': 60,
+                    'estimated_silk_kg': 150.0,
+                    'dye_class': 'REACTIVE_CIBACRON_F',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

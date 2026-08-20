@@ -27,7 +27,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 | auth | 5000 | JWT authentication, login, refresh, logout |
 | scanner | 5001 | Input/output scanning with pre-step validation |
 | ai | 5002 | 6 AI inspection services (zari, dye, warp, fabric, weaving, forecasting) |
-| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing, inward quality gate, Zari refinery assay and certification, Zari inspector post-process inspection and certification, Silk Degumming Master thermal-chemical process control and certification, Throwster/Twister yarn ply doubling, TPI control, twist setting/steaming, and certification |
+| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing, inward quality gate, Zari refinery assay and certification, Zari inspector post-process inspection and certification, Silk Degumming Master thermal-chemical process control and certification, Throwster/Twister yarn ply doubling, TPI control, twist setting/steaming, and certification, Master Colorist shade matching, chemical recipe formulation, spectrophotometer QA, recipe approval, and color certification, Skein Dye Master physical dye bath execution, temperature profiling, chemical additive management, post-dye quality audit, floor mass balance, and skein dye certification |
 | iot | 5004 | MQTT telemetry ingestion, design injection to ECU |
 | design | 5005 | GAN design generation, design file management |
 | buyback | 5006 | Buy-back valuation, NFC verification, depreciation calculation |
@@ -64,6 +64,8 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - Zari Inspector module with post-process XRF verification, core yarn auditing, physical/geometrics inspection, aesthetic/weight audit, defect logging, automated 1536/2400 hook validation rules, ERP routing, and inspector certificate issuance
 - Silk Degumming Master module with chemical bath formulation (degumming agent, alkali buffer, water softener), thermal-process control (temperature, duration, pH), weight loss accounting with sericin loss calculation, automated 1536/2400 hook validation rules, and degumming certificate issuance
 - Throwster/Twister module with yarn ply doubling (1-6 ply), TPI control (first twist 300-600 TPM, final twist 500-800 TPM), twist direction (S/Z), steam stabilization, material mass balance with 1.5% variance alert, automated 1536/2400 hook validation rules, and throwster certificate issuance
+- Master Colorist module with shade matching, chemical recipe formulation (dye class, fixative type, leveling agent), spectrophotometer QA (Delta-E, CIE L*a*b*, metamerism filters), automated 2400 Hook shade precision/tenacity/finish guardrails, recipe scaler logic, lab-dip approval gate, and color certificate issuance
+- Skein Dye Master module with physical dye bath execution (machine allocation, vessel type, hank loading), temperature/time curve tracking, chemical additive management, post-dye washing & softening, floor mass balance, quality audit (core-to-surface shade, tie-marks, winding breaks, entanglement), automated 1536/2400 hook validation rules, over-boiling strength check, and skein dye certificate issuance
 - SKU product catalog: 480 variants across 18 hubs, 14 weave categories (CSV fully populated)
 - Buy-Back valuation engine uses SKU selling price as base value
 - IoT design injection validates SKU-hook compatibility
@@ -104,7 +106,9 @@ silk-erp/
 │   ├── 011_zari_refinery.sql
 │   ├── 012_zari_inspector.sql
 │   ├── 013_silk_degumming_master.sql
-│   └── 014_throwster_twister.sql
+│   ├── 014_throwster_twister.sql
+│   ├── 015_master_colorist.sql
+│   └── 016_skein_dye_master.sql
 ├── services/
 │   ├── auth/
 │   ├── scanner/

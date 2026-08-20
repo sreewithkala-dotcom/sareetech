@@ -14,7 +14,7 @@ import DashboardBobbinWinder from './dashboards/DashboardBobbinWinder'
 import DashboardCardPuncher from './dashboards/DashboardCardPuncher'
 import DashboardFilatureSupplier from './dashboards/DashboardFilatureSupplier'
 import DashboardGraphDrafter from './dashboards/DashboardGraphDrafter'
-import DashboardLogFinishing from './dashboards/DashboardLogFinishing'
+import DashboardLogFinishingTransitSpecialist from './dashboards/DashboardLogFinishingTransitSpecialist'
 import DashboardLoomHarnessSetter from './dashboards/DashboardLoomHarnessSetter'
 import DashboardMasterColorist from './dashboards/DashboardMasterColorist'
 import DashboardMasterWeaver from './dashboards/DashboardMasterWeaver'
@@ -47,7 +47,7 @@ const DASHBOARD_COMPONENTS = {
   'ROLE-CARD-PUNCHER': DashboardCardPuncher,
   'ROLE-FILATURE-SUPPLIER': DashboardFilatureSupplier,
   'ROLE-GRAPH-DRAFTER': DashboardGraphDrafter,
-  'ROLE-LOG-FINISHING': DashboardLogFinishing,
+  'ROLE-LOG-FINISHING': DashboardLogFinishingTransitSpecialist,
   'ROLE-LOOM-HARNESS-SETTER': DashboardLoomHarnessSetter,
   'ROLE-MASTER-COLORIST': DashboardMasterColorist,
   'ROLE-MASTER-WEAVER': DashboardMasterWeaver,

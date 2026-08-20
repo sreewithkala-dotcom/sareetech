@@ -12651,5 +12651,554 @@ def get_sales_forecast_silk_mark_officer():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# LOG FINISHING & TRANSIT SPECIALIST MODULE
+# ============================================================
+
+def validate_log_finishing_transit_specialist_guardrails(data):
+    """Validate log finishing transit specialist inputs against business guardrails."""
+    errors = []
+    warnings = []
+    
+    silk_mark_officer_log_id = data.get('silk_mark_officer_log_id')
+    quality_inspector_log_id = data.get('quality_inspector_log_id')
+    packaging_material_spec = data.get('packaging_material_spec')
+    finishing_machine_type = data.get('finishing_machine_type')
+    logistics_transit_status = data.get('logistics_transit_status')
+
+    if silk_mark_officer_log_id is None:
+        errors.append({
+            'code': 'DENY_FINISHING_RECEIPT',
+            'message': 'CANNOT_FINISH_UNAPPROVED_OR_UNCERTIFIED_SAREES'
+        })
+
+    if quality_inspector_log_id is None:
+        errors.append({
+            'code': 'DENY_FINISHING_RECEIPT',
+            'message': 'CANNOT_FINISH_UNAPPROVED_OR_UNCERTIFIED_SAREES'
+        })
+
+    if quality_inspector_log_id:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT qa_inspector_approval_state FROM quality_inspector_logs WHERE id = %s::uuid
+        """, (quality_inspector_log_id,))
+        grade_row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if grade_row and grade_row['qa_inspector_approval_state'] != 'PASSED_CLEARED_FOR_PACKING':
+            errors.append({
+                'code': 'DENY_FINISHING_RECEIPT',
+                'message': 'CANNOT_FINISH_UNAPPROVED_OR_UNCERTIFIED_SAREES'
+            })
+
+    if silk_mark_officer_log_id:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT silk_mark_officer_approval_state FROM silk_mark_officer_logs WHERE id = %s::uuid
+        """, (silk_mark_officer_log_id,))
+        silk_row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if silk_row and silk_row['silk_mark_officer_approval_state'] != 'CERTIFIED_GENUINE_SILK_MARK_RELEASED':
+            errors.append({
+                'code': 'DENY_FINISHING_RECEIPT',
+                'message': 'CANNOT_FINISH_UNAPPROVED_OR_UNCERTIFIED_SAREES'
+            })
+        
+        if silk_row and silk_row['silk_mark_officer_approval_state'] == 'CERTIFIED_GENUINE_SILK_MARK_RELEASED' and packaging_material_spec == 'Standard 50-Micron Polybag':
+            errors.append({
+                'code': 'REJECT_STANDARD_PACKAGING',
+                'message': 'PURE_ZARI_REQUIRES_ANTI_TARNISH_VACUUM_PACKAGING'
+            })
+
+    if finishing_machine_type == 'Rotary Roller Calender':
+        warnings.append({
+            'code': 'INVALID_MACHINE_SELECTION_WARNING',
+            'message': 'HEAVY_ROLLER_CALENDERS_WILL_CRUSH_2400_HOOK_JACQUARD_ZARI'
+        })
+
+    if logistics_transit_status is not None and logistics_transit_status != 'READY_FOR_DISPATCH_MANIFESTED':
+        errors.append({
+            'code': 'DENY_WAREHOUSE_GATE_PASS_GENERATION',
+            'message': 'TRANSIT_STATUS_NOT_READY_FOR_DISPATCH'
+        })
+
+    return errors, warnings
+
+@app.route('/api/v1/log-finishing-transit-specialist/logs', methods=['POST'])
+@jwt_required()
+def create_log_finishing_transit_specialist_log():
+    try:
+        specialist_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['finishing_job_id', 'saree_piece_serial_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (specialist_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        validation_errors, validation_warnings = validate_log_finishing_transit_specialist_guardrails(data)
+        
+        cur.execute("""
+            INSERT INTO log_finishing_transit_specialist_logs (
+                finishing_job_id, factory_node_id, log_finishing_transit_specialist_id,
+                quality_inspector_log_id, qa_dyeing_inspector_log_id, silk_mark_officer_log_id,
+                sup_supervisor_log_id, assistant_weaver_job_log_id, master_weaver_job_id,
+                b2b_sales_order_ref, saree_piece_serial_id, finishing_machine_type,
+                steam_temperature_celsius, edge_fringing_method, scanned_saree_serial_no,
+                verified_silk_mark_tag_id, packaging_material_spec, anti_tarnish_desiccant_inserted,
+                pallu_interleaving_status, final_packed_weight_grams, dispatch_manifest_id,
+                tamper_seal_barcode_id, logistics_transit_status, logistics_carrier_name,
+                consignment_airway_bill_no, gross_consignment_shipping_weight_kg,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, finishing_job_id
+        """, (
+            data.get('finishing_job_id'),
+            factory_node_id,
+            specialist_id,
+            data.get('quality_inspector_log_id'),
+            data.get('qa_dyeing_inspector_log_id'),
+            data.get('silk_mark_officer_log_id'),
+            data.get('sup_supervisor_log_id'),
+            data.get('assistant_weaver_job_log_id'),
+            data.get('master_weaver_job_id'),
+            data.get('b2b_sales_order_ref'),
+            data.get('saree_piece_serial_id'),
+            data.get('finishing_machine_type', 'Tensionless Felt-Belt Steam Calender'),
+            data.get('steam_temperature_celsius'),
+            data.get('edge_fringing_method', 'Hand-Twisted Micro-Fringe Knotting'),
+            data.get('scanned_saree_serial_no'),
+            data.get('verified_silk_mark_tag_id'),
+            data.get('packaging_material_spec', 'Acid-Free Tissue + Anti-Tarnish Vacuum Pack'),
+            data.get('anti_tarnish_desiccant_inserted', 'Active Silica + Activated Carbon Pack'),
+            data.get('pallu_interleaving_status', 'Acid-Free Interleaved (Zero-Contact)'),
+            data.get('final_packed_weight_grams'),
+            data.get('dispatch_manifest_id'),
+            data.get('tamper_seal_barcode_id'),
+            data.get('logistics_transit_status', 'READY_FOR_DISPATCH_MANIFESTED'),
+            data.get('logistics_carrier_name'),
+            data.get('consignment_airway_bill_no'),
+            data.get('gross_consignment_shipping_weight_kg'),
+            json.dumps(validation_errors),
+            json.dumps(validation_warnings),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'finishing_job_id': log_row['finishing_job_id'],
+            'validation_errors': validation_errors,
+            'validation_warnings': validation_warnings,
+            'status': 'submitted'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/log-finishing-transit-specialist/logs', methods=['GET'])
+@jwt_required()
+def list_log_finishing_transit_specialist_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT lfts.id, lfts.finishing_job_id, lfts.saree_piece_serial_id,
+                   lfts.scanned_saree_serial_no, lfts.verified_silk_mark_tag_id,
+                   lfts.logistics_transit_status, lfts.auto_assigned_routing,
+                   lfts.finishing_machine_type, lfts.steam_temperature_celsius,
+                   lfts.edge_fringing_method, lfts.packaging_material_spec,
+                   lfts.anti_tarnish_desiccant_inserted, lfts.pallu_interleaving_status,
+                   lfts.dispatch_manifest_id, lfts.consignment_airway_bill_no,
+                   lfts.logistics_carrier_name, lfts.created_at,
+                   u.full_name AS specialist_name
+            FROM log_finishing_transit_specialist_logs lfts
+            LEFT JOIN users u ON lfts.log_finishing_transit_specialist_id = u.id
+            WHERE lfts.log_finishing_transit_specialist_id = %s::uuid
+            ORDER BY lfts.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(log['id']),
+                    'finishing_job_id': log['finishing_job_id'],
+                    'saree_piece_serial_id': log['saree_piece_serial_id'],
+                    'scanned_saree_serial_no': log['scanned_saree_serial_no'],
+                    'verified_silk_mark_tag_id': log['verified_silk_mark_tag_id'],
+                    'logistics_transit_status': log['logistics_transit_status'],
+                    'auto_assigned_routing': log['auto_assigned_routing'],
+                    'finishing_machine_type': log['finishing_machine_type'],
+                    'steam_temperature_celsius': float(log['steam_temperature_celsius']) if log['steam_temperature_celsius'] else None,
+                    'edge_fringing_method': log['edge_fringing_method'],
+                    'packaging_material_spec': log['packaging_material_spec'],
+                    'anti_tarnish_desiccant_inserted': log['anti_tarnish_desiccant_inserted'],
+                    'pallu_interleaving_status': log['pallu_interleaving_status'],
+                    'dispatch_manifest_id': log['dispatch_manifest_id'],
+                    'consignment_airway_bill_no': log['consignment_airway_bill_no'],
+                    'logistics_carrier_name': log['logistics_carrier_name'],
+                    'created_at': log['created_at'].isoformat() if log['created_at'] else None,
+                    'specialist_name': log['specialist_name']
+                }
+                for log in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/log-finishing-transit-specialist/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_log_finishing_transit_specialist_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT lfts.*,
+                   u.full_name AS specialist_name
+            FROM log_finishing_transit_specialist_logs lfts
+            LEFT JOIN users u ON lfts.log_finishing_transit_specialist_id = u.id
+            WHERE lfts.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'finishing_job_id': log['finishing_job_id'],
+            'factory_node_id': log['factory_node_id'],
+            'log_finishing_transit_specialist_id': str(log['log_finishing_transit_specialist_id']),
+            'quality_inspector_log_id': str(log['quality_inspector_log_id']) if log['quality_inspector_log_id'] else None,
+            'qa_dyeing_inspector_log_id': str(log['qa_dyeing_inspector_log_id']) if log['qa_dyeing_inspector_log_id'] else None,
+            'silk_mark_officer_log_id': str(log['silk_mark_officer_log_id']) if log['silk_mark_officer_log_id'] else None,
+            'b2b_sales_order_ref': log['b2b_sales_order_ref'],
+            'saree_piece_serial_id': log['saree_piece_serial_id'],
+            'finishing_machine_type': log['finishing_machine_type'],
+            'steam_temperature_celsius': float(log['steam_temperature_celsius']) if log['steam_temperature_celsius'] else None,
+            'edge_fringing_method': log['edge_fringing_method'],
+            'scanned_saree_serial_no': log['scanned_saree_serial_no'],
+            'verified_silk_mark_tag_id': log['verified_silk_mark_tag_id'],
+            'packaging_material_spec': log['packaging_material_spec'],
+            'anti_tarnish_desiccant_inserted': log['anti_tarnish_desiccant_inserted'],
+            'pallu_interleaving_status': log['pallu_interleaving_status'],
+            'final_packed_weight_grams': float(log['final_packed_weight_grams']) if log['final_packed_weight_grams'] else None,
+            'dispatch_manifest_id': log['dispatch_manifest_id'],
+            'tamper_seal_barcode_id': log['tamper_seal_barcode_id'],
+            'logistics_transit_status': log['logistics_transit_status'],
+            'logistics_carrier_name': log['logistics_carrier_name'],
+            'consignment_airway_bill_no': log['consignment_airway_bill_no'],
+            'gross_consignment_shipping_weight_kg': float(log['gross_consignment_shipping_weight_kg']) if log['gross_consignment_shipping_weight_kg'] else None,
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'certificate_hash': log['certificate_hash'],
+            'qr_tag_id': log['qr_tag_id'],
+            'created_at': log['created_at'].isoformat() if log['created_at'] else None,
+            'specialist_name': log['specialist_name']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/log-finishing-transit-specialist/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_log_finishing_transit_specialist_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, finishing_job_id, validation_errors, logistics_transit_status
+            FROM log_finishing_transit_specialist_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['finishing_job_id'])
+        qr_tag_id = 'LOG-' + log['finishing_job_id']
+        
+        cur.execute("""
+            UPDATE log_finishing_transit_specialist_logs
+            SET certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, finishing_job_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO log_finishing_transit_specialist_certificates (
+                log_finishing_transit_specialist_log_id, certificate_hash, qr_tag_id,
+                finishing_job_id, saree_piece_serial_id, scanned_saree_serial_no,
+                verified_silk_mark_tag_id, dispatch_manifest_id, tamper_seal_barcode_id,
+                logistics_transit_status, logistics_carrier_name, consignment_airway_bill_no,
+                finishing_machine_type, steam_temperature_celsius, edge_fringing_method,
+                packaging_material_spec, anti_tarnish_desiccant_inserted, pallu_interleaving_status,
+                final_packed_weight_grams, gross_consignment_shipping_weight_kg,
+                specialist_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.finishing_job_id,
+                pj.saree_piece_serial_id,
+                pj.scanned_saree_serial_no,
+                pj.verified_silk_mark_tag_id,
+                pj.dispatch_manifest_id,
+                pj.tamper_seal_barcode_id,
+                pj.logistics_transit_status,
+                pj.logistics_carrier_name,
+                pj.consignment_airway_bill_no,
+                pj.finishing_machine_type,
+                pj.steam_temperature_celsius,
+                pj.edge_fringing_method,
+                pj.packaging_material_spec,
+                pj.anti_tarnish_desiccant_inserted,
+                pj.pallu_interleaving_status,
+                pj.final_packed_weight_grams,
+                pj.gross_consignment_shipping_weight_kg,
+                pj.log_finishing_transit_specialist_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'finishing_job_id', pj.finishing_job_id,
+                    'saree_piece_serial_id', pj.saree_piece_serial_id,
+                    'scanned_saree_serial_no', pj.scanned_saree_serial_no,
+                    'verified_silk_mark_tag_id', pj.verified_silk_mark_tag_id,
+                    'dispatch_manifest_id', pj.dispatch_manifest_id,
+                    'tamper_seal_barcode_id', pj.tamper_seal_barcode_id,
+                    'logistics_transit_status', pj.logistics_transit_status,
+                    'logistics_carrier_name', pj.logistics_carrier_name,
+                    'consignment_airway_bill_no', pj.consignment_airway_bill_no,
+                    'finishing_machine_type', pj.finishing_machine_type,
+                    'steam_temperature_celsius', pj.steam_temperature_celsius,
+                    'edge_fringing_method', pj.edge_fringing_method,
+                    'packaging_material_spec', pj.packaging_material_spec,
+                    'anti_tarnish_desiccant_inserted', pj.anti_tarnish_desiccant_inserted,
+                    'pallu_interleaving_status', pj.pallu_interleaving_status
+                )
+            FROM log_finishing_transit_specialist_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'finishing_job_id': result['finishing_job_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'CERTIFIED_READY_FOR_DISPATCH',
+            'message': 'Finishing & transit certification issued and dispatch manifest generated'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/log-finishing-transit-specialist/certificates', methods=['GET'])
+@jwt_required()
+def list_log_finishing_transit_specialist_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT lftsc.id, lftsc.certificate_hash, lftsc.qr_tag_id,
+                   lftsc.finishing_job_id, lftsc.saree_piece_serial_id,
+                   lftsc.scanned_saree_serial_no, lftsc.verified_silk_mark_tag_id,
+                   lftsc.dispatch_manifest_id, lftsc.tamper_seal_barcode_id,
+                   lftsc.logistics_transit_status, lftsc.logistics_carrier_name,
+                   lftsc.consignment_airway_bill_no, lftsc.finishing_machine_type,
+                   lftsc.steam_temperature_celsius, lftsc.edge_fringing_method,
+                   lftsc.packaging_material_spec, lftsc.anti_tarnish_desiccant_inserted,
+                   lftsc.pallu_interleaving_status, lftsc.final_packed_weight_grams,
+                   lftsc.gross_consignment_shipping_weight_kg, lftsc.status, lftsc.certified_at
+            FROM log_finishing_transit_specialist_certificates lftsc
+            WHERE lftsc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY lftsc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'finishing_job_id': c['finishing_job_id'],
+                    'saree_piece_serial_id': c['saree_piece_serial_id'],
+                    'scanned_saree_serial_no': c['scanned_saree_serial_no'],
+                    'verified_silk_mark_tag_id': c['verified_silk_mark_tag_id'],
+                    'dispatch_manifest_id': c['dispatch_manifest_id'],
+                    'tamper_seal_barcode_id': c['tamper_seal_barcode_id'],
+                    'logistics_transit_status': c['logistics_transit_status'],
+                    'logistics_carrier_name': c['logistics_carrier_name'],
+                    'consignment_airway_bill_no': c['consignment_airway_bill_no'],
+                    'finishing_machine_type': c['finishing_machine_type'],
+                    'steam_temperature_celsius': float(c['steam_temperature_celsius']) if c['steam_temperature_celsius'] else None,
+                    'edge_fringing_method': c['edge_fringing_method'],
+                    'packaging_material_spec': c['packaging_material_spec'],
+                    'anti_tarnish_desiccant_inserted': c['anti_tarnish_desiccant_inserted'],
+                    'pallu_interleaving_status': c['pallu_interleaving_status'],
+                    'final_packed_weight_grams': float(c['final_packed_weight_grams']) if c['final_packed_weight_grams'] else None,
+                    'gross_consignment_shipping_weight_kg': float(c['gross_consignment_shipping_weight_kg']) if c['gross_consignment_shipping_weight_kg'] else None,
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR LOG FINISHING & TRANSIT SPECIALIST
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/log-finishing-transit-specialist', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_log_finishing_transit_specialist():
+    """
+    API plugin endpoint for sales team log finishing transit specialist material processing forecast.
+    Returns forecasted finishing, packaging, and dispatch requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'finishing_machine_type': 'Tensionless Felt-Belt Steam Calender',
+                    'steam_temperature_celsius': 115.0,
+                    'edge_fringing_method': 'Hand-Twisted Micro-Fringe Knotting',
+                    'packaging_material_spec': 'Acid-Free Tissue + Anti-Tarnish Vacuum Pack',
+                    'anti_tarnish_desiccant_inserted': 'Active Silica + Activated Carbon Pack',
+                    'pallu_interleaving_status': 'Acid-Free Interleaved (Zero-Contact)',
+                    'estimated_finishing_jobs': 80,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'finishing_machine_type': 'Tensionless Felt-Belt Steam Calender',
+                    'steam_temperature_celsius': 115.0,
+                    'edge_fringing_method': 'Hand-Twisted Micro-Fringe Knotting',
+                    'packaging_material_spec': 'Acid-Free Tissue + Anti-Tarnish Vacuum Pack',
+                    'anti_tarnish_desiccant_inserted': 'Active Silica + Activated Carbon Pack',
+                    'pallu_interleaving_status': 'Acid-Free Interleaved (Zero-Contact)',
+                    'estimated_finishing_jobs': 60,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'finishing_machine_type': 'Rotary Roller Calender',
+                    'steam_temperature_celsius': 110.0,
+                    'edge_fringing_method': 'Satin Ribbon Hem Lock',
+                    'packaging_material_spec': 'Standard 50-Micron Polybag',
+                    'anti_tarnish_desiccant_inserted': 'Silica Gel Only',
+                    'pallu_interleaving_status': 'Standard Paper Interleaved',
+                    'estimated_finishing_jobs': 120,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'LOG-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_finishing_jobs': 80
+                },
+                {
+                    'lot_number': 'LOG-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_finishing_jobs': 60
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

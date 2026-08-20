@@ -49,6 +49,7 @@ const DASHBOARD_COMPONENTS = {
   'ROLE-FILATURE-SUPPLIER': DashboardFilatureSupplier,
   'ROLE-GRAPH-DRAFTER': DashboardGraphDrafter,
   'ROLE-LOG-FINISHING': DashboardLogFinishingTransitSpecialist,
+  'ROLE-LOG-FINISHING-TRANSIT-SPECIALIST': DashboardLogFinishingTransitSpecialist,
   'ROLE-LOOM-HARNESS-SETTER': DashboardLoomHarnessSetter,
   'ROLE-MASTER-COLORIST': DashboardMasterColorist,
   'ROLE-MASTER-WEAVER': DashboardMasterWeaver,

@@ -1,9 +1,20 @@
-import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, TextField, Select, MenuItem, FormControl, InputLabel, Tabs, Tab, Alert, LinearProgress } from '@mui/material'
+import { Container, Typography, Box, Paper, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, TextField, Select, MenuItem, FormControl, InputLabel, Tabs, Tab, Alert, LinearProgress, IconButton, Tooltip } from '@mui/material'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../contexts/DashboardContext'
 import EnterprisePanel from '../components/EnterprisePanel'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import AddIcon from '@mui/icons-material/Add'
+import VisibilityIcon from '@mui/icons-material/Visibility'
+import SyncIcon from '@mui/icons-material/Sync'
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
+import AssignmentIcon from '@mui/icons-material/Assignment'
+import FactoriesIcon from '@mui/icons-material/Factories'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import WarningIcon from '@mui/icons-material/Warning'
+import ErrorIcon from '@mui/icons-material/Error'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5003/api/v1'
 
@@ -12,96 +23,54 @@ export default function DashboardProductionPlanningControl() {
   const navigate = useNavigate()
   const { addNotification } = useDashboard()
   const [tab, setTab] = useState('dashboard')
+  const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const [stats, setStats] = useState({
-    totalOrders: 0,
-    pendingOrders: 0,
-    activePlans: 0,
-    totalProduction: 0,
-    qualityPassRate: 0,
-    oeeScore: 0
+  const [summary, setSummary] = useState({
+    pending_orders: 0, in_production_orders: 0, delivered_orders: 0,
+    active_plans: 0, total_target_meters: 0, total_actual_meters: 0,
+    avg_oee: 0, quality_pass_rate_pct: 0, active_production_lines: 0, allocated_resources: 0
   })
+  const [recentLines, setRecentLines] = useState([])
+  const [recentQuality, setRecentQuality] = useState([])
+  const [recentAllocations, setRecentAllocations] = useState([])
   const [orders, setOrders] = useState([])
   const [plans, setPlans] = useState([])
   const [boms, setBoms] = useState([])
   const [trackingLogs, setTrackingLogs] = useState([])
   const [qualityChecks, setQualityChecks] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [lines, setLines] = useState([])
+  const [shifts, setShifts] = useState([])
+  const [resources, setResources] = useState([])
 
-  useEffect(() => {
-    fetchStats()
-    fetchOrders()
-    fetchPlans()
-  }, [])
+  const factoryId = user?.factory_node_id || 'FACT-BLR-01'
 
-  const fetchStats = async () => {
-    setLoading(true)
+  const fetchWithAuth = async (url) => {
+    const token = localStorage.getItem('access_token')
+    const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+    return response.json()
+  }
+
+  const fetchDashboardData = async () => {
+    setRefreshing(true)
     try {
-      const token = localStorage.getItem('access_token')
-      const factoryId = user?.factory_node_id || 'FACT-BLR-01'
-
-      const [ordersRes, plansRes, trackingRes, qualityRes] = await Promise.all([
-        fetch(`${API_URL}/ppc/orders?factory_node_id=${encodeURIComponent(factoryId)}&limit=1000`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_URL}/ppc/plans?factory_node_id=${encodeURIComponent(factoryId)}&limit=1000`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_URL}/ppc/tracking?factory_node_id=${encodeURIComponent(factoryId)}&limit=1000`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_URL}/ppc/quality-checks?factory_node_id=${encodeURIComponent(factoryId)}&limit=1000`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      ])
-
-      const [ordersData, plansData, trackingData, qualityData] = await Promise.all([
-        ordersRes.json(),
-        plansRes.json(),
-        trackingRes.json(),
-        qualityRes.json()
-      ])
-
-      const ordersList = ordersData.orders || []
-      const plansList = plansData.plans || []
-      const trackingList = trackingData.logs || []
-      const qualityList = qualityData.checks || []
-
-      const totalProduction = trackingList.reduce((sum, t) => sum + (parseFloat(t.output_meters) || 0), 0)
-      const passedChecks = qualityList.filter(q => q.status === 'PASSED' || q.status === 'CERTIFIED').length
-      const qualityPassRate = qualityList.length > 0 ? (passedChecks / qualityList.length * 100) : 0
-      const avgOee = plansList.length > 0 ? plansList.reduce((sum, p) => sum + (parseFloat(p.oee_score) || 0), 0) / plansList.length : 0
-
-      setStats({
-        totalOrders: ordersList.length,
-        pendingOrders: ordersList.filter(o => o.status === 'PENDING').length,
-        activePlans: plansList.filter(p => p.status === 'IN_PROGRESS').length,
-        totalProduction: totalProduction.toFixed(2),
-        qualityPassRate: qualityPassRate.toFixed(1),
-        oeeScore: avgOee.toFixed(1)
-      })
-
-      setOrders(ordersList.slice(0, 10))
-      setPlans(plansList.slice(0, 10))
-      setTrackingLogs(trackingList.slice(0, 10))
-      setQualityChecks(qualityList.slice(0, 10))
+      const data = await fetchWithAuth(`${API_URL}/ppc/dashboard?factory_node_id=${encodeURIComponent(factoryId)}`)
+      if (data.summary) setSummary(data.summary)
+      if (data.recent_lines) setRecentLines(data.recent_lines)
+      if (data.recent_quality) setRecentQuality(data.recent_quality)
+      if (data.recent_allocations) setRecentAllocations(data.recent_allocations)
     } catch (error) {
-      console.error('Failed to fetch PPC stats:', error)
-      addNotification('Failed to load PPC dashboard data', 'error')
+      console.error('Failed to fetch dashboard:', error)
+      addNotification('Failed to load PPC dashboard', 'error')
     } finally {
-      setLoading(false)
+      setRefreshing(false)
     }
   }
 
   const fetchOrders = async () => {
     try {
-      const token = localStorage.getItem('access_token')
-      const factoryId = user?.factory_node_id || 'FACT-BLR-01'
-      const response = await fetch(`${API_URL}/ppc/orders?factory_node_id=${encodeURIComponent(factoryId)}&limit=50`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await response.json()
-      if (response.ok) setOrders(data.orders || [])
+      const data = await fetchWithAuth(`${API_URL}/ppc/orders?factory_node_id=${encodeURIComponent(factoryId)}&limit=50`)
+      setOrders(data.orders || [])
     } catch (error) {
       console.error('Failed to fetch orders:', error)
     }
@@ -109,54 +78,112 @@ export default function DashboardProductionPlanningControl() {
 
   const fetchPlans = async () => {
     try {
-      const token = localStorage.getItem('access_token')
-      const factoryId = user?.factory_node_id || 'FACT-BLR-01'
-      const response = await fetch(`${API_URL}/ppc/plans?factory_node_id=${encodeURIComponent(factoryId)}&limit=50`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await response.json()
-      if (response.ok) setPlans(data.plans || [])
+      const data = await fetchWithAuth(`${API_URL}/ppc/plans?factory_node_id=${encodeURIComponent(factoryId)}&limit=50`)
+      setPlans(data.plans || [])
     } catch (error) {
       console.error('Failed to fetch plans:', error)
     }
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'COMPLETED':
-      case 'PASSED':
-      case 'CERTIFIED':
-      case 'DELIVERED':
-        return 'success'
-      case 'IN_PROGRESS':
-      case 'CONFIRMED':
-      case 'ACTIVE':
-        return 'info'
-      case 'PENDING':
-        return 'warning'
-      case 'FAILED':
-      case 'REJECT':
-      case 'CANCELLED':
-        return 'error'
-      default:
-        return 'default'
+  const fetchBoms = async () => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/ppc/bom?factory_node_id=${encodeURIComponent(factoryId)}&limit=50`)
+      setBoms(data.boms || [])
+    } catch (error) {
+      console.error('Failed to fetch BOMs:', error)
     }
   }
 
-  const StatCard = ({ title, value, subtitle, color }) => (
+  const fetchTracking = async () => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/ppc/tracking?factory_node_id=${encodeURIComponent(factoryId)}&limit=50`)
+      setTrackingLogs(data.logs || [])
+    } catch (error) {
+      console.error('Failed to fetch tracking:', error)
+    }
+  }
+
+  const fetchQuality = async () => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/ppc/quality-checks?factory_node_id=${encodeURIComponent(factoryId)}&limit=50`)
+      setQualityChecks(data.checks || [])
+    } catch (error) {
+      console.error('Failed to fetch quality checks:', error)
+    }
+  }
+
+  const fetchLines = async () => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/ppc/lines?factory_node_id=${encodeURIComponent(factoryId)}&limit=100`)
+      setLines(data.lines || [])
+    } catch (error) {
+      console.error('Failed to fetch lines:', error)
+    }
+  }
+
+  const fetchShifts = async () => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/ppc/shifts?factory_node_id=${encodeURIComponent(factoryId)}&limit=100`)
+      setShifts(data.shifts || [])
+    } catch (error) {
+      console.error('Failed to fetch shifts:', error)
+    }
+  }
+
+  const fetchResources = async () => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/ppc/resources?factory_node_id=${encodeURIComponent(factoryId)}&limit=100`)
+      setResources(data.allocations || [])
+    } catch (error) {
+      console.error('Failed to fetch resources:', error)
+    }
+  }
+
+  const refreshAll = () => {
+    fetchDashboardData()
+    fetchOrders()
+    fetchPlans()
+    fetchBoms()
+    fetchTracking()
+    fetchQuality()
+    fetchLines()
+    fetchShifts()
+    fetchResources()
+  }
+
+  useEffect(() => {
+    refreshAll()
+  }, [])
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'COMPLETED': case 'PASSED': case 'CERTIFIED': case 'DELIVERED': case 'RELEASED': return 'success'
+      case 'IN_PROGRESS': case 'CONFIRMED': case 'ACTIVE': case 'ALLOCATED': case 'IN_USE': return 'info'
+      case 'PENDING': case 'SCHEDULED': case 'PLANNED': return 'warning'
+      case 'FAILED': case 'REJECT': case 'CANCELLED': case 'SHUTDOWN': case 'MAINTENANCE': return 'error'
+      default: return 'default'
+    }
+  }
+
+  const StatCard = ({ title, value, subtitle, color, icon }) => (
     <Card>
       <CardContent>
-        <Typography variant="h6" gutterBottom color={color}>
-          {title}
-        </Typography>
-        <Typography variant="h4" color={color}>
-          {value}
-        </Typography>
-        {subtitle && (
-          <Typography variant="body2" color="text.secondary">
-            {subtitle}
-          </Typography>
-        )}
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+          <Box>
+            <Typography variant="h6" gutterBottom color={color}>
+              {title}
+            </Typography>
+            <Typography variant="h4" color={color}>
+              {value}
+            </Typography>
+            {subtitle && (
+              <Typography variant="body2" color="text.secondary">
+                {subtitle}
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ color }}>{icon}</Box>
+        </Box>
       </CardContent>
     </Card>
   )
@@ -172,9 +199,16 @@ export default function DashboardProductionPlanningControl() {
             Factory: {user?.factory_node_id} | Operator: {user?.full_name}
           </Typography>
         </div>
+        <Box>
+          <Tooltip title="Refresh All Data">
+            <IconButton onClick={refreshAll} disabled={refreshing}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
-      {loading && <LinearProgress sx={{ mb: 2 }} />}
+      {refreshing && <LinearProgress sx={{ mb: 2 }} />}
 
       <Paper sx={{ mb: 3 }}>
         <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
@@ -184,26 +218,31 @@ export default function DashboardProductionPlanningControl() {
           <Tab label="BOM" value="bom" />
           <Tab label="Tracking" value="tracking" />
           <Tab label="Quality & Compliance" value="quality" />
-          <Tab label="Mobile Sync" value="mobile" />
+          <Tab label="Lines & Shifts" value="lines" />
+          <Tab label="Resources" value="resources" />
+          <Tab label="Mobile" value="mobile" />
         </Tabs>
       </Paper>
 
       {tab === 'dashboard' && (
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6} md={4}>
-            <StatCard title="Total Orders" value={stats.totalOrders} subtitle={`${stats.pendingOrders} pending`} color="primary" />
+            <StatCard title="Pending Orders" value={summary.pending_orders} subtitle={`${summary.in_production_orders} in production`} color="primary.main" icon={<AssignmentIcon />} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <StatCard title="Active Plans" value={stats.activePlans} subtitle="Currently running" color="info" />
+            <StatCard title="Active Plans" value={summary.active_plans} subtitle="Currently running" color="info.main" icon={<TrendingUpIcon />} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <StatCard title="Total Production" value={`${stats.totalProduction}m`} subtitle="Meters produced" color="success" />
+            <StatCard title="Total Production" value={`${parseFloat(summary.total_actual_meters || 0).toFixed(1)}m`} subtitle={`Target: ${parseFloat(summary.total_target_meters || 0).toFixed(1)}m`} color="success.main" icon={<FactoriesIcon />} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <StatCard title="Quality Pass Rate" value={`${stats.qualityPassRate}%`} subtitle="Passed / Total" color={stats.qualityPassRate > 90 ? 'success' : 'warning'} />
+            <StatCard title="Quality Pass Rate" value={`${summary.quality_pass_rate_pct}%`} subtitle="Passed / Total" color={summary.quality_pass_rate_pct > 90 ? 'success.main' : 'warning.main'} icon={<CheckCircleIcon />} />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
-            <StatCard title="OEE Score" value={`${stats.oeeScore}%`} subtitle="Average OEE" color="secondary" />
+            <StatCard title="OEE Score" value={`${summary.avg_oee}%`} subtitle="Average OEE" color="secondary.main" icon={<TrendingUpIcon />} />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <StatCard title="Active Lines" value={summary.active_production_lines} subtitle={`${summary.allocated_resources} resources allocated`} color="warning.main" icon={<FactoriesIcon />} />
           </Grid>
         </Grid>
       )}
@@ -211,8 +250,8 @@ export default function DashboardProductionPlanningControl() {
       {tab === 'orders' && (
         <Paper sx={{ p: 2 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Orders</Typography>
-            <Button variant="contained" size="small" onClick={() => alert('Create Order form would open here')}>
+            <Typography variant="h6">Orders ({orders.length})</Typography>
+            <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => addNotification('Order creation form would open here', 'info')}>
               New Order
             </Button>
           </Box>
@@ -244,15 +283,15 @@ export default function DashboardProductionPlanningControl() {
               </TableBody>
             </Table>
           </TableContainer>
-          {orders.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No orders found. Create your first order to get started.</Alert>}
+          {orders.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No orders found.</Alert>}
         </Paper>
       )}
 
       {tab === 'plans' && (
         <Paper sx={{ p: 2 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Production Plans</Typography>
-            <Button variant="contained" size="small" onClick={() => alert('Create Plan form would open here')}>
+            <Typography variant="h6">Production Plans ({plans.length})</Typography>
+            <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => addNotification('Plan creation form would open here', 'info')}>
               New Plan
             </Button>
           </Box>
@@ -286,15 +325,15 @@ export default function DashboardProductionPlanningControl() {
               </TableBody>
             </Table>
           </TableContainer>
-          {plans.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No production plans found. Create your first plan to get started.</Alert>}
+          {plans.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No production plans found.</Alert>}
         </Paper>
       )}
 
       {tab === 'bom' && (
         <Paper sx={{ p: 2 }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Bill of Materials</Typography>
-            <Button variant="contained" size="small" onClick={() => alert('Create BOM form would open here')}>
+            <Typography variant="h6">Bill of Materials ({boms.length})</Typography>
+            <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={() => addNotification('BOM creation form would open here', 'info')}>
               New BOM
             </Button>
           </Box>
@@ -324,7 +363,7 @@ export default function DashboardProductionPlanningControl() {
               </TableBody>
             </Table>
           </TableContainer>
-          {boms.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No BOMs found. Create your first BOM to get started.</Alert>}
+          {boms.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No BOMs found.</Alert>}
         </Paper>
       )}
 
@@ -340,7 +379,7 @@ export default function DashboardProductionPlanningControl() {
                   <TableCell>Operation</TableCell>
                   <TableCell>Output (m)</TableCell>
                   <TableCell>Defects</TableCell>
-                  <TableCell>Downtime (min)</TableCell>
+                  <TableCell>Downtime</TableCell>
                   <TableCell>AI Anomaly</TableCell>
                   <TableCell>Recorded At</TableCell>
                 </TableRow>
@@ -363,7 +402,7 @@ export default function DashboardProductionPlanningControl() {
               </TableBody>
             </Table>
           </TableContainer>
-          {trackingLogs.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No tracking logs found. Production tracking data will appear here.</Alert>}
+          {trackingLogs.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No tracking logs found.</Alert>}
         </Paper>
       )}
 
@@ -390,8 +429,12 @@ export default function DashboardProductionPlanningControl() {
                     <TableCell>{check.check_id}</TableCell>
                     <TableCell><Chip label={check.check_type} size="small" /></TableCell>
                     <TableCell>{check.defect_type || '-'}</TableCell>
-                    <TableCell><Chip label={check.defect_severity || '-'} size="small" color={check.defect_severity === 'CRITICAL' ? 'error' : 'default'} /></TableCell>
-                    <TableCell><Chip label={check.grade || '-'} size="small" color={check.grade === 'A_PLUS' || check.grade === 'A' ? 'success' : 'default'} /></TableCell>
+                    <TableCell>
+                      <Chip label={check.defect_severity || '-'} size="small" color={check.defect_severity === 'CRITICAL' ? 'error' : 'default'} />
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={check.grade || '-'} size="small" color={['A_PLUS', 'A'].includes(check.grade) ? 'success' : 'default'} />
+                    </TableCell>
                     <TableCell>{check.ai_defect_score ? `${(check.ai_defect_score * 100).toFixed(1)}%` : '-'}</TableCell>
                     <TableCell><Chip label={check.status} size="small" color={getStatusColor(check.status)} /></TableCell>
                     <TableCell>{check.certified_at ? new Date(check.certified_at).toLocaleDateString() : '-'}</TableCell>
@@ -400,7 +443,119 @@ export default function DashboardProductionPlanningControl() {
               </TableBody>
             </Table>
           </TableContainer>
-          {qualityChecks.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No quality checks found. Quality data will appear here.</Alert>}
+          {qualityChecks.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No quality checks found.</Alert>}
+        </Paper>
+      )}
+
+      {tab === 'lines' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>Production Lines ({lines.length})</Typography>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Line ID</TableCell>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Looms</TableCell>
+                      <TableCell>Workers</TableCell>
+                      <TableCell>OEE</TableCell>
+                      <TableCell>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {lines.map((line) => (
+                      <TableRow key={line.id || line.line_id}>
+                        <TableCell>{line.line_id}</TableCell>
+                        <TableCell>{line.line_name}</TableCell>
+                        <TableCell><Chip label={line.line_type} size="small" /></TableCell>
+                        <TableCell>{line.total_looms}</TableCell>
+                        <TableCell>{line.total_workers}</TableCell>
+                        <TableCell>{line.oee_score ? `${line.oee_score}%` : '-'}</TableCell>
+                        <TableCell><Chip label={line.status} size="small" color={getStatusColor(line.status)} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {lines.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No production lines configured.</Alert>}
+            </Paper>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>Shifts ({shifts.length})</Typography>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Shift ID</TableCell>
+                      <TableCell>Line</TableCell>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Workers</TableCell>
+                      <TableCell>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {shifts.map((shift) => (
+                      <TableRow key={shift.id || shift.shift_id}>
+                        <TableCell>{shift.shift_id}</TableCell>
+                        <TableCell>{shift.line_id || '-'}</TableCell>
+                        <TableCell>{shift.shift_name}</TableCell>
+                        <TableCell><Chip label={shift.shift_type} size="small" /></TableCell>
+                        <TableCell>{shift.date}</TableCell>
+                        <TableCell>{shift.actual_workers_present || 0}/{shift.total_workers_scheduled || 0}</TableCell>
+                        <TableCell><Chip label={shift.status} size="small" color={getStatusColor(shift.status)} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {shifts.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No shifts scheduled.</Alert>}
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {tab === 'resources' && (
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>Resource Allocation ({resources.length})</Typography>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Allocation ID</TableCell>
+                  <TableCell>Resource Type</TableCell>
+                  <TableCell>Resource ID</TableCell>
+                  <TableCell>Qty</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Plan Line</TableCell>
+                  <TableCell>Order</TableCell>
+                  <TableCell>Allocated At</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {resources.map((res) => (
+                  <TableRow key={res.id || res.allocation_id}>
+                    <TableCell>{res.allocation_id}</TableCell>
+                    <TableCell><Chip label={res.resource_type} size="small" /></TableCell>
+                    <TableCell>{res.resource_id}</TableCell>
+                    <TableCell>{res.allocated_qty} {res.unit_of_measure}</TableCell>
+                    <TableCell>
+                      <Chip label={res.status} size="small" color={getStatusColor(res.status)} />
+                    </TableCell>
+                    <TableCell>{res.line_no || '-'}</TableCell>
+                    <TableCell>{res.order_id || '-'}</TableCell>
+                    <TableCell>{new Date(res.allocated_at).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {resources.length === 0 && <Alert severity="info" sx={{ mt: 2 }}>No resources allocated. Allocate looms, workers, or materials to production plan lines.</Alert>}
         </Paper>
       )}
 
@@ -413,10 +568,10 @@ export default function DashboardProductionPlanningControl() {
                 Real-time sync for Android & iOS apps. Offline-first with conflict resolution.
               </Typography>
               <Box sx={{ mt: 2 }}>
-                <Button variant="contained" fullWidth sx={{ mb: 1 }} onClick={() => addNotification('Mobile sync API ready at /api/v1/ppc/mobile/sync', 'info')}>
+                <Button variant="contained" fullWidth sx={{ mb: 1 }} startIcon={<SyncIcon />} onClick={() => addNotification('Mobile sync API ready at /api/v1/ppc/mobile/sync', 'info')}>
                   Sync Now
                 </Button>
-                <Button variant="outlined" fullWidth onClick={() => alert('Mobile SDK documentation would open here')}>
+                <Button variant="outlined" fullWidth onClick={() => addNotification('Mobile SDK documentation available', 'info')}>
                   View Mobile SDK Docs
                 </Button>
               </Box>
@@ -429,7 +584,7 @@ export default function DashboardProductionPlanningControl() {
                 Send push notifications to Android & iOS devices for order updates, quality alerts, and production milestones.
               </Typography>
               <Box sx={{ mt: 2 }}>
-                <Button variant="contained" fullWidth color="secondary" onClick={() => addNotification('Push notification API ready at /api/v1/ppc/mobile/push', 'info')}>
+                <Button variant="contained" fullWidth color="secondary" startIcon={<NotificationsActiveIcon />} onClick={() => addNotification('Push notification API ready at /api/v1/ppc/mobile/push', 'info')}>
                   Test Push Notification
                 </Button>
               </Box>

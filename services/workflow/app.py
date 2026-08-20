@@ -16411,5 +16411,438 @@ def list_bom_consumption():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# PPC ENHANCEMENTS: Lines, Shifts, Resources, Aggregated Analytics
+# ============================================================
+
+# ---------------------------
+# Production Lines CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/lines', methods=['POST'])
+@jwt_required()
+def create_production_line():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['line_id', 'factory_node_id', 'line_name']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO production_lines (line_id, factory_node_id, line_name, line_type,
+                total_looms, total_workers, supervisor_id, status, efficiency_pct,
+                oee_score, capacity_meters_per_day, current_utilization_pct,
+                location_zone, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('line_id'), data.get('factory_node_id'), data.get('line_name'),
+            data.get('line_type', 'JACQUARD'), data.get('total_looms'), data.get('total_workers'),
+            data.get('supervisor_id'), data.get('status', 'ACTIVE'), data.get('efficiency_pct'),
+            data.get('oee_score'), data.get('capacity_meters_per_day'),
+            data.get('current_utilization_pct'), data.get('location_zone'),
+            json.dumps(data.get('metadata', {}))
+        ))
+        line_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(line_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/lines', methods=['GET'])
+@jwt_required()
+def list_production_lines():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT line_id, line_name, line_type, total_looms, total_workers,
+                   status, efficiency_pct, oee_score, capacity_meters_per_day,
+                   current_utilization_pct, location_zone
+            FROM production_lines
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND factory_node_id = %s"
+            params.append(factory_node_id)
+        if status:
+            query += " AND status = %s"
+            params.append(status)
+        query += " ORDER BY line_name LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        lines = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(lines), 'lines': [dict(l) for l in lines]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Shifts CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/shifts', methods=['POST'])
+@jwt_required()
+def create_shift():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['shift_id', 'factory_node_id', 'line_id', 'shift_name', 'start_time', 'end_time', 'date']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO shifts (shift_id, factory_node_id, line_id, shift_name, shift_type,
+                start_time, end_time, total_workers_scheduled, total_looms_scheduled,
+                actual_workers_present, actual_looms_running, supervisor_id, status, date, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('shift_id'), data.get('factory_node_id'), data.get('line_id'),
+            data.get('shift_name'), data.get('shift_type', 'DAY'),
+            data.get('start_time'), data.get('end_time'),
+            data.get('total_workers_scheduled'), data.get('total_looms_scheduled'),
+            data.get('actual_workers_present'), data.get('actual_looms_running'),
+            data.get('supervisor_id'), data.get('status', 'SCHEDULED'),
+            data.get('date'), data.get('notes')
+        ))
+        shift_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(shift_id), 'status': 'created'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/shifts', methods=['GET'])
+@jwt_required()
+def list_shifts():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        line_id = request.args.get('line_id')
+        date = request.args.get('date')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT s.shift_id, s.line_id, s.shift_name, s.shift_type, s.start_time, s.end_time,
+                   s.total_workers_scheduled, s.total_looms_scheduled, s.actual_workers_present,
+                   s.actual_looms_running, s.status, s.date
+            FROM shifts s
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND s.factory_node_id = %s"
+            params.append(factory_node_id)
+        if line_id:
+            query += " AND s.line_id = %s"
+            params.append(line_id)
+        if date:
+            query += " AND s.date = %s"
+            params.append(date)
+        query += " ORDER BY s.date DESC, s.start_time DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        shifts = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(shifts), 'shifts': [dict(s) for s in shifts]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Resource Allocation CRUD
+# ---------------------------
+
+@app.route('/api/v1/ppc/resources/allocate', methods=['POST'])
+@jwt_required()
+def allocate_resource():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        required = ['allocation_id', 'factory_node_id', 'plan_line_id', 'resource_type', 'resource_id']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO resource_allocation (allocation_id, factory_node_id, plan_line_id,
+                order_id, resource_type, resource_id, resource_name, allocated_qty,
+                unit_of_measure, status, allocated_by, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid, %s)
+            RETURNING id
+        """, (
+            data.get('allocation_id'), data.get('factory_node_id'), data.get('plan_line_id'),
+            data.get('order_id'), data.get('resource_type'), data.get('resource_id'),
+            data.get('resource_name'), data.get('allocated_qty', 1),
+            data.get('unit_of_measure', 'UNIT'), data.get('status', 'ALLOCATED'),
+            operator_id, data.get('notes')
+        ))
+        allocation_id = cur.fetchone()['id']
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'id': str(allocation_id), 'status': 'allocated'}), 201
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/resources/release/<allocation_id>', methods=['POST'])
+@jwt_required()
+def release_resource(allocation_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE resource_allocation
+            SET status = 'RELEASED', deallocated_at = CURRENT_TIMESTAMP, released_by = %s::uuid
+            WHERE allocation_id = %s
+        """, (operator_id, allocation_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'status': 'released'}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/ppc/resources', methods=['GET'])
+@jwt_required()
+def list_resource_allocations():
+    try:
+        factory_node_id = request.args.get('factory_node_id')
+        resource_type = request.args.get('resource_type')
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 100))
+
+        conn = get_db()
+        cur = conn.cursor()
+        query = """
+            SELECT ra.allocation_id, ra.resource_type, ra.resource_id, ra.resource_name,
+                   ra.allocated_qty, ra.unit_of_measure, ra.status, ra.allocated_at,
+                   ra.deallocated_at, pl.line_no, o.order_id
+            FROM resource_allocation ra
+            LEFT JOIN production_plan_lines pl ON ra.plan_line_id = pl.id
+            LEFT JOIN orders o ON ra.order_id = o.id
+            WHERE 1=1
+        """
+        params = []
+        if factory_node_id:
+            query += " AND ra.factory_node_id = %s"
+            params.append(factory_node_id)
+        if resource_type:
+            query += " AND ra.resource_type = %s"
+            params.append(resource_type)
+        if status:
+            query += " AND ra.status = %s"
+            params.append(status)
+        query += " ORDER BY ra.allocated_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        allocations = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({'total': len(allocations), 'allocations': [dict(a) for a in allocations]}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Aggregated PPC Dashboard Data
+# ---------------------------
+
+@app.route('/api/v1/ppc/dashboard', methods=['GET'])
+@jwt_required()
+def get_ppc_dashboard():
+    try:
+        factory_node_id = request.args.get('factory_node_id', 'FACT-BLR-01')
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE o.status IN ('PENDING', 'CONFIRMED')) AS pending_orders,
+                COUNT(*) FILTER (WHERE o.status = 'IN_PRODUCTION') AS in_production_orders,
+                COUNT(*) FILTER (WHERE o.status = 'DELIVERED') AS delivered_orders,
+                COUNT(*) FILTER (WHERE pp.status = 'IN_PROGRESS') AS active_plans,
+                SUM(pp.total_production_target) AS total_target,
+                SUM(pp.total_production_actual) AS total_actual,
+                AVG(pp.oee_score) AS avg_oee,
+                COUNT(*) FILTER (WHERE qcc.status = 'PASSED') AS quality_passed,
+                COUNT(*) FILTER (WHERE qcc.status = 'FAILED') AS quality_failed,
+                COUNT(DISTINCT pl.id) FILTER (WHERE pl.status = 'IN_PROGRESS') AS active_production_lines,
+                COUNT(DISTINCT ra.id) FILTER (WHERE ra.status = 'ALLOCATED') AS allocated_resources
+            FROM orders o
+            LEFT JOIN production_plans pp ON pp.factory_node_id = o.factory_node_id
+            LEFT JOIN production_plan_lines pl ON pl.plan_id = pp.id
+            LEFT JOIN quality_compliance_checks qcc ON qcc.order_id = o.id
+            LEFT JOIN resource_allocation ra ON ra.plan_line_id = pl.id
+            WHERE o.factory_node_id = %s
+        """, (factory_node_id,))
+        summary = dict(cur.fetchone() or {})
+
+        cur.execute("""
+            SELECT pl.line_no, pl.status, pl.planned_qty, pl.actual_qty, pl.completion_pct,
+                   s.style_name, o.order_id
+            FROM production_plan_lines pl
+            LEFT JOIN styles s ON pl.style_id = s.id
+            LEFT JOIN orders o ON pl.order_id = o.id
+            WHERE pl.factory_node_id = %s
+            ORDER BY pl.created_at DESC
+            LIMIT 20
+        """, (factory_node_id,))
+        recent_lines = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT qcc.check_type, qcc.status, qcc.grade, qcc.ai_defect_score,
+                   s.style_name, o.order_id
+            FROM quality_compliance_checks qcc
+            LEFT JOIN styles s ON qcc.style_id = s.id
+            LEFT JOIN orders o ON qcc.order_id = o.id
+            WHERE qcc.factory_node_id = %s
+            ORDER BY qcc.created_at DESC
+            LIMIT 20
+        """, (factory_node_id,))
+        recent_quality = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT ra.resource_type, ra.resource_id, ra.status, ra.allocated_at,
+                   pl.line_no, o.order_id
+            FROM resource_allocation ra
+            LEFT JOIN production_plan_lines pl ON ra.plan_line_id = pl.id
+            LEFT JOIN orders o ON ra.order_id = o.id
+            WHERE ra.factory_node_id = %s
+            ORDER BY ra.allocated_at DESC
+            LIMIT 20
+        """, (factory_node_id,))
+        recent_allocations = [dict(r) for r in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+
+        quality_pass_rate = 0
+        total_quality = (summary.get('quality_passed') or 0) + (summary.get('quality_failed') or 0)
+        if total_quality > 0:
+            quality_pass_rate = round((summary.get('quality_passed') or 0) / total_quality * 100, 1)
+
+        return jsonify({
+            'summary': {
+                'pending_orders': summary.get('pending_orders') or 0,
+                'in_production_orders': summary.get('in_production_orders') or 0,
+                'delivered_orders': summary.get('delivered_orders') or 0,
+                'active_plans': summary.get('active_plans') or 0,
+                'total_target_meters': float(summary.get('total_target') or 0),
+                'total_actual_meters': float(summary.get('total_actual') or 0),
+                'avg_oee': round(float(summary.get('avg_oee') or 0), 1),
+                'quality_pass_rate_pct': quality_pass_rate,
+                'active_production_lines': summary.get('active_production_lines') or 0,
+                'allocated_resources': summary.get('allocated_resources') or 0
+            },
+            'recent_lines': recent_lines,
+            'recent_quality': recent_quality,
+            'recent_allocations': recent_allocations
+        }), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# BOM Availability Check (cross-module)
+# ---------------------------
+
+@app.route('/api/v1/ppc/bom/<bom_id>/availability', methods=['GET'])
+@jwt_required()
+def check_bom_availability(bom_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT bl.line_no, bl.item_code, bl.item_description, bl.uom,
+                   bl.quantity_per_unit, bl.available_stock, bl.wastage_pct,
+                   bl.lead_time_days, bl.is_critical
+            FROM bom_lines bl
+            WHERE bl.bom_id = %s
+            ORDER BY bl.line_no
+        """, (bom_id,))
+        lines = cur.fetchall()
+
+        availability = []
+        for line in lines:
+            line_dict = dict(line)
+            required = float(line_dict.get('quantity_per_unit') or 0)
+            available = float(line_dict.get('available_stock') or 0)
+            status = 'AVAILABLE' if available >= required else 'SHORTAGE'
+            line_dict['availability_status'] = status
+            line_dict['shortage_qty'] = max(0, required - available)
+            availability.append(line_dict)
+
+        cur.close()
+        conn.close()
+        return jsonify({'bom_id': bom_id, 'lines': availability}), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ---------------------------
+# Order-to-Production Mapping
+# ---------------------------
+
+@app.route('/api/v1/ppc/orders/<order_id>/production-map', methods=['GET'])
+@jwt_required()
+def get_order_production_map(order_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT ppl.line_no, ppl.status, ppl.planned_qty, ppl.actual_qty,
+                   ppl.completion_pct, ppl.start_date, ppl.end_date,
+                   pl.line_name, pl.line_type, pl.current_utilization_pct
+            FROM production_plan_lines ppl
+            LEFT JOIN production_plans pp ON ppl.plan_id = pp.id
+            LEFT JOIN production_lines pl ON pp.id = pl.id
+            WHERE ppl.order_id = %s
+            ORDER BY ppl.line_no
+        """, (order_id,))
+        plan_lines = cur.fetchall()
+
+        cur.execute("""
+            SELECT qcc.check_type, qcc.status, qcc.grade, qcc.defect_count,
+                   qcc.ai_defect_score, qcc.certified_at
+            FROM quality_compliance_checks qcc
+            WHERE qcc.order_id = %s
+            ORDER BY qcc.created_at DESC
+        """, (order_id,))
+        quality_checks = cur.fetchall()
+
+        cur.close()
+        conn.close()
+        return jsonify({
+            'order_id': order_id,
+            'plan_lines': [dict(p) for p in plan_lines],
+            'quality_checks': [dict(q) for q in quality_checks]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

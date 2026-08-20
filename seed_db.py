@@ -83,6 +83,48 @@ def seed():
             ON CONFLICT (lot_number) DO NOTHING
         """, (lot_number, asset_id, i % 5))
 
+    # Seed production lines
+    line_data = [
+        ('LINE-JAC-01', 'FACT-BLR-01', 'Jacquard Line Alpha', 'JACQUARD', 12, 24, 1, 'ACTIVE', 85.5, 82.0, 120.0, 90.0, 'ZONE-A'),
+        ('LINE-JAC-02', 'FACT-BLR-01', 'Jacquard Line Beta', 'JACQUARD', 8, 16, 2, 'ACTIVE', 78.2, 75.5, 80.0, 75.0, 'ZONE-A'),
+        ('LINE-HAND-01', 'FACT-BLR-01', 'Handloom Line Gamma', 'HANDLOOM', 20, 40, 3, 'ACTIVE', 65.0, 60.0, 50.0, 60.0, 'ZONE-B'),
+        ('LINE-PWR-01', 'FACT-BLR-01', 'Powerloom Line Delta', 'POWERLOOM', 16, 20, 4, 'ACTIVE', 88.0, 85.0, 200.0, 85.0, 'ZONE-C'),
+        ('LINE-FIN-01', 'FACT-BLR-01', 'Finishing Line Epsilon', 'AUTO', 4, 8, 5, 'ACTIVE', 92.0, 90.0, 300.0, 80.0, 'ZONE-D'),
+    ]
+    for line in line_data:
+        cur.execute("""
+            INSERT INTO production_lines (line_id, factory_node_id, line_name, line_type,
+                total_looms, total_workers, supervisor_id, status, efficiency_pct,
+                oee_score, capacity_meters_per_day, current_utilization_pct, location_zone)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (line_id) DO NOTHING
+        """, line)
+
+    # Seed shifts for next 3 days
+    for day_offset in range(3):
+        shift_date = (datetime.now() + timedelta(days=day_offset)).strftime('%Y-%m-%d')
+        for i, line in enumerate(line_data):
+            cur.execute("""
+                INSERT INTO shifts (shift_id, factory_node_id, line_id, shift_name, shift_type,
+                    start_time, end_time, total_workers_scheduled, total_looms_scheduled,
+                    supervisor_id, status, date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (shift_id) DO NOTHING
+            """, (
+                f"SHIFT-{shift_date}-LINE-{i+1:02d}",
+                'FACT-BLR-01',
+                line[0],
+                f"Shift {i+1} - {line[3]}",
+                'DAY',
+                '08:00:00',
+                '16:00:00',
+                line[4] // 2,
+                line[5] // 2,
+                line[6],
+                'SCHEDULED',
+                shift_date
+            ))
+
     conn.commit()
     cur.close()
     conn.close()

@@ -3893,5 +3893,640 @@ def get_sales_forecast_degumming():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# THROWSTER / TWISTER MODULE
+# ============================================================
+
+@app.route('/api/v1/throwster/batches', methods=['POST'])
+@jwt_required()
+def create_throwster_batch():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['throwster_batch_no']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO throwster_batches (
+                throwster_batch_no, degumming_record_id, degumming_batch_id,
+                zari_lot_batch_id, production_lot_id, factory_node_id,
+                operator_id, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'QUEUED')
+            RETURNING id, throwster_batch_no
+        """, (
+            data.get('throwster_batch_no'),
+            data.get('degumming_record_id'),
+            data.get('degumming_batch_id'),
+            data.get('zari_lot_batch_id'),
+            data.get('production_lot_id'),
+            factory_node_id,
+            operator_id
+        ))
+        
+        batch_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(batch_row['id']),
+            'throwster_batch_no': batch_row['throwster_batch_no'],
+            'status': 'QUEUED',
+            'message': 'Throwster batch created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/throwster/batches', methods=['GET'])
+@jwt_required()
+def list_throwster_batches():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT tb.id, tb.throwster_batch_no, tb.target_machine_type,
+                   tb.status, tb.created_at, db.degumming_batch_no, zlb.zari_lot_batch_no
+            FROM throwster_batches tb
+            LEFT JOIN degumming_batches db ON tb.degumming_batch_id = db.id
+            LEFT JOIN zari_lot_batches zlb ON tb.zari_lot_batch_id = zlb.id
+            WHERE tb.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY tb.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        batches = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(batches),
+            'batches': [
+                {
+                    'id': str(b['id']),
+                    'throwster_batch_no': b['throwster_batch_no'],
+                    'degumming_batch_no': b['degumming_batch_no'],
+                    'zari_lot_batch_no': b['zari_lot_batch_no'],
+                    'status': b['status'],
+                    'created_at': b['created_at'].isoformat() if b['created_at'] else None
+                }
+                for b in batches
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/throwster/records', methods=['POST'])
+@jwt_required()
+def create_throwster_record():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['throwster_batch_id', 'input_raw_lot_no', 'input_weight_kg', 'target_ply_count', 'intended_use']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO throwster_production_records (
+                throwster_batch_id, input_raw_lot_no, input_weight_kg,
+                target_ply_count, intended_use, input_yarn_type,
+                input_lot_purity_clearance, machinery_id, target_tpi,
+                twist_direction, steam_setting_duration_mins,
+                ply_count, first_twist_tpm, final_twist_tpm,
+                engineered_yarn_profile, spindle_rotational_speed_rpm,
+                steam_stabilization_method, steam_temperature_celsius,
+                steaming_duration_minutes, output_twisted_weight_kg,
+                process_scrap_waste_kg, tested_tpm_average,
+                snarl_count_per_100m, oil_lubrication_pick_up_pct,
+                validation_errors, validation_warnings, auto_assigned_routing,
+                status, factory_node_id, operator_id
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'DRAFT', %s, %s)
+            RETURNING id
+        """, (
+            data.get('throwster_batch_id'),
+            data.get('input_raw_lot_no'),
+            data.get('input_weight_kg'),
+            data.get('target_ply_count'),
+            data.get('intended_use'),
+            data.get('input_yarn_type'),
+            data.get('input_lot_purity_clearance', False),
+            data.get('machinery_id'),
+            data.get('target_tpi'),
+            data.get('twist_direction'),
+            data.get('steam_setting_duration_mins'),
+            data.get('ply_count'),
+            data.get('first_twist_tpm'),
+            data.get('final_twist_tpm'),
+            data.get('engineered_yarn_profile'),
+            data.get('spindle_rotational_speed_rpm'),
+            data.get('steam_stabilization_method'),
+            data.get('steam_temperature_celsius'),
+            data.get('steaming_duration_minutes'),
+            data.get('output_twisted_weight_kg'),
+            data.get('process_scrap_waste_kg'),
+            data.get('tested_tpm_average'),
+            data.get('snarl_count_per_100m', 0),
+            data.get('oil_lubrication_pick_up_pct'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing'),
+            factory_node_id,
+            operator_id
+        ))
+        
+        record_row = cur.fetchone()
+        record_id = record_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status, twist_variation_pct
+            FROM throwster_production_records WHERE id = %s::uuid
+        """, (record_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'IN_PROGRESS'
+        else:
+            status = 'IN_PROGRESS'
+        
+        cur.execute("""
+            UPDATE throwster_batches SET status = 'IN_PROGRESS'
+            WHERE id = (SELECT throwster_batch_id FROM throwster_production_records WHERE id = %s::uuid)
+        """, (record_id,))
+        
+        cur.execute("""
+            UPDATE throwster_production_records SET status = %s WHERE id = %s::uuid
+        """, (status, record_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(record_id),
+            'status': status,
+            'twist_variation_pct': float(result['twist_variation_pct']) if result['twist_variation_pct'] else None,
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Throwster production record created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/throwster/records', methods=['GET'])
+@jwt_required()
+def list_throwster_records():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT tpr.id, tpr.throwster_batch_no, tpr.input_raw_lot_no,
+                   tpr.ply_count, tpr.final_twist_tpm, tpr.twist_direction,
+                   tpr.engineered_yarn_profile, tpr.twist_variation_pct,
+                   tpr.snarl_count_per_100m, tpr.auto_assigned_routing,
+                   tpr.status, tpr.certificate_hash, tb.degumming_batch_no
+            FROM throwster_production_records tpr
+            JOIN throwster_batches tb ON tpr.throwster_batch_id = tb.id
+            WHERE tpr.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY tpr.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        records = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(records),
+            'records': [
+                {
+                    'id': str(r['id']),
+                    'throwster_batch_no': r['throwster_batch_no'],
+                    'degumming_batch_no': r['degumming_batch_no'],
+                    'input_raw_lot_no': r['input_raw_lot_no'],
+                    'ply_count': r['ply_count'],
+                    'final_twist_tpm': float(r['final_twist_tpm']) if r['final_twist_tpm'] else None,
+                    'twist_direction': r['twist_direction'],
+                    'engineered_yarn_profile': r['engineered_yarn_profile'],
+                    'twist_variation_pct': float(r['twist_variation_pct']) if r['twist_variation_pct'] else None,
+                    'snarl_count_per_100m': r['snarl_count_per_100m'],
+                    'auto_assigned_routing': r['auto_assigned_routing'],
+                    'status': r['status'],
+                    'certificate_hash': r['certificate_hash']
+                }
+                for r in records
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/throwster/records/<record_id>', methods=['GET'])
+@jwt_required()
+def get_throwster_record(record_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT tpr.*, tb.throwster_batch_no, tb.degumming_batch_no, db.zari_lot_batch_no
+            FROM throwster_production_records tpr
+            JOIN throwster_batches tb ON tpr.throwster_batch_id = tb.id
+            LEFT JOIN degumming_batches db ON tb.degumming_batch_id = db.id
+            WHERE tpr.id = %s::uuid
+        """, (record_id,))
+        
+        record = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not record:
+            return jsonify({'error': 'RecordNotFound'}), 404
+        
+        return jsonify({
+            'id': str(record['id']),
+            'throwster_batch_no': record['throwster_batch_no'],
+            'degumming_batch_no': record['degumming_batch_no'],
+            'zari_lot_batch_no': record['zari_lot_batch_no'],
+            'input_raw_lot_no': record['input_raw_lot_no'],
+            'input_weight_kg': float(record['input_weight_kg']) if record['input_weight_kg'] else None,
+            'target_ply_count': record['target_ply_count'],
+            'intended_use': record['intended_use'],
+            'input_yarn_type': record['input_yarn_type'],
+            'machinery_id': record['machinery_id'],
+            'target_tpi': float(record['target_tpi']) if record['target_tpi'] else None,
+            'twist_direction': record['twist_direction'],
+            'steam_setting_duration_mins': record['steam_setting_duration_mins'],
+            'ply_count': record['ply_count'],
+            'first_twist_tpm': float(record['first_twist_tpm']) if record['first_twist_tpm'] else None,
+            'final_twist_tpm': float(record['final_twist_tpm']) if record['final_twist_tpm'] else None,
+            'engineered_yarn_profile': record['engineered_yarn_profile'],
+            'spindle_rotational_speed_rpm': record['spindle_rotational_speed_rpm'],
+            'steam_stabilization_method': record['steam_stabilization_method'],
+            'steam_temperature_celsius': record['steam_temperature_celsius'],
+            'steaming_duration_minutes': record['steaming_duration_minutes'],
+            'output_twisted_weight_kg': float(record['output_twisted_weight_kg']) if record['output_twisted_weight_kg'] else None,
+            'process_scrap_waste_kg': float(record['process_scrap_waste_kg']) if record['process_scrap_waste_kg'] else None,
+            'material_discrepancy_kg': float(record['material_discrepancy_kg']) if record['material_discrepancy_kg'] else None,
+            'tested_tpm_average': float(record['tested_tpm_average']) if record['tested_tpm_average'] else None,
+            'twist_variation_pct': float(record['twist_variation_pct']) if record['twist_variation_pct'] else None,
+            'snarl_count_per_100m': record['snarl_count_per_100m'],
+            'oil_lubrication_pick_up_pct': float(record['oil_lubrication_pick_up_pct']) if record['oil_lubrication_pick_up_pct'] else None,
+            'validation_errors': record['validation_errors'],
+            'validation_warnings': record['validation_warnings'],
+            'auto_assigned_routing': record['auto_assigned_routing'],
+            'status': record['status'],
+            'certificate_hash': record['certificate_hash'],
+            'qr_tag_id': record['qr_tag_id']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/throwster/records/<record_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_throwster_record(record_id):
+    try:
+        approver_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT tpr.id, tpr.status, tpr.validation_errors, tpr.auto_assigned_routing,
+                   tpr.input_raw_lot_no, tpr.ply_count, tpr.final_twist_tpm,
+                   tpr.twist_direction, tpr.engineered_yarn_profile,
+                   tpr.twist_variation_pct, tpr.snarl_count_per_100m,
+                   tpr.input_weight_kg, tpr.output_twisted_weight_kg,
+                   tpr.process_scrap_waste_kg, tpr.material_discrepancy_kg,
+                   tb.throwster_batch_no
+            FROM throwster_production_records tpr
+            JOIN throwster_batches tb ON tpr.throwster_batch_id = tb.id
+            WHERE tpr.id = %s::uuid
+        """, (record_id,))
+        
+        record = cur.fetchone()
+        if not record:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'RecordNotFound'}), 404
+        
+        if record['validation_errors'] and len(record['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify record with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(record_id, record['throwster_batch_no'])
+        qr_tag_id = 'TWIST-' + record['throwster_batch_no']
+        
+        cur.execute("""
+            UPDATE throwster_production_records
+            SET status = 'CERTIFIED',
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, certificate_hash
+        """, (certificate_hash, qr_tag_id, record_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO throwster_certificates (
+                throwster_batch_id, throwster_record_id, certificate_hash,
+                qr_tag_id, input_raw_lot_no, certified_grade,
+                auto_assigned_routing, ply_count, final_twist_tpm,
+                twist_direction, engineered_yarn_profile, twist_variation_pct,
+                snarl_count_per_100m, input_weight_kg, output_twisted_weight_kg,
+                process_scrap_waste_kg, material_discrepancy_kg,
+                operator_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                tb.id,
+                tpr.id,
+                tpr.certificate_hash,
+                tpr.qr_tag_id,
+                tpr.input_raw_lot_no,
+                '4A',
+                tpr.auto_assigned_routing,
+                tpr.ply_count,
+                tpr.final_twist_tpm,
+                tpr.twist_direction,
+                tpr.engineered_yarn_profile,
+                tpr.twist_variation_pct,
+                tpr.snarl_count_per_100m,
+                tpr.input_weight_kg,
+                tpr.output_twisted_weight_kg,
+                tpr.process_scrap_waste_kg,
+                tpr.material_discrepancy_kg,
+                tpr.operator_id,
+                %s,
+                tpr.factory_node_id,
+                jsonb_build_object(
+                    'throwster_batch_no', tb.throwster_batch_no,
+                    'degumming_batch_no', db.degumming_batch_no,
+                    'zari_lot_batch_no', zlb.zari_lot_batch_no,
+                    'input_yarn_type', tpr.input_yarn_type,
+                    'machinery_id', tpr.machinery_id,
+                    'target_tpi', tpr.target_tpi,
+                    'first_twist_tpm', tpr.first_twist_tpm,
+                    'steam_stabilization_method', tpr.steam_stabilization_method,
+                    'steam_temperature_celsius', tpr.steam_temperature_celsius,
+                    'steaming_duration_minutes', tpr.steaming_duration_minutes,
+                    'tested_tpm_average', tpr.tested_tpm_average,
+                    'oil_lubrication_pick_up_pct', tpr.oil_lubrication_pick_up_pct
+                )
+            FROM throwster_production_records tpr
+            JOIN throwster_batches tb ON tpr.throwster_batch_id = tb.id
+            LEFT JOIN degumming_batches db ON tb.degumming_batch_id = db.id
+            LEFT JOIN zari_lot_batches zlb ON tb.zari_lot_batch_id = zlb.id
+            WHERE tpr.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM throwster_certificates WHERE throwster_record_id = tpr.id
+            )
+        """, (approver_id, record_id))
+        
+        cur.execute("""
+            UPDATE throwster_batches
+            SET status = 'CERTIFIED'
+            WHERE id = %s::uuid
+        """, (record['throwster_batch_no'],))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'auto_assigned_routing': record['auto_assigned_routing'],
+            'twist_variation_pct': float(record['twist_variation_pct']) if record['twist_variation_pct'] else None,
+            'status': 'CERTIFIED',
+            'message': 'Throwster record certified successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/throwster/records/<record_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_throwster_record(record_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE throwster_production_records
+            SET status = 'REJECTED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by Throwster Master')}]),
+            record_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'RecordNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'status': 'REJECTED',
+            'message': 'Throwster record rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/throwster/certificates', methods=['GET'])
+@jwt_required()
+def list_throwster_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT tc.id, tc.certificate_hash, tc.qr_tag_id, tc.input_raw_lot_no,
+                   tc.ply_count, tc.final_twist_tpm, tc.twist_direction,
+                   tc.engineered_yarn_profile, tc.twist_variation_pct,
+                   tc.snarl_count_per_100m, tc.auto_assigned_routing,
+                   tc.status, tc.certified_at, tb.throwster_batch_no
+            FROM throwster_certificates tc
+            JOIN throwster_batches tb ON tc.throwster_batch_id = tb.id
+            WHERE tc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY tc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'throwster_batch_no': c['throwster_batch_no'],
+                    'input_raw_lot_no': c['input_raw_lot_no'],
+                    'ply_count': c['ply_count'],
+                    'final_twist_tpm': float(c['final_twist_tpm']) if c['final_twist_tpm'] else None,
+                    'twist_direction': c['twist_direction'],
+                    'engineered_yarn_profile': c['engineered_yarn_profile'],
+                    'twist_variation_pct': float(c['twist_variation_pct']) if c['twist_variation_pct'] else None,
+                    'snarl_count_per_100m': c['snarl_count_per_100m'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR THROWSTER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/throwster', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_throwster():
+    """
+    API plugin endpoint for sales team throwster material processing forecast.
+    Returns forecasted throwster requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'yarn_profile': 'ORGANZINE',
+                    'ply_count': 2,
+                    'final_twist_tpm': 750,
+                    'estimated_raw_silk_kg': 120.0,
+                    'priority': 'HIGH',
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 80
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'yarn_profile': 'ORGANZINE',
+                    'ply_count': 2,
+                    'final_twist_tpm': 700,
+                    'estimated_raw_silk_kg': 100.0,
+                    'priority': 'HIGH',
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 60
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'yarn_profile': 'TRAM',
+                    'ply_count': 3,
+                    'final_twist_tpm': 600,
+                    'estimated_raw_silk_kg': 90.0,
+                    'priority': 'MEDIUM',
+                    'target_machine': '1536_HOOK_JACQUARD',
+                    'estimated_sarees': 100
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'TWIST-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'yarn_profile': 'ORGANZINE',
+                    'estimated_sarees': 80,
+                    'estimated_raw_silk_kg': 120.0,
+                    'final_twist_tpm': 750,
+                    'target_machine': '2400_HOOK_JACQUARD'
+                },
+                {
+                    'lot_number': 'TWIST-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'yarn_profile': 'ORGANZINE',
+                    'estimated_sarees': 60,
+                    'estimated_raw_silk_kg': 100.0,
+                    'final_twist_tpm': 700,
+                    'target_machine': '2400_HOOK_JACQUARD'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

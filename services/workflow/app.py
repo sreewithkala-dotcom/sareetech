@@ -12125,5 +12125,531 @@ def get_sales_forecast_qa_dyeing_inspector():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# SILK MARK OFFICER MODULE
+# ============================================================
+
+def validate_silk_mark_officer_guardrails(data):
+    """Validate silk mark officer inputs against business guardrails."""
+    errors = []
+    warnings = []
+    
+    burn_test_result_warp_weft = data.get('burn_test_result_warp_weft')
+    chemical_solubility_test_status = data.get('chemical_solubility_test_status')
+    zari_purity_classification = data.get('zari_purity_classification')
+    xrf_silver_content_pct = data.get('xrf_silver_content_pct')
+    silk_core_zari_wrap_status = data.get('silk_core_zari_wrap_status')
+    silk_mark_officer_approval_state = data.get('silk_mark_officer_approval_state')
+    quality_inspector_log_id = data.get('quality_inspector_log_id')
+    
+    if burn_test_result_warp_weft == 'FAILED_MELTED_BEAD_SYNTHETIC_DETECTED' or chemical_solubility_test_status == 'PARTIAL_RESIDUE_POLYESTER_BLEND':
+        errors.append({
+            'code': 'IMMEDIATE_CERTIFICATION_HALT',
+            'message': 'SYNTHETIC_CONTAMINATION_DETECTED'
+        })
+    
+    if zari_purity_classification == 'PURE_GOLD_SILVER_TESTED_ZARI':
+        if xrf_silver_content_pct is not None and xrf_silver_content_pct < 45.0:
+            errors.append({
+                'code': 'REJECT_ZARI_PURITY_CLAIM',
+                'message': 'ZARI_DOES_NOT_MEET_PURE_GOLD_SILVER_STANDARDS'
+            })
+        if silk_core_zari_wrap_status is not None and silk_core_zari_wrap_status != 'PASSED_PURE_SILK_CORE':
+            errors.append({
+                'code': 'REJECT_ZARI_PURITY_CLAIM',
+                'message': 'ZARI_DOES_NOT_MEET_PURE_GOLD_SILVER_STANDARDS'
+            })
+    
+    if quality_inspector_log_id:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT final_fabric_quality_grade FROM quality_inspector_logs WHERE id = %s::uuid
+        """, (quality_inspector_log_id,))
+        grade_row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if grade_row and grade_row['final_fabric_quality_grade'] in ('GRADE_C_RESERVE_DISCOUNT', 'REJECTED_SCRAP'):
+            errors.append({
+                'code': 'DENY_SILK_MARK_TAG_ISSUANCE',
+                'message': 'REJECTED_OR_GRADE_C_PIECES_CANNOT_BE_ISSUED_PREMIUM_SILK_MARK_TAGS'
+            })
+    
+    if silk_mark_officer_approval_state is not None and silk_mark_officer_approval_state != 'CERTIFIED_GENUINE_SILK_MARK_RELEASED':
+        errors.append({
+            'code': 'DENY_FINISHED_GOODS_SALES_DISPATCH',
+            'message': 'SILK_MARK_CERTIFICATION_NOT_RELEASED'
+        })
+    
+    return errors, warnings
+
+@app.route('/api/v1/silk-mark-officer/logs', methods=['POST'])
+@jwt_required()
+def create_silk_mark_officer_log():
+    try:
+        officer_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['audit_visit_id', 'smoii_authorised_user_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (officer_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        validation_errors, validation_warnings = validate_silk_mark_officer_guardrails(data)
+        
+        cur.execute("""
+            INSERT INTO silk_mark_officer_logs (
+                audit_visit_id, smoii_authorised_user_id, license_validity_start_date,
+                license_expiry_date, assigned_silk_mark_officer_id, factory_node_id,
+                silk_mark_officer_id, quality_inspector_log_id, qa_dyeing_inspector_log_id,
+                sup_supervisor_log_id, assistant_weaver_job_log_id, master_weaver_job_id,
+                sampled_production_run_ref, sample_extraction_weight_gm, lab_report_status,
+                saree_piece_serial_id, silk_yarn_denier_testing_report,
+                burn_test_result_warp_weft, chemical_solubility_test_status,
+                zari_purity_classification, xrf_silver_content_pct,
+                xrf_gold_content_grams_per_kg, silk_core_zari_wrap_status,
+                silk_mark_tag_serial_number, tag_application_status,
+                silk_mark_officer_approval_state, hologram_consignment_invoice_no,
+                hologram_serial_range_start, hologram_serial_range_end,
+                total_tags_received_qty, validation_errors, validation_warnings,
+                auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, audit_visit_id
+        """, (
+            data.get('audit_visit_id'),
+            data.get('smoii_authorised_user_id'),
+            data.get('license_validity_start_date'),
+            data.get('license_expiry_date'),
+            data.get('assigned_silk_mark_officer_id'),
+            factory_node_id,
+            officer_id,
+            data.get('quality_inspector_log_id'),
+            data.get('qa_dyeing_inspector_log_id'),
+            data.get('sup_supervisor_log_id'),
+            data.get('assistant_weaver_job_log_id'),
+            data.get('master_weaver_job_id'),
+            data.get('sampled_production_run_ref'),
+            data.get('sample_extraction_weight_gm'),
+            data.get('lab_report_status', 'PENDING_LAB_ANALYSIS'),
+            data.get('saree_piece_serial_id'),
+            data.get('silk_yarn_denier_testing_report', 'PASSED_16_18D_MULBERRY_SILK'),
+            data.get('burn_test_result_warp_weft', 'PASSED_CHAR_ASH_BURNT_HAIR_ODOR'),
+            data.get('chemical_solubility_test_status', '100%_DISSOLVED_PURE_PROTEIN'),
+            data.get('zari_purity_classification', 'PURE_GOLD_SILVER_TESTED_ZARI'),
+            data.get('xrf_silver_content_pct'),
+            data.get('xrf_gold_content_grams_per_kg'),
+            data.get('silk_core_zari_wrap_status', 'PASSED_PURE_SILK_CORE'),
+            data.get('silk_mark_tag_serial_number'),
+            data.get('tag_application_status', 'HOLOGRAPHIC_TAG_AFFIXED_AND_SCANNED'),
+            data.get('silk_mark_officer_approval_state', 'CERTIFIED_GENUINE_SILK_MARK_RELEASED'),
+            data.get('hologram_consignment_invoice_no'),
+            data.get('hologram_serial_range_start'),
+            data.get('hologram_serial_range_end'),
+            data.get('total_tags_received_qty'),
+            json.dumps(validation_errors),
+            json.dumps(validation_warnings),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'audit_visit_id': log_row['audit_visit_id'],
+            'validation_errors': validation_errors,
+            'validation_warnings': validation_warnings,
+            'status': 'submitted'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/silk-mark-officer/logs', methods=['GET'])
+@jwt_required()
+def list_silk_mark_officer_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT smol.id, smol.audit_visit_id, smol.saree_piece_serial_id,
+                   smol.lab_report_status, smol.silk_mark_tag_serial_number,
+                   smol.silk_mark_officer_approval_state, smol.auto_assigned_routing,
+                   smol.burn_test_result_warp_weft, smol.chemical_solubility_test_status,
+                   smol.zari_purity_classification, smol.xrf_silver_content_pct,
+                   smol.silk_core_zari_wrap_status, smol.tag_application_status,
+                   smol.audit_timestamp,
+                   u_officer.full_name AS officer_name
+            FROM silk_mark_officer_logs smol
+            LEFT JOIN users u_officer ON smol.silk_mark_officer_id = u_officer.id
+            WHERE smol.silk_mark_officer_id = %s::uuid
+            ORDER BY smol.audit_timestamp DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(log['id']),
+                    'audit_visit_id': log['audit_visit_id'],
+                    'saree_piece_serial_id': log['saree_piece_serial_id'],
+                    'lab_report_status': log['lab_report_status'],
+                    'silk_mark_tag_serial_number': log['silk_mark_tag_serial_number'],
+                    'silk_mark_officer_approval_state': log['silk_mark_officer_approval_state'],
+                    'auto_assigned_routing': log['auto_assigned_routing'],
+                    'burn_test_result_warp_weft': log['burn_test_result_warp_weft'],
+                    'chemical_solubility_test_status': log['chemical_solubility_test_status'],
+                    'zari_purity_classification': log['zari_purity_classification'],
+                    'xrf_silver_content_pct': float(log['xrf_silver_content_pct']) if log['xrf_silver_content_pct'] else None,
+                    'silk_core_zari_wrap_status': log['silk_core_zari_wrap_status'],
+                    'tag_application_status': log['tag_application_status'],
+                    'audit_timestamp': log['audit_timestamp'].isoformat() if log['audit_timestamp'] else None,
+                    'officer_name': log['officer_name']
+                }
+                for log in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/silk-mark-officer/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_silk_mark_officer_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT smol.*,
+                   u_officer.full_name AS officer_name
+            FROM silk_mark_officer_logs smol
+            LEFT JOIN users u_officer ON smol.silk_mark_officer_id = u_officer.id
+            WHERE smol.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'audit_visit_id': log['audit_visit_id'],
+            'smoii_authorised_user_id': log['smoii_authorised_user_id'],
+            'license_validity_start_date': log['license_validity_start_date'].isoformat() if log['license_validity_start_date'] else None,
+            'license_expiry_date': log['license_expiry_date'].isoformat() if log['license_expiry_date'] else None,
+            'assigned_silk_mark_officer_id': log['assigned_silk_mark_officer_id'],
+            'factory_node_id': log['factory_node_id'],
+            'silk_mark_officer_id': str(log['silk_mark_officer_id']),
+            'quality_inspector_log_id': str(log['quality_inspector_log_id']) if log['quality_inspector_log_id'] else None,
+            'qa_dyeing_inspector_log_id': str(log['qa_dyeing_inspector_log_id']) if log['qa_dyeing_inspector_log_id'] else None,
+            'sup_supervisor_log_id': str(log['sup_supervisor_log_id']) if log['sup_supervisor_log_id'] else None,
+            'audit_timestamp': log['audit_timestamp'].isoformat() if log['audit_timestamp'] else None,
+            'saree_piece_serial_id': log['saree_piece_serial_id'],
+            'silk_yarn_denier_testing_report': log['silk_yarn_denier_testing_report'],
+            'burn_test_result_warp_weft': log['burn_test_result_warp_weft'],
+            'chemical_solubility_test_status': log['chemical_solubility_test_status'],
+            'lab_report_status': log['lab_report_status'],
+            'zari_purity_classification': log['zari_purity_classification'],
+            'xrf_silver_content_pct': float(log['xrf_silver_content_pct']) if log['xrf_silver_content_pct'] else None,
+            'xrf_gold_content_grams_per_kg': float(log['xrf_gold_content_grams_per_kg']) if log['xrf_gold_content_grams_per_kg'] else None,
+            'silk_core_zari_wrap_status': log['silk_core_zari_wrap_status'],
+            'silk_mark_tag_serial_number': log['silk_mark_tag_serial_number'],
+            'tag_application_status': log['tag_application_status'],
+            'silk_mark_officer_approval_state': log['silk_mark_officer_approval_state'],
+            'hologram_consignment_invoice_no': log['hologram_consignment_invoice_no'],
+            'hologram_serial_range_start': log['hologram_serial_range_start'],
+            'hologram_serial_range_end': log['hologram_serial_range_end'],
+            'total_tags_received_qty': log['total_tags_received_qty'],
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'certificate_hash': log['certificate_hash'],
+            'qr_tag_id': log['qr_tag_id'],
+            'officer_name': log['officer_name']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/silk-mark-officer/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_silk_mark_officer_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, audit_visit_id, validation_errors, silk_mark_officer_approval_state
+            FROM silk_mark_officer_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['audit_visit_id'])
+        qr_tag_id = 'SMO-' + log['audit_visit_id']
+        
+        cur.execute("""
+            UPDATE silk_mark_officer_logs
+            SET certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, audit_visit_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO silk_mark_officer_certificates (
+                silk_mark_officer_log_id, certificate_hash, qr_tag_id, audit_visit_id,
+                saree_piece_serial_id, silk_mark_tag_serial_number, smoii_authorised_user_id,
+                assigned_silk_mark_officer_id, lab_report_status,
+                burn_test_result_warp_weft, chemical_solubility_test_status,
+                zari_purity_classification, xrf_silver_content_pct,
+                xrf_gold_content_grams_per_kg, silk_core_zari_wrap_status,
+                tag_application_status, silk_mark_officer_approval_state,
+                hologram_serial_range_start, hologram_serial_range_end,
+                total_tags_received_qty, officer_id, approver_id, factory_node_id,
+                certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.audit_visit_id,
+                pj.saree_piece_serial_id,
+                pj.silk_mark_tag_serial_number,
+                pj.smoii_authorised_user_id,
+                pj.assigned_silk_mark_officer_id,
+                pj.lab_report_status,
+                pj.burn_test_result_warp_weft, pj.chemical_solubility_test_status,
+                pj.zari_purity_classification, pj.xrf_silver_content_pct,
+                pj.xrf_gold_content_grams_per_kg, pj.silk_core_zari_wrap_status,
+                pj.tag_application_status, pj.silk_mark_officer_approval_state,
+                pj.hologram_serial_range_start, pj.hologram_serial_range_end,
+                pj.total_tags_received_qty,
+                pj.silk_mark_officer_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'audit_visit_id', pj.audit_visit_id,
+                    'saree_piece_serial_id', pj.saree_piece_serial_id,
+                    'silk_mark_tag_serial_number', pj.silk_mark_tag_serial_number,
+                    'smoii_authorised_user_id', pj.smoii_authorised_user_id,
+                    'lab_report_status', pj.lab_report_status,
+                    'burn_test_result_warp_weft', pj.burn_test_result_warp_weft,
+                    'chemical_solubility_test_status', pj.chemical_solubility_test_status,
+                    'zari_purity_classification', pj.zari_purity_classification,
+                    'xrf_silver_content_pct', pj.xrf_silver_content_pct,
+                    'xrf_gold_content_grams_per_kg', pj.xrf_gold_content_grams_per_kg,
+                    'silk_core_zari_wrap_status', pj.silk_core_zari_wrap_status,
+                    'silk_mark_officer_approval_state', pj.silk_mark_officer_approval_state,
+                    'tag_application_status', pj.tag_application_status
+                )
+            FROM silk_mark_officer_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'audit_visit_id': result['audit_visit_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'CERTIFIED_GENUINE_SILK_MARK_RELEASED',
+            'message': 'Silk Mark certification issued and hologram tag released'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/silk-mark-officer/certificates', methods=['GET'])
+@jwt_required()
+def list_silk_mark_officer_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT smoc.id, smoc.certificate_hash, smoc.qr_tag_id,
+                   smoc.audit_visit_id, smoc.saree_piece_serial_id,
+                   smoc.silk_mark_tag_serial_number, smoc.smoii_authorised_user_id,
+                   smoc.lab_report_status, smoc.burn_test_result_warp_weft,
+                   smoc.chemical_solubility_test_status, smoc.zari_purity_classification,
+                   smoc.xrf_silver_content_pct, smoc.xrf_gold_content_grams_per_kg,
+                   smoc.silk_core_zari_wrap_status, smoc.tag_application_status,
+                   smoc.silk_mark_officer_approval_state, smoc.status, smoc.certified_at
+            FROM silk_mark_officer_certificates smoc
+            WHERE smoc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY smoc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'audit_visit_id': c['audit_visit_id'],
+                    'saree_piece_serial_id': c['saree_piece_serial_id'],
+                    'silk_mark_tag_serial_number': c['silk_mark_tag_serial_number'],
+                    'smoii_authorised_user_id': c['smoii_authorised_user_id'],
+                    'lab_report_status': c['lab_report_status'],
+                    'burn_test_result_warp_weft': c['burn_test_result_warp_weft'],
+                    'chemical_solubility_test_status': c['chemical_solubility_test_status'],
+                    'zari_purity_classification': c['zari_purity_classification'],
+                    'xrf_silver_content_pct': float(c['xrf_silver_content_pct']) if c['xrf_silver_content_pct'] else None,
+                    'xrf_gold_content_grams_per_kg': float(c['xrf_gold_content_grams_per_kg']) if c['xrf_gold_content_grams_per_kg'] else None,
+                    'silk_core_zari_wrap_status': c['silk_core_zari_wrap_status'],
+                    'tag_application_status': c['tag_application_status'],
+                    'silk_mark_officer_approval_state': c['silk_mark_officer_approval_state'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR SILK MARK OFFICER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/silk-mark-officer', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_silk_mark_officer():
+    """
+    API plugin endpoint for sales team silk mark officer material processing forecast.
+    Returns forecasted compliance and certification requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'silk_yarn_denier_testing_report': 'PASSED_16_18D_MULBERRY_SILK',
+                    'burn_test_result_warp_weft': 'PASSED_CHAR_ASH_BURNT_HAIR_ODOR',
+                    'chemical_solubility_test_status': '100%_DISSOLVED_PURE_PROTEIN',
+                    'zari_purity_classification': 'PURE_GOLD_SILVER_TESTED_ZARI',
+                    'xrf_silver_content_pct_min': 45.0,
+                    'xrf_gold_content_grams_per_kg_min': 5.0,
+                    'estimated_certifications': 80,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'silk_yarn_denier_testing_report': 'PASSED_16_18D_MULBERRY_SILK',
+                    'burn_test_result_warp_weft': 'PASSED_CHAR_ASH_BURNT_HAIR_ODOR',
+                    'chemical_solubility_test_status': '100%_DISSOLVED_PURE_PROTEIN',
+                    'zari_purity_classification': 'PURE_GOLD_SILVER_TESTED_ZARI',
+                    'xrf_silver_content_pct_min': 45.0,
+                    'xrf_gold_content_grams_per_kg_min': 5.0,
+                    'estimated_certifications': 60,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'silk_yarn_denier_testing_report': 'PASSED_20_22D_RAW_SILK',
+                    'burn_test_result_warp_weft': 'PASSED_CHAR_ASH_BURNT_HAIR_ODOR',
+                    'chemical_solubility_test_status': '100%_DISSOLVED_PURE_PROTEIN',
+                    'zari_purity_classification': 'HALF_FINE_ZARI',
+                    'xrf_silver_content_pct_min': 30.0,
+                    'xrf_gold_content_grams_per_kg_min': 2.0,
+                    'estimated_certifications': 120,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'SMO-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_certifications': 80
+                },
+                {
+                    'lot_number': 'SMO-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_certifications': 60
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

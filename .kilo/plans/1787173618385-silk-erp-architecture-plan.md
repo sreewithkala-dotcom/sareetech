@@ -163,6 +163,17 @@ Key constraints:
 - Publishes Kafka events on state transitions
 - Validation: End-to-end test simulating 24-role progression
 
+### Task 6.5: Assistant Weaver Floor Operations Module
+- `POST /api/v1/assistant-weaver/logs` — create assistant weaver shift log with guardrail validation
+- `GET /api/v1/assistant-weaver/logs` — list shift logs for assistant/lead
+- `GET /api/v1/assistant-weaver/logs/{log_id}` — get single log detail
+- `POST /api/v1/assistant-weaver/logs/{log_id}/approve` — lead weaver signoff, triggers wage split
+- `POST /api/v1/assistant-weaver/logs/{log_id}/reject` — reject unresolved breaks
+- `POST /api/v1/assistant-weaver/loom-alarms` — create breakage alarm when rate > threshold
+- `GET /api/v1/assistant-weaver/loom-alarms` — list alarms for factory
+- Tables: `assistant_weaver_job_logs`, `wage_distributions`, `loom_breakage_alarms`, `assistant_weaver_shift_audits`
+- Validation: Block standard knots on 2400-hook line, loose Zari tails on Feeder 2, bypassed droppers, and unapproved shift handovers
+
 ### Task 7: Frontend Dashboard Router
 - JWT-based role detection on login
 - Dynamic component injection based on `DASHBOARD_REGISTRY`

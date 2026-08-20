@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
 
 // Dashboard component imports
+import DashboardAssistantWeaver from './dashboards/DashboardAssistantWeaver'
 import DashboardWeavingMonitor from './dashboards/DashboardWeavingMonitor'
 import DashboardBobbinWinder from './dashboards/DashboardBobbinWinder'
 import DashboardCardPuncher from './dashboards/DashboardCardPuncher'
@@ -41,7 +42,7 @@ import DashboardIoTDeviceManager from './dashboards/DashboardIoTDeviceManager'
 import DashboardLocalizationManager from './dashboards/DashboardLocalizationManager'
 
 const DASHBOARD_COMPONENTS = {
-  'ROLE-ASSISTANT-WEAVER': DashboardWeavingMonitor,
+  'ROLE-ASSISTANT-WEAVER': DashboardAssistantWeaver,
   'ROLE-BOBBIN-WINDER': DashboardBobbinWinder,
   'ROLE-CARD-PUNCHER': DashboardCardPuncher,
   'ROLE-FILATURE-SUPPLIER': DashboardFilatureSupplier,

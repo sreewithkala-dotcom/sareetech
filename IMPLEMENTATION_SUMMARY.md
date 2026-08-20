@@ -5,12 +5,15 @@
 A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with the following components:
 
 ### 1. Database Schema (PostgreSQL)
-**5 migration files** covering:
+**6 migration files** covering:
 - `001_initial_schema.sql` — Core tables: users, roles, production_lots, workflow_states, scanner_logs, ai_inspection_certificates, audit_logs, pending_sync_queue, quarantined_lots, materials, inventory_movements
 - `002_workflow_transitions.sql` — 24-role sequential workflow transitions
 - `003_stored_procedures.sql` — Core procedures: sp_validate_scanner_input, sp_process_ai_certification, sp_process_scanner_output, sp_sync_pending_operations, sp_supervisor_override_quarantine
 - `004_quarantine_management.sql` — Quarantine triggers, duplicate scan checks, status validators
 - `005_silk_saree_extensions.sql` — Extended tables: guilds, yarn_batches, zari_batches, dye_vats, loom_assignments, finished_sarees, buyback_guarantees, design_files, design_generations, edge_controllers, loom_telemetry, i18n tables, certificate_ledger, nfc_registry
+- `006_sku_catalog.sql` — SKU product catalog and production mapping tables
+- `007_sku_buyback_link.sql` — Links finished_sarees to sku_catalog for buyback valuation
+- `008_assistant_weaver.sql` — Assistant Weaver job logs, wage distributions, breakage alarms, shift audits, and guardrail triggers
 
 ### 2. Backend Microservices (9 services)
 | Service | Port | Purpose |
@@ -18,7 +21,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 | auth | 5000 | JWT authentication, login, refresh, logout |
 | scanner | 5001 | Input/output scanning with pre-step validation |
 | ai | 5002 | 6 AI inspection services (zari, dye, warp, fabric, weaving, forecasting) |
-| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events |
+| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms |
 | iot | 5004 | MQTT telemetry ingestion, design injection to ECU |
 | design | 5005 | GAN design generation, design file management |
 | buyback | 5006 | Buy-back valuation, NFC verification, depreciation calculation |
@@ -49,6 +52,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - NFC/RFID embedded certificates with blockchain-style ledger
 - Buy-back guarantee engine with AI depreciation
 - GAN design generation with viability filtering
+- Assistant Weaver floor operations module with shift logs, wage splits, breakage alarms, and guardrail validation
 - SKU product catalog: 480 variants across 18 hubs, 14 weave categories (CSV fully populated)
 - Buy-Back valuation engine uses SKU selling price as base value
 - IoT design injection validates SKU-hook compatibility
@@ -80,7 +84,10 @@ silk-erp/
 │   ├── 002_workflow_transitions.sql
 │   ├── 003_stored_procedures.sql
 │   ├── 004_quarantine_management.sql
-│   └── 005_silk_saree_extensions.sql
+│   ├── 005_silk_saree_extensions.sql
+│   ├── 006_sku_catalog.sql
+│   ├── 007_sku_buyback_link.sql
+│   └── 008_assistant_weaver.sql
 ├── services/
 │   ├── auth/
 │   ├── scanner/

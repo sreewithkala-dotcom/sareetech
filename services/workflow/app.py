@@ -6390,5 +6390,630 @@ def get_sales_forecast_pirn_winding():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# GRAPH DRAFTER (2400 HOOK) MODULE
+# ============================================================
+
+@app.route('/api/v1/design/graphs', methods=['POST'])
+@jwt_required()
+def create_design_graph():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['design_master_id', 'target_hook_capacity']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO design_masters (
+                design_master_id, graph_iteration_v, drafter_employee_id,
+                factory_node_id, status,
+                total_hook_capacity, top_border_hooks, bottom_border_hooks,
+                body_motif_hooks, selvedge_hooks,
+                grid_width_pixels, grid_height_picks, maximum_float_length,
+                digital_cad_file_upload,
+                target_hook_capacity, hook_allocation_profile,
+                warp_ends_per_inch_epi, weft_picks_per_inch_ppi,
+                ground_weave_structure, zari_binding_weave_type,
+                border_binding_technique, shading_technique,
+                max_float_enforcement_rule, max_warp_float_ends, max_weft_float_picks,
+                selvage_hook_count, cad_output_format, design_approval_state,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, 'DRAFT', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, design_master_id
+        """, (
+            data.get('design_master_id'),
+            data.get('graph_iteration_v', 1.0),
+            operator_id,
+            factory_node_id,
+            data.get('target_hook_capacity', 2400),
+            data.get('top_border_hooks', 0),
+            data.get('bottom_border_hooks', 0),
+            data.get('body_motif_hooks', 0),
+            data.get('selvedge_hooks', 0),
+            data.get('grid_width_pixels', 2400),
+            data.get('grid_height_picks', 0),
+            data.get('maximum_float_length', 7),
+            data.get('digital_cad_file_upload'),
+            data.get('target_hook_capacity', 2400),
+            data.get('hook_allocation_profile', '2250_DESIGN_150_BORDER_SELVAGE'),
+            data.get('warp_ends_per_inch_epi'),
+            data.get('weft_picks_per_inch_ppi'),
+            data.get('ground_weave_structure', '16_END_SHADED_SATIN'),
+            data.get('zari_binding_weave_type', '8_END_SATIN_INTERLOCK'),
+            data.get('border_binding_technique', 'MICRO_STEP_CATCHING'),
+            data.get('shading_technique', 'MULTI_LEVEL_SHADED_SATIN'),
+            data.get('max_float_enforcement_rule', 'STRICT_WARP_LE_4_WEFT_LE_5'),
+            data.get('max_warp_float_ends', 4),
+            data.get('max_weft_float_picks', 5),
+            data.get('selvage_hook_count', 0),
+            data.get('cad_output_format', 'JC5'),
+            data.get('design_approval_state', 'DRAFT'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        design_row = cur.fetchone()
+        design_id = design_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status, design_approval_state
+            FROM design_masters WHERE id = %s::uuid
+        """, (design_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'PENDING_FLOAT_CHECK'
+        else:
+            status = 'PENDING_FLOAT_CHECK'
+        
+        cur.execute("""
+            UPDATE design_masters SET status = %s WHERE id = %s::uuid
+        """, (status, design_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(design_id),
+            'design_master_id': design_row['design_master_id'],
+            'status': status,
+            'design_approval_state': result['design_approval_state'],
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Design graph created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/design/graphs', methods=['GET'])
+@jwt_required()
+def list_design_graphs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT dm.id, dm.design_master_id, dm.graph_iteration_v,
+                   dm.target_hook_capacity, dm.hook_allocation_profile,
+                   dm.top_border_hooks, dm.bottom_border_hooks,
+                   dm.body_motif_hooks, dm.selvedge_hooks,
+                   dm.total_allocated_hooks, dm.grid_width_pixels,
+                   dm.grid_height_picks, dm.maximum_float_length,
+                   dm.ground_weave_structure, dm.zari_binding_weave_type,
+                   dm.border_binding_technique, dm.shading_technique,
+                   dm.max_float_enforcement_rule, dm.max_warp_float_ends,
+                   dm.max_weft_float_picks, dm.cad_output_format,
+                   dm.design_approval_state, dm.auto_assigned_routing,
+                   dm.status, dm.certificate_hash, dm.created_at
+            FROM design_masters dm
+            WHERE dm.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY dm.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        designs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(designs),
+            'designs': [
+                {
+                    'id': str(d['id']),
+                    'design_master_id': d['design_master_id'],
+                    'graph_iteration_v': float(d['graph_iteration_v']) if d['graph_iteration_v'] else None,
+                    'target_hook_capacity': d['target_hook_capacity'],
+                    'hook_allocation_profile': d['hook_allocation_profile'],
+                    'top_border_hooks': d['top_border_hooks'],
+                    'bottom_border_hooks': d['bottom_border_hooks'],
+                    'body_motif_hooks': d['body_motif_hooks'],
+                    'selvedge_hooks': d['selvedge_hooks'],
+                    'total_allocated_hooks': d['total_allocated_hooks'],
+                    'grid_width_pixels': d['grid_width_pixels'],
+                    'grid_height_picks': d['grid_height_picks'],
+                    'maximum_float_length': d['maximum_float_length'],
+                    'ground_weave_structure': d['ground_weave_structure'],
+                    'zari_binding_weave_type': d['zari_binding_weave_type'],
+                    'border_binding_technique': d['border_binding_technique'],
+                    'shading_technique': d['shading_technique'],
+                    'max_float_enforcement_rule': d['max_float_enforcement_rule'],
+                    'max_warp_float_ends': d['max_warp_float_ends'],
+                    'max_weft_float_picks': d['max_weft_float_picks'],
+                    'cad_output_format': d['cad_output_format'],
+                    'design_approval_state': d['design_approval_state'],
+                    'auto_assigned_routing': d['auto_assigned_routing'],
+                    'status': d['status'],
+                    'certificate_hash': d['certificate_hash'],
+                    'created_at': d['created_at'].isoformat() if d['created_at'] else None
+                }
+                for d in designs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/design/graphs/<design_id>', methods=['GET'])
+@jwt_required()
+def get_design_graph(design_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT dm.*, u.full_name as drafter_name
+            FROM design_masters dm
+            LEFT JOIN users u ON dm.drafter_employee_id = u.id
+            WHERE dm.id = %s::uuid
+        """, (design_id,))
+        
+        design = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not design:
+            return jsonify({'error': 'DesignNotFound'}), 404
+        
+        return jsonify({
+            'id': str(design['id']),
+            'design_master_id': design['design_master_id'],
+            'graph_iteration_v': float(design['graph_iteration_v']) if design['graph_iteration_v'] else None,
+            'drafter_employee_id': str(design['drafter_employee_id']) if design['drafter_employee_id'] else None,
+            'drafter_name': design['drafter_name'],
+            'factory_node_id': design['factory_node_id'],
+            'status': design['status'],
+            'target_hook_capacity': design['target_hook_capacity'],
+            'hook_allocation_profile': design['hook_allocation_profile'],
+            'top_border_hooks': design['top_border_hooks'],
+            'bottom_border_hooks': design['bottom_border_hooks'],
+            'body_motif_hooks': design['body_motif_hooks'],
+            'selvedge_hooks': design['selvedge_hooks'],
+            'total_allocated_hooks': design['total_allocated_hooks'],
+            'grid_width_pixels': design['grid_width_pixels'],
+            'grid_height_picks': design['grid_height_picks'],
+            'maximum_float_length': design['maximum_float_length'],
+            'digital_cad_file_upload': design['digital_cad_file_upload'],
+            'warp_ends_per_inch_epi': design['warp_ends_per_inch_epi'],
+            'weft_picks_per_inch_ppi': design['weft_picks_per_inch_ppi'],
+            'graph_aspect_ratio': float(design['graph_aspect_ratio']) if design['graph_aspect_ratio'] else None,
+            'ground_weave_structure': design['ground_weave_structure'],
+            'zari_binding_weave_type': design['zari_binding_weave_type'],
+            'border_binding_technique': design['border_binding_technique'],
+            'shading_technique': design['shading_technique'],
+            'max_float_enforcement_rule': design['max_float_enforcement_rule'],
+            'max_warp_float_ends': design['max_warp_float_ends'],
+            'max_weft_float_picks': design['max_weft_float_picks'],
+            'selvage_hook_count': design['selvage_hook_count'],
+            'cad_output_format': design['cad_output_format'],
+            'design_approval_state': design['design_approval_state'],
+            'validation_errors': design['validation_errors'],
+            'validation_warnings': design['validation_warnings'],
+            'auto_assigned_routing': design['auto_assigned_routing'],
+            'certificate_hash': design['certificate_hash'],
+            'qr_tag_id': design['qr_tag_id']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/design/graphs/<design_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_design_graph(design_id):
+    try:
+        approver_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, status, validation_errors, design_approval_state, graph_iteration_v
+            FROM design_masters
+            WHERE id = %s::uuid
+        """, (design_id,))
+        
+        design = cur.fetchone()
+        if not design:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'DesignNotFound'}), 404
+        
+        if design['validation_errors'] and len(design['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot approve design with validation errors'}), 400
+        
+        new_version = design['graph_iteration_v'] + 1 if data.get('new_version') else design['graph_iteration_v']
+        certificate_hash = generate_certificate_hash(design_id, design['design_master_id'])
+        qr_tag_id = 'DESIGN-' + design['design_master_id']
+        
+        cur.execute("""
+            UPDATE design_masters
+            SET status = 'APPROVED_FOR_PUNCHING',
+                design_approval_state = 'APPROVED_FOR_PUNCHING',
+                graph_iteration_v = %s,
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, design_master_id, certificate_hash
+        """, (new_version, certificate_hash, qr_tag_id, design_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO design_iterations (
+                design_master_id, iteration_v, drafter_employee_id,
+                change_reason, grid_width_pixels, grid_height_picks,
+                hook_allocation_profile, ground_weave_structure,
+                max_float_enforcement_rule, max_warp_float_ends, max_weft_float_picks
+            )
+            SELECT
+                dm.id,
+                dm.graph_iteration_v,
+                dm.drafter_employee_id,
+                %s,
+                dm.grid_width_pixels, dm.grid_height_picks,
+                dm.hook_allocation_profile, dm.ground_weave_structure,
+                dm.max_float_enforcement_rule, dm.max_warp_float_ends, dm.max_weft_float_picks
+            FROM design_masters dm
+            WHERE dm.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM design_iterations WHERE design_master_id = dm.id AND iteration_v = dm.graph_iteration_v
+            )
+        """, (data.get('change_reason', 'Approved by Graph Drafter'), design_id))
+        
+        cur.execute("""
+            INSERT INTO design_certificates (
+                design_master_id, certificate_hash, qr_tag_id, design_master_id_ref,
+                graph_iteration_v, total_hook_capacity, hook_allocation_profile,
+                grid_width_pixels, grid_height_picks, ground_weave_structure,
+                zari_binding_weave_type, border_binding_technique, shading_technique,
+                max_float_enforcement_rule, max_warp_float_ends, max_weft_float_picks,
+                cad_output_format, auto_assigned_routing, operator_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                dm.id,
+                dm.certificate_hash,
+                dm.qr_tag_id,
+                dm.design_master_id,
+                dm.graph_iteration_v,
+                dm.total_hook_capacity,
+                dm.hook_allocation_profile,
+                dm.grid_width_pixels,
+                dm.grid_height_picks,
+                dm.ground_weave_structure,
+                dm.zari_binding_weave_type,
+                dm.border_binding_technique,
+                dm.shading_technique,
+                dm.max_float_enforcement_rule,
+                dm.max_warp_float_ends,
+                dm.max_weft_float_picks,
+                dm.cad_output_format,
+                dm.auto_assigned_routing,
+                dm.drafter_employee_id,
+                %s,
+                dm.factory_node_id,
+                jsonb_build_object(
+                    'design_master_id', dm.design_master_id,
+                    'graph_iteration_v', dm.graph_iteration_v,
+                    'hook_allocation_profile', dm.hook_allocation_profile,
+                    'total_allocated_hooks', dm.total_allocated_hooks,
+                    'graph_aspect_ratio', dm.graph_aspect_ratio,
+                    'warp_ends_per_inch_epi', dm.warp_ends_per_inch_epi,
+                    'weft_picks_per_inch_ppi', dm.weft_picks_per_inch_ppi
+                )
+            FROM design_masters dm
+            WHERE dm.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM design_certificates WHERE design_master_id = dm.id
+            )
+        """, (approver_id, design_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'design_master_id': result['design_master_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'version': new_version,
+            'status': 'APPROVED_FOR_PUNCHING',
+            'message': 'Design graph approved and certified'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/design/graphs/<design_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_design_graph(design_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE design_masters
+            SET status = 'REJECTED_FLOAT_EXCEEDED',
+                design_approval_state = 'REJECTED_FLOAT_EXCEEDED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id, design_master_id
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by Graph Drafter')}]),
+            design_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'DesignNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'design_master_id': result['design_master_id'],
+            'status': 'REJECTED_FLOAT_EXCEEDED',
+            'message': 'Design graph rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/design/graphs/<design_id>/iterations', methods=['POST'])
+@jwt_required()
+def create_design_iteration(design_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['iteration_v']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            INSERT INTO design_iterations (
+                design_master_id, iteration_v, drafter_employee_id,
+                change_reason, grid_width_pixels, grid_height_picks,
+                hook_allocation_profile, ground_weave_structure,
+                max_float_enforcement_rule, max_warp_float_ends, max_weft_float_picks,
+                validation_errors, validation_warnings
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            design_id,
+            data.get('iteration_v'),
+            operator_id,
+            data.get('change_reason'),
+            data.get('grid_width_pixels'),
+            data.get('grid_height_picks'),
+            data.get('hook_allocation_profile'),
+            data.get('ground_weave_structure'),
+            data.get('max_float_enforcement_rule'),
+            data.get('max_warp_float_ends'),
+            data.get('max_weft_float_picks'),
+            json.dumps([]),
+            json.dumps([])
+        ))
+        
+        iteration_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(iteration_row['id']),
+            'design_master_id': str(design_id),
+            'iteration_v': data.get('iteration_v'),
+            'message': 'Design iteration created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/design/certificates', methods=['GET'])
+@jwt_required()
+def list_design_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT dc.id, dc.certificate_hash, dc.qr_tag_id,
+                   dc.design_master_id_ref, dc.graph_iteration_v,
+                   dc.total_hook_capacity, dc.hook_allocation_profile,
+                   dc.grid_width_pixels, dc.grid_height_picks,
+                   dc.ground_weave_structure, dc.zari_binding_weave_type,
+                   dc.border_binding_technique, dc.shading_technique,
+                   dc.max_float_enforcement_rule, dc.max_warp_float_ends,
+                   dc.max_weft_float_picks, dc.cad_output_format,
+                   dc.auto_assigned_routing, dc.status, dc.certified_at,
+                   dm.design_master_id
+            FROM design_certificates dc
+            JOIN design_masters dm ON dc.design_master_id = dm.id
+            WHERE dc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY dc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'design_master_id': c['design_master_id'],
+                    'design_master_id_ref': c['design_master_id_ref'],
+                    'graph_iteration_v': float(c['graph_iteration_v']) if c['graph_iteration_v'] else None,
+                    'total_hook_capacity': c['total_hook_capacity'],
+                    'hook_allocation_profile': c['hook_allocation_profile'],
+                    'grid_width_pixels': c['grid_width_pixels'],
+                    'grid_height_picks': c['grid_height_picks'],
+                    'ground_weave_structure': c['ground_weave_structure'],
+                    'zari_binding_weave_type': c['zari_binding_weave_type'],
+                    'border_binding_technique': c['border_binding_technique'],
+                    'shading_technique': c['shading_technique'],
+                    'max_float_enforcement_rule': c['max_float_enforcement_rule'],
+                    'max_warp_float_ends': c['max_warp_float_ends'],
+                    'max_weft_float_picks': c['max_weft_float_picks'],
+                    'cad_output_format': c['cad_output_format'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR GRAPH DRAFTER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/design', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_design():
+    """
+    API plugin endpoint for sales team graph drafter material processing forecast.
+    Returns forecasted design requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'target_hook_capacity': 2400,
+                    'hook_allocation_profile': '2250_DESIGN_150_BORDER_SELVAGE',
+                    'estimated_designs': 5,
+                    'cad_output_format': 'JC5',
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'target_hook_capacity': 2400,
+                    'hook_allocation_profile': '2250_DESIGN_150_BORDER_SELVAGE',
+                    'estimated_designs': 4,
+                    'cad_output_format': 'JC5',
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'target_hook_capacity': 1536,
+                    'hook_allocation_profile': '1440_DESIGN_96_BORDER_SELVAGE',
+                    'estimated_designs': 8,
+                    'cad_output_format': '.EP',
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'DESIGN-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_designs': 5,
+                    'target_hook_capacity': 2400,
+                    'cad_output_format': 'JC5'
+                },
+                {
+                    'lot_number': 'DESIGN-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_designs': 4,
+                    'target_hook_capacity': 2400,
+                    'cad_output_format': 'JC5'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

@@ -17,6 +17,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - `009_bobbin_winder.sql` — Bobbin Winder job cards, bobbin records, waste variance alarms, production certificates, and stock routing view
 - `017_bobbin_winder_enhancements.sql` — Bobbin Winder enhancements: 1536/2400 hook validation rules (joint method gate, winding speed protection, splice count limit, tension check), pre-process linkage from Skein Dye Master and Master Colorist, sales forecast API plugin
 - `018_pirn_winder.sql` — Pirn Winder module with pirn winding jobs, pirn records, certificates, sales forecast API plugin, 1536/2400 hook validation rules (splice gate, hardness protection, sloughing risk, spindle speed check), and pre-process linkage from Bobbin Winder
+- `019_graph_drafter.sql` — Graph Drafter (2400 Hook) module with design masters, design iterations, design certificates, sales forecast API plugin, 1536/2400 hook validation rules (float limit guardrail, hook allocation check, aspect ratio check), and pre-process linkage from Pirn Winder
 - `010_inward_quality_gate.sql` — Inward Quality Gate framework for Filature Supplier with Gate Clerk, QC Inspector, and Quality Manager roles, quality intake records, approval workflow, and certificates
 - `011_zari_refinery.sql` — Zari Refinery Inward & Quality Screen with lot batches, metallurgical assay records, quality gate toggles, certificates, and sales forecast API plugin
 - `012_zari_inspector.sql` — Zari Inspector Post-Process Inspection module with XRF verification, physical/geometrics inspection, aesthetic/weight audit, defect logging, automated 1536/2400 hook validation rules, and inspector certificates
@@ -29,7 +30,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 | auth | 5000 | JWT authentication, login, refresh, logout |
 | scanner | 5001 | Input/output scanning with pre-step validation |
 | ai | 5002 | 6 AI inspection services (zari, dye, warp, fabric, weaving, forecasting) |
-| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing, inward quality gate, Zari refinery assay and certification, Zari inspector post-process inspection and certification, Silk Degumming Master thermal-chemical process control and certification, Throwster/Twister yarn ply doubling, TPI control, twist setting/steaming, and certification, Master Colorist shade matching, chemical recipe formulation, spectrophotometer QA, recipe approval, and color certification, Skein Dye Master physical dye bath execution, temperature profiling, chemical additive management, post-dye quality audit, floor mass balance, and skein dye certification, Bobbin Winder yarn winding, bobbin build, quality audit, 1536/2400 hook validation, and winding certification, Pirn Winder weft pirn winding, precision taper control, density monitoring, quality audit, 1536/2400 hook validation, and pirn certification |
+| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing, inward quality gate, Zari refinery assay and certification, Zari inspector post-process inspection and certification, Silk Degumming Master thermal-chemical process control and certification, Throwster/Twister yarn ply doubling, TPI control, twist setting/steaming, and certification, Master Colorist shade matching, chemical recipe formulation, spectrophotometer QA, recipe approval, and color certification, Skein Dye Master physical dye bath execution, temperature profiling, chemical additive management, post-dye quality audit, floor mass balance, and skein dye certification, Bobbin Winder yarn winding, bobbin build, quality audit, 1536/2400 hook validation, and winding certification, Pirn Winder weft pirn winding, precision taper control, density monitoring, quality audit, 1536/2400 hook validation, and pirn certification, Graph Drafter (2400 Hook) Jacquard graph design, hook mapping, weave structure assignment, color separation, card-punch coding, and design certification |
 | iot | 5004 | MQTT telemetry ingestion, design injection to ECU |
 | design | 5005 | GAN design generation, design file management |
 | buyback | 5006 | Buy-back valuation, NFC verification, depreciation calculation |
@@ -63,6 +64,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - Assistant Weaver floor operations module with shift logs, wage splits, breakage alarms, and guardrail validation
 - Bobbin Winder module with winding job cards, bobbin records, waste guardrails, stock routing, and certificate generation, enhanced with 1536/2400 hook validation rules (joint method gate, winding speed protection, splice count limit, tension check), pre-process linkage from Skein Dye Master and Master Colorist, and sales forecast API plugin
 - Pirn Winder module with pirn winding jobs, pirn records, quality audit (spindle speed, nose taper, hardness, splices, sloughing risk, surface inspection), automated 1536/2400 hook validation rules (splice gate, hardness protection, sloughing risk, spindle speed check), material variance leakage alert, and pirn winding certificate issuance
+- Graph Drafter (2400 Hook) module with Jacquard graph design, hook mapping (top/bottom/body/selvedge allocation), weave structure assignment (ground weave, Zari binding, border binding, shading), color separation/card-punch coding, automated 2400 Hook validation gates (float limit, hook allocation, aspect ratio, CAD export authorization), and design certificate issuance
 - Zari Refinery module with lot batch intake, metallurgical assay (silver/gold purity), physical quality toggles, certificate issuance with precious metal valuation, and sales forecast API plugin
 - Zari Inspector module with post-process XRF verification, core yarn auditing, physical/geometrics inspection, aesthetic/weight audit, defect logging, automated 1536/2400 hook validation rules, ERP routing, and inspector certificate issuance
 - Silk Degumming Master module with chemical bath formulation (degumming agent, alkali buffer, water softener), thermal-process control (temperature, duration, pH), weight loss accounting with sericin loss calculation, automated 1536/2400 hook validation rules, and degumming certificate issuance
@@ -113,7 +115,8 @@ silk-erp/
 │   ├── 015_master_colorist.sql
 │   ├── 016_skein_dye_master.sql
 │   ├── 017_bobbin_winder_enhancements.sql
-│   └── 018_pirn_winder.sql
+│   ├── 018_pirn_winder.sql
+│   └── 019_graph_drafter.sql
 ├── services/
 │   ├── auth/
 │   ├── scanner/

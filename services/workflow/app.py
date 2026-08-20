@@ -7534,5 +7534,482 @@ def get_sales_forecast_card_puncher():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# WARP BEAM PREPARATION (80 SAREE LENGTH) MODULE
+# ============================================================
+
+@app.route('/api/v1/warp-beam-prep/logs', methods=['POST'])
+@jwt_required()
+def create_warp_beam_production_log():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['warp_set_id', 'target_loom_type', 'total_warp_length_meters']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        calculated_net_beam_weight_kg = None
+        if data.get('total_allocated_yarn_weight_kg') is not None and data.get('post_job_returned_yarn_weight_kg') is not None:
+            calculated_net_beam_weight_kg = data.get('total_allocated_yarn_weight_kg') - data.get('post_job_returned_yarn_weight_kg')
+        
+        cur.execute("""
+            INSERT INTO warp_beam_production_logs (
+                warp_set_id, production_lot_id, design_master_id, card_puncher_job_id,
+                pirn_winding_job_id, bobbin_winder_job_card_id,
+                factory_node_id, operator_id, status,
+                target_loom_type, warping_machine_type,
+                total_warp_length_meters, creel_capacity_bobbins, number_of_sections,
+                creel_tension_setting_grams, static_control_status,
+                leasing_method_used, warp_wax_conditioning, beam_density_shore_d,
+                section_gap_overlap_inspection, broken_ends_repaired_count,
+                warp_beam_approval_state,
+                total_allocated_yarn_weight_kg, post_job_returned_yarn_weight_kg,
+                calculated_net_beam_weight_kg, actual_scale_beam_weight_kg,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'PENDING_WARPING', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, warp_set_id
+        """, (
+            data.get('warp_set_id'),
+            data.get('production_lot_id'),
+            data.get('design_master_id'),
+            data.get('card_puncher_job_id'),
+            data.get('pirn_winding_job_id'),
+            data.get('bobbin_winder_job_card_id'),
+            factory_node_id,
+            operator_id,
+            data.get('target_loom_type'),
+            data.get('warping_machine_type', 'AUTOMATIC_SECTIONAL_WARPER'),
+            data.get('total_warp_length_meters'),
+            data.get('creel_capacity_bobbins'),
+            data.get('number_of_sections'),
+            data.get('creel_tension_setting_grams'),
+            data.get('static_control_status', 'ACTIVE_IONIZING_BARS_65RH'),
+            data.get('leasing_method_used', 'AUTOMATIC_LEASE_REED_1X1_LOCK'),
+            data.get('warp_wax_conditioning', 'LIQUID_ANTISTATIC_WAX_EMULSION'),
+            data.get('beam_density_shore_d'),
+            data.get('section_gap_overlap_inspection', 'ZERO_GAP_ZERO_OVERLAP'),
+            data.get('broken_ends_repaired_count', 0),
+            data.get('warp_beam_approval_state', 'PENDING_WARPING'),
+            data.get('total_allocated_yarn_weight_kg'),
+            data.get('post_job_returned_yarn_weight_kg'),
+            calculated_net_beam_weight_kg,
+            data.get('actual_scale_beam_weight_kg'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'warp_set_id': log_row['warp_set_id'],
+            'status': 'PENDING_WARPING',
+            'message': 'Warp beam production log created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-beam-prep/logs', methods=['GET'])
+@jwt_required()
+def list_warp_beam_production_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wbl.id, wbl.warp_set_id, wbl.target_loom_type, wbl.warping_machine_type,
+                   wbl.total_warp_length_meters, wbl.creel_capacity_bobbins, wbl.number_of_sections,
+                   wbl.creel_tension_setting_grams, wbl.static_control_status,
+                   wbl.leasing_method_used, wbl.warp_wax_conditioning, wbl.beam_density_shore_d,
+                   wbl.section_gap_overlap_inspection, wbl.broken_ends_repaired_count,
+                   wbl.warp_beam_approval_state, wbl.status, wbl.certificate_hash,
+                   wbl.auto_assigned_routing, wbl.created_at,
+                   dm.design_master_id
+            FROM warp_beam_production_logs wbl
+            LEFT JOIN design_masters dm ON wbl.design_master_id = dm.id
+            WHERE wbl.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY wbl.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(l['id']),
+                    'warp_set_id': l['warp_set_id'],
+                    'design_master_id': l['design_master_id'],
+                    'target_loom_type': l['target_loom_type'],
+                    'warping_machine_type': l['warping_machine_type'],
+                    'total_warp_length_meters': l['total_warp_length_meters'],
+                    'creel_capacity_bobbins': l['creel_capacity_bobbins'],
+                    'number_of_sections': l['number_of_sections'],
+                    'creel_tension_setting_grams': l['creel_tension_setting_grams'],
+                    'static_control_status': l['static_control_status'],
+                    'leasing_method_used': l['leasing_method_used'],
+                    'warp_wax_conditioning': l['warp_wax_conditioning'],
+                    'beam_density_shore_d': l['beam_density_shore_d'],
+                    'section_gap_overlap_inspection': l['section_gap_overlap_inspection'],
+                    'broken_ends_repaired_count': l['broken_ends_repaired_count'],
+                    'warp_beam_approval_state': l['warp_beam_approval_state'],
+                    'status': l['status'],
+                    'certificate_hash': l['certificate_hash'],
+                    'auto_assigned_routing': l['auto_assigned_routing'],
+                    'created_at': l['created_at'].isoformat() if l['created_at'] else None
+                }
+                for l in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-beam-prep/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_warp_beam_production_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wbl.*, dm.design_master_id
+            FROM warp_beam_production_logs wbl
+            LEFT JOIN design_masters dm ON wbl.design_master_id = dm.id
+            WHERE wbl.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'warp_set_id': log['warp_set_id'],
+            'design_master_id': log['design_master_id'],
+            'target_loom_type': log['target_loom_type'],
+            'warping_machine_type': log['warping_machine_type'],
+            'total_warp_length_meters': log['total_warp_length_meters'],
+            'creel_capacity_bobbins': log['creel_capacity_bobbins'],
+            'number_of_sections': log['number_of_sections'],
+            'creel_tension_setting_grams': log['creel_tension_setting_grams'],
+            'static_control_status': log['static_control_status'],
+            'leasing_method_used': log['leasing_method_used'],
+            'warp_wax_conditioning': log['warp_wax_conditioning'],
+            'beam_density_shore_d': log['beam_density_shore_d'],
+            'section_gap_overlap_inspection': log['section_gap_overlap_inspection'],
+            'broken_ends_repaired_count': log['broken_ends_repaired_count'],
+            'warp_beam_approval_state': log['warp_beam_approval_state'],
+            'total_allocated_yarn_weight_kg': log['total_allocated_yarn_weight_kg'],
+            'post_job_returned_yarn_weight_kg': log['post_job_returned_yarn_weight_kg'],
+            'calculated_net_beam_weight_kg': log['calculated_net_beam_weight_kg'],
+            'actual_scale_beam_weight_kg': log['actual_scale_beam_weight_kg'],
+            'weight_variance_percent': log['weight_variance_percent'],
+            'qc_hold_reason': log['qc_hold_reason'],
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'status': log['status'],
+            'certificate_hash': log['certificate_hash']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-beam-prep/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_warp_beam_production_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, warp_set_id, status, validation_errors, warp_beam_approval_state
+            FROM warp_beam_production_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['warp_set_id'])
+        qr_tag_id = 'WARP-' + log['warp_set_id']
+        
+        cur.execute("""
+            UPDATE warp_beam_production_logs
+            SET status = 'READY_FOR_LOOM_MOUNTING',
+                certificate_hash = %s,
+                qr_tag_id = %s,
+                warp_beam_approval_state = 'PASSED_APPROVED_FOR_LOOM'
+            WHERE id = %s::uuid
+            RETURNING id, warp_set_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO warp_beam_certificates (
+                warp_beam_production_log_id, certificate_hash, qr_tag_id, warp_set_id,
+                target_loom_type, warping_machine_type,
+                total_warp_length_meters, creel_capacity_bobbins, number_of_sections,
+                creel_tension_setting_grams, static_control_status,
+                leasing_method_used, warp_wax_conditioning, beam_density_shore_d,
+                section_gap_overlap_inspection, broken_ends_repaired_count,
+                warp_beam_approval_state,
+                total_allocated_yarn_weight_kg, post_job_returned_yarn_weight_kg,
+                calculated_net_beam_weight_kg, actual_scale_beam_weight_kg,
+                weight_variance_percent,
+                auto_assigned_routing, operator_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.warp_set_id,
+                pj.target_loom_type,
+                pj.warping_machine_type,
+                pj.total_warp_length_meters,
+                pj.creel_capacity_bobbins,
+                pj.number_of_sections,
+                pj.creel_tension_setting_grams,
+                pj.static_control_status,
+                pj.leasing_method_used,
+                pj.warp_wax_conditioning,
+                pj.beam_density_shore_d,
+                pj.section_gap_overlap_inspection,
+                pj.broken_ends_repaired_count,
+                pj.warp_beam_approval_state,
+                pj.total_allocated_yarn_weight_kg,
+                pj.post_job_returned_yarn_weight_kg,
+                pj.calculated_net_beam_weight_kg,
+                pj.actual_scale_beam_weight_kg,
+                pj.weight_variance_percent,
+                pj.auto_assigned_routing,
+                pj.operator_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'warp_set_id', pj.warp_set_id,
+                    'target_loom_type', pj.target_loom_type,
+                    'warping_machine_type', pj.warping_machine_type,
+                    'total_warp_length_meters', pj.total_warp_length_meters,
+                    'creel_capacity_bobbins', pj.creel_capacity_bobbins,
+                    'number_of_sections', pj.number_of_sections,
+                    'creel_tension_setting_grams', pj.creel_tension_setting_grams,
+                    'beam_density_shore_d', pj.beam_density_shore_d,
+                    'weight_variance_percent', pj.weight_variance_percent
+                )
+            FROM warp_beam_production_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'warp_set_id': result['warp_set_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'READY_FOR_LOOM_MOUNTING',
+            'message': 'Warp beam production log certified and ready for loom mounting'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/warp-beam-prep/certificates', methods=['GET'])
+@jwt_required()
+def list_warp_beam_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT wbc.id, wbc.certificate_hash, wbc.qr_tag_id,
+                   wbc.warp_set_id, wbc.target_loom_type, wbc.warping_machine_type,
+                   wbc.total_warp_length_meters, wbc.creel_capacity_bobbins, wbc.number_of_sections,
+                   wbc.creel_tension_setting_grams, wbc.static_control_status,
+                   wbc.leasing_method_used, wbc.warp_wax_conditioning, wbc.beam_density_shore_d,
+                   wbc.section_gap_overlap_inspection, wbc.broken_ends_repaired_count,
+                   wbc.warp_beam_approval_state, wbc.weight_variance_percent,
+                   wbc.auto_assigned_routing, wbc.status, wbc.certified_at,
+                   wbl.warp_set_id
+            FROM warp_beam_certificates wbc
+            JOIN warp_beam_production_logs wbl ON wbc.warp_beam_production_log_id = wbl.id
+            WHERE wbc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY wbc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'warp_set_id': c['warp_set_id'],
+                    'target_loom_type': c['target_loom_type'],
+                    'warping_machine_type': c['warping_machine_type'],
+                    'total_warp_length_meters': c['total_warp_length_meters'],
+                    'creel_capacity_bobbins': c['creel_capacity_bobbins'],
+                    'number_of_sections': c['number_of_sections'],
+                    'creel_tension_setting_grams': c['creel_tension_setting_grams'],
+                    'static_control_status': c['static_control_status'],
+                    'leasing_method_used': c['leasing_method_used'],
+                    'warp_wax_conditioning': c['warp_wax_conditioning'],
+                    'beam_density_shore_d': c['beam_density_shore_d'],
+                    'section_gap_overlap_inspection': c['section_gap_overlap_inspection'],
+                    'broken_ends_repaired_count': c['broken_ends_repaired_count'],
+                    'warp_beam_approval_state': c['warp_beam_approval_state'],
+                    'weight_variance_percent': c['weight_variance_percent'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR WARP BEAM PREPARATION
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/warp-beam-prep', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_warp_beam_prep():
+    """
+    API plugin endpoint for sales team warp beam material processing forecast.
+    Returns forecasted warp beam requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'target_loom_type': '2400_HOOK_ELECTRONIC_JACQUARD',
+                    'warping_machine_type': 'AUTOMATIC_SECTIONAL_WARPER',
+                    'estimated_beams': 3,
+                    'total_warp_length_meters': 504.0,
+                    'creel_capacity_bobbins': 960,
+                    'number_of_sections': 18,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'target_loom_type': '2400_HOOK_ELECTRONIC_JACQUARD',
+                    'warping_machine_type': 'AUTOMATIC_SECTIONAL_WARPER',
+                    'estimated_beams': 2,
+                    'total_warp_length_meters': 512.0,
+                    'creel_capacity_bobbins': 1024,
+                    'number_of_sections': 20,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'target_loom_type': '1536_HOOK_ELECTRONIC_JACQUARD',
+                    'warping_machine_type': 'MANUAL_SECTIONAL_WARPER',
+                    'estimated_beams': 5,
+                    'total_warp_length_meters': 360.0,
+                    'creel_capacity_bobbins': 480,
+                    'number_of_sections': 12,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'WARP-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_beams': 3,
+                    'target_loom_type': '2400_HOOK_ELECTRONIC_JACQUARD',
+                    'warping_machine_type': 'AUTOMATIC_SECTIONAL_WARPER'
+                },
+                {
+                    'lot_number': 'WARP-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_beams': 2,
+                    'target_loom_type': '2400_HOOK_ELECTRONIC_JACQUARD',
+                    'warping_machine_type': 'AUTOMATIC_SECTIONAL_WARPER'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

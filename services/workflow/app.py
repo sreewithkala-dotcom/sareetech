@@ -8,6 +8,7 @@ import psycopg2
 import psycopg2.extras
 import os
 import json
+import hashlib
 from datetime import datetime
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -46,6 +47,11 @@ def publish_certification_event(lot_id, factory_node_id, from_role, to_role, cer
     except KafkaError as e:
         app.logger.error(f"Failed to publish Kafka event: {e}")
         # In production, this should trigger alerting
+
+def generate_certificate_hash(*args):
+    """Generate a SHA-256 hex certificate hash from arbitrary arguments."""
+    raw = ''.join(str(a) for a in args) + datetime.utcnow().isoformat()
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 @app.route('/api/v1/lots/<lot_id>/status', methods=['GET'])
 @jwt_required()
@@ -1789,7 +1795,7 @@ def approve_quality_intake(intake_id):
             return jsonify({'error': 'ValidationErrors', 'message': 'Cannot approve intake with validation errors'}), 400
         
         new_status = intake['auto_assigned_routing'] or 'WARP_PREMIUM'
-        certificate_hash = encode(digest(intake_id::text || quality_intake_no || CURRENT_TIMESTAMP::text, 'sha256'), 'hex')
+        certificate_hash = generate_certificate_hash(intake_id, quality_intake_no)
         
         cur.execute("""
             UPDATE quality_intake_records
@@ -2060,6 +2066,708 @@ def get_sales_forecast_material():
         conn.close()
         
         return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# ZARI REFINERY MODULE
+# ============================================================
+
+@app.route('/api/v1/zari/lot-batches', methods=['POST'])
+@jwt_required()
+def create_zari_lot_batch():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['zari_lot_batch_no', 'zari_type', 'zari_origin_cluster']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        saree_bundle_size = data.get('saree_bundle_size', 80)
+        
+        cur.execute("""
+            INSERT INTO zari_lot_batches (
+                zari_lot_batch_no, zari_type, zari_origin_cluster,
+                saree_bundle_size, factory_node_id, recorded_by, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, 'OPEN')
+            RETURNING id, zari_lot_batch_no
+        """, (
+            data.get('zari_lot_batch_no'),
+            data.get('zari_type'),
+            data.get('zari_origin_cluster'),
+            saree_bundle_size,
+            factory_node_id,
+            operator_id
+        ))
+        
+        batch_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(batch_row['id']),
+            'zari_lot_batch_no': batch_row['zari_lot_batch_no'],
+            'status': 'OPEN',
+            'saree_bundle_size': saree_bundle_size,
+            'message': 'Zari lot batch created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/lot-batches', methods=['GET'])
+@jwt_required()
+def list_zari_lot_batches():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zlb.id, zlb.zari_lot_batch_no, zlb.zari_type, zlb.zari_origin_cluster,
+                   zlb.saree_bundle_size, zlb.status, zlb.created_at,
+                   u.full_name AS recorded_by_name
+            FROM zari_lot_batches zlb
+            LEFT JOIN users u ON zlb.recorded_by = u.id
+            WHERE zlb.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY zlb.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        batches = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(batches),
+            'batches': [
+                {
+                    'id': str(b['id']),
+                    'zari_lot_batch_no': b['zari_lot_batch_no'],
+                    'zari_type': b['zari_type'],
+                    'zari_origin_cluster': b['zari_origin_cluster'],
+                    'saree_bundle_size': b['saree_bundle_size'],
+                    'status': b['status'],
+                    'recorded_by_name': b['recorded_by_name'],
+                    'created_at': b['created_at'].isoformat() if b['created_at'] else None
+                }
+                for b in batches
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/lot-batches/<batch_id>', methods=['GET'])
+@jwt_required()
+def get_zari_lot_batch(batch_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zlb.*, u.full_name AS recorded_by_name
+            FROM zari_lot_batches zlb
+            LEFT JOIN users u ON zlb.recorded_by = u.id
+            WHERE zlb.id = %s::uuid
+        """, (batch_id,))
+        
+        batch = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not batch:
+            return jsonify({'error': 'BatchNotFound'}), 404
+        
+        return jsonify({
+            'id': str(batch['id']),
+            'zari_lot_batch_no': batch['zari_lot_batch_no'],
+            'zari_type': batch['zari_type'],
+            'zari_origin_cluster': batch['zari_origin_cluster'],
+            'saree_bundle_size': batch['saree_bundle_size'],
+            'status': batch['status'],
+            'recorded_by_name': batch['recorded_by_name'],
+            'metadata': batch['metadata'],
+            'created_at': batch['created_at'].isoformat() if batch['created_at'] else None,
+            'updated_at': batch['updated_at'].isoformat() if batch['updated_at'] else None
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# ZARI ASSAY / METALLURGICAL ENDPOINTS
+# ============================================================
+
+@app.route('/api/v1/zari/assay', methods=['POST'])
+@jwt_required()
+def create_zari_assay():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['zari_lot_batch_id', 'assay_certificate_no', 'core_yarn_material', 'winding_bobbin_type']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO zari_assay_records (
+                zari_lot_batch_id, assay_certificate_no, silver_purity_pct,
+                gold_plating_pct, copper_base_pct, core_yarn_material,
+                zari_count_denier, zari_wire_diameter_microns, winding_bobbin_type,
+                invoice_declared_weight_gm, gross_scale_weight_gm,
+                bobbin_tare_weight_gm, precious_metal_market_rate_per_gm,
+                is_free_from_tarnishing, is_free_from_wire_cuts, luster_sheen_match,
+                validation_errors, validation_warnings, status, factory_node_id, operator_id
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'DRAFT', %s, %s)
+            RETURNING id, assay_certificate_no
+        """, (
+            data.get('zari_lot_batch_id'),
+            data.get('assay_certificate_no'),
+            data.get('silver_purity_pct'),
+            data.get('gold_plating_pct'),
+            data.get('copper_base_pct'),
+            data.get('core_yarn_material'),
+            data.get('zari_count_denier'),
+            data.get('zari_wire_diameter_microns'),
+            data.get('winding_bobbin_type'),
+            data.get('invoice_declared_weight_gm'),
+            data.get('gross_scale_weight_gm'),
+            data.get('bobbin_tare_weight_gm'),
+            data.get('precious_metal_market_rate_per_gm'),
+            data.get('is_free_from_tarnishing', False),
+            data.get('is_free_from_wire_cuts', False),
+            data.get('luster_sheen_match', False),
+            json.dumps([]),
+            json.dumps([]),
+            factory_node_id,
+            operator_id
+        ))
+        
+        assay_row = cur.fetchone()
+        assay_id = assay_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, status, net_zari_weight_gm
+            FROM zari_assay_records WHERE id = %s::uuid
+        """, (assay_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'SUBMITTED'
+        else:
+            status = 'SUBMITTED'
+        
+        cur.execute("""
+            UPDATE zari_assay_records SET status = %s WHERE id = %s::uuid
+        """, (status, assay_id))
+        
+        cur.execute("""
+            UPDATE zari_lot_batches SET status = 'ASSAY_IN_PROGRESS'
+            WHERE id = (SELECT zari_lot_batch_id FROM zari_assay_records WHERE id = %s::uuid)
+        """, (assay_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(assay_id),
+            'assay_certificate_no': assay_row['assay_certificate_no'],
+            'status': status,
+            'net_zari_weight_gm': float(result['net_zari_weight_gm']) if result['net_zari_weight_gm'] else None,
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Zari assay record created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/assay', methods=['GET'])
+@jwt_required()
+def list_zari_assays():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zar.id, zar.assay_certificate_no, zar.silver_purity_pct,
+                   zar.gold_plating_pct, zar.copper_base_pct, zar.core_yarn_material,
+                   zar.zari_count_denier, zar.zari_wire_diameter_microns,
+                   zar.net_zari_weight_gm, zar.status, zar.certificate_hash,
+                   zlb.zari_lot_batch_no, zlb.zari_type
+            FROM zari_assay_records zar
+            JOIN zari_lot_batches zlb ON zar.zari_lot_batch_id = zlb.id
+            WHERE zar.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY zar.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        assays = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(assays),
+            'assays': [
+                {
+                    'id': str(a['id']),
+                    'assay_certificate_no': a['assay_certificate_no'],
+                    'zari_lot_batch_no': a['zari_lot_batch_no'],
+                    'zari_type': a['zari_type'],
+                    'silver_purity_pct': float(a['silver_purity_pct']) if a['silver_purity_pct'] else None,
+                    'gold_plating_pct': float(a['gold_plating_pct']) if a['gold_plating_pct'] else None,
+                    'copper_base_pct': float(a['copper_base_pct']) if a['copper_base_pct'] else None,
+                    'core_yarn_material': a['core_yarn_material'],
+                    'zari_count_denier': a['zari_count_denier'],
+                    'zari_wire_diameter_microns': float(a['zari_wire_diameter_microns']) if a['zari_wire_diameter_microns'] else None,
+                    'net_zari_weight_gm': float(a['net_zari_weight_gm']) if a['net_zari_weight_gm'] else None,
+                    'status': a['status'],
+                    'certificate_hash': a['certificate_hash']
+                }
+                for a in assays
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/assay/<assay_id>', methods=['GET'])
+@jwt_required()
+def get_zari_assay(assay_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zar.*, zlb.zari_lot_batch_no, zlb.zari_type, zlb.zari_origin_cluster
+            FROM zari_assay_records zar
+            JOIN zari_lot_batches zlb ON zar.zari_lot_batch_id = zlb.id
+            WHERE zar.id = %s::uuid
+        """, (assay_id,))
+        
+        assay = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not assay:
+            return jsonify({'error': 'AssayNotFound'}), 404
+        
+        return jsonify({
+            'id': str(assay['id']),
+            'assay_certificate_no': assay['assay_certificate_no'],
+            'zari_lot_batch_id': str(assay['zari_lot_batch_id']),
+            'zari_lot_batch_no': assay['zari_lot_batch_no'],
+            'zari_type': assay['zari_type'],
+            'zari_origin_cluster': assay['zari_origin_cluster'],
+            'silver_purity_pct': float(assay['silver_purity_pct']) if assay['silver_purity_pct'] else None,
+            'gold_plating_pct': float(assay['gold_plating_pct']) if assay['gold_plating_pct'] else None,
+            'copper_base_pct': float(assay['copper_base_pct']) if assay['copper_base_pct'] else None,
+            'core_yarn_material': assay['core_yarn_material'],
+            'zari_count_denier': assay['zari_count_denier'],
+            'zari_wire_diameter_microns': float(assay['zari_wire_diameter_microns']) if assay['zari_wire_diameter_microns'] else None,
+            'winding_bobbin_type': assay['winding_bobbin_type'],
+            'invoice_declared_weight_gm': float(assay['invoice_declared_weight_gm']) if assay['invoice_declared_weight_gm'] else None,
+            'gross_scale_weight_gm': float(assay['gross_scale_weight_gm']) if assay['gross_scale_weight_gm'] else None,
+            'bobbin_tare_weight_gm': float(assay['bobbin_tare_weight_gm']) if assay['bobbin_tare_weight_gm'] else None,
+            'net_zari_weight_gm': float(assay['net_zari_weight_gm']) if assay['net_zari_weight_gm'] else None,
+            'precious_metal_market_rate_per_gm': float(assay['precious_metal_market_rate_per_gm']) if assay['precious_metal_market_rate_per_gm'] else None,
+            'is_free_from_tarnishing': assay['is_free_from_tarnishing'],
+            'is_free_from_wire_cuts': assay['is_free_from_wire_cuts'],
+            'luster_sheen_match': assay['luster_sheen_match'],
+            'validation_errors': assay['validation_errors'],
+            'validation_warnings': assay['validation_warnings'],
+            'status': assay['status'],
+            'certificate_hash': assay['certificate_hash'],
+            'qr_tag_id': assay['qr_tag_id']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/assay/<assay_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_zari_assay(assay_id):
+    try:
+        approver_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zar.id, zar.status, zar.validation_errors, zar.zari_lot_batch_id,
+                   zar.silver_purity_pct, zar.gold_plating_pct, zar.net_zari_weight_gm,
+                   zlb.zari_lot_batch_no, zlb.zari_type, zlb.zari_origin_cluster
+            FROM zari_assay_records zar
+            JOIN zari_lot_batches zlb ON zar.zari_lot_batch_id = zlb.id
+            WHERE zar.id = %s::uuid
+        """, (assay_id,))
+        
+        assay = cur.fetchone()
+        if not assay:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'AssayNotFound'}), 404
+        
+        if assay['validation_errors'] and len(assay['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify assay with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(assay_id, assay['assay_certificate_no'])
+        qr_tag_id = 'ZARI-' + assay['zari_lot_batch_no']
+        
+        precious_metal_value = None
+        if assay['net_zari_weight_gm'] and assay['precious_metal_market_rate_per_gm']:
+            precious_metal_value = round(float(assay['net_zari_weight_gm']) * float(assay['precious_metal_market_rate_per_gm']), 4)
+        
+        cur.execute("""
+            UPDATE zari_assay_records
+            SET status = 'CERTIFIED',
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, assay_certificate_no, certificate_hash
+        """, (certificate_hash, qr_tag_id, assay_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO zari_certificates (
+                zari_lot_batch_id, zari_assay_id, certificate_hash,
+                qr_tag_id, zari_type, zari_origin_cluster,
+                silver_purity_pct, gold_plating_pct, net_zari_weight_gm,
+                precious_metal_value_estimate, operator_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                zlb.id,
+                zar.id,
+                zar.certificate_hash,
+                zar.qr_tag_id,
+                zlb.zari_type,
+                zlb.zari_origin_cluster,
+                zar.silver_purity_pct,
+                zar.gold_plating_pct,
+                zar.net_zari_weight_gm,
+                %s,
+                zar.operator_id,
+                %s,
+                zar.factory_node_id,
+                jsonb_build_object(
+                    'assay_certificate_no', zar.assay_certificate_no,
+                    'zari_lot_batch_no', zlb.zari_lot_batch_no,
+                    'saree_bundle_size', zlb.saree_bundle_size,
+                    'silver_purity_pct', zar.silver_purity_pct,
+                    'gold_plating_pct', zar.gold_plating_pct,
+                    'copper_base_pct', zar.copper_base_pct,
+                    'core_yarn_material', zar.core_yarn_material,
+                    'zari_count_denier', zar.zari_count_denier,
+                    'zari_wire_diameter_microns', zar.zari_wire_diameter_microns,
+                    'net_zari_weight_gm', zar.net_zari_weight_gm,
+                    'is_free_from_tarnishing', zar.is_free_from_tarnishing,
+                    'is_free_from_wire_cuts', zar.is_free_from_wire_cuts,
+                    'luster_sheen_match', zar.luster_sheen_match
+                )
+            FROM zari_assay_records zar
+            JOIN zari_lot_batches zlb ON zar.zari_lot_batch_id = zlb.id
+            WHERE zar.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM zari_certificates WHERE zari_assay_id = zar.id
+            )
+        """, (precious_metal_value, approver_id, assay_id))
+        
+        cur.execute("""
+            UPDATE zari_lot_batches
+            SET status = 'CERTIFIED'
+            WHERE id = %s::uuid
+        """, (assay['zari_lot_batch_id'],))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'assay_certificate_no': result['assay_certificate_no'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'CERTIFIED',
+            'precious_metal_value_estimate': float(precious_metal_value) if precious_metal_value else None,
+            'message': 'Zari assay certified successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/assay/<assay_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_zari_assay(assay_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE zari_assay_records
+            SET status = 'REJECTED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id, assay_certificate_no
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by Zari Inspector')}]),
+            assay_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'AssayNotFound'}), 404
+        
+        cur.execute("""
+            UPDATE zari_lot_batches
+            SET status = 'REJECTED'
+            WHERE id = (SELECT zari_lot_batch_id FROM zari_assay_records WHERE id = %s::uuid)
+        """, (assay_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'assay_certificate_no': result['assay_certificate_no'],
+            'status': 'REJECTED',
+            'message': 'Zari assay rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/certificates', methods=['GET'])
+@jwt_required()
+def list_zari_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zc.id, zc.certificate_hash, zc.qr_tag_id, zc.zari_type,
+                   zc.zari_origin_cluster, zc.silver_purity_pct, zc.gold_plating_pct,
+                   zc.net_zari_weight_gm, zc.precious_metal_value_estimate,
+                   zc.status, zc.certified_at, zlb.zari_lot_batch_no, zar.assay_certificate_no
+            FROM zari_certificates zc
+            JOIN zari_lot_batches zlb ON zc.zari_lot_batch_id = zlb.id
+            JOIN zari_assay_records zar ON zc.zari_assay_id = zar.id
+            WHERE zc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY zc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'zari_lot_batch_no': c['zari_lot_batch_no'],
+                    'assay_certificate_no': c['assay_certificate_no'],
+                    'zari_type': c['zari_type'],
+                    'zari_origin_cluster': c['zari_origin_cluster'],
+                    'silver_purity_pct': float(c['silver_purity_pct']) if c['silver_purity_pct'] else None,
+                    'gold_plating_pct': float(c['gold_plating_pct']) if c['gold_plating_pct'] else None,
+                    'net_zari_weight_gm': float(c['net_zari_weight_gm']) if c['net_zari_weight_gm'] else None,
+                    'precious_metal_value_estimate': float(c['precious_metal_value_estimate']) if c['precious_metal_value_estimate'] else None,
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR ZARI
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/zari', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_zari():
+    """
+    API plugin endpoint for sales team Zari material processing forecast.
+    Returns forecasted Zari requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'sari_category': 'Authentic Kanchipuram Bridal',
+                    'zari_type': 'PURE_REAL_ZARI_GOLD_SILVER',
+                    'zari_grade': '1G',
+                    'estimated_zari_weight_gm': 2500.0,
+                    'estimated_silver_gm': 1375.0,
+                    'estimated_gold_gm': 20.0,
+                    'priority': 'HIGH',
+                    'origin_cluster': 'KANCHIPURAM',
+                    'estimated_sarees': 80
+                },
+                {
+                    'sari_category': 'Banarasi Kinkhab & Kadwa',
+                    'zari_type': 'PURE_REAL_ZARI_GOLD_SILVER',
+                    'zari_grade': '1G',
+                    'estimated_zari_weight_gm': 1800.0,
+                    'estimated_silver_gm': 990.0,
+                    'estimated_gold_gm': 14.4,
+                    'priority': 'HIGH',
+                    'origin_cluster': 'BANARAS',
+                    'estimated_sarees': 60
+                },
+                {
+                    'sari_category': 'Mid-Segment Silk Sarees',
+                    'zari_type': 'TESTED_HALF_FINE_ZARI_COPPER_CORE',
+                    'zari_grade': 'HALF_FINE',
+                    'estimated_zari_weight_gm': 1200.0,
+                    'estimated_silver_gm': 0.0,
+                    'estimated_gold_gm': 0.0,
+                    'priority': 'MEDIUM',
+                    'origin_cluster': 'SURAT',
+                    'estimated_sarees': 100
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'ZARI-LOT-2024-0011',
+                    'sari_category': 'Authentic Kanchipuram Bridal',
+                    'estimated_sarees': 80,
+                    'estimated_zari_weight_gm': 2500.0,
+                    'target_grade': '1G',
+                    'target_origin': 'KANCHIPURAM'
+                },
+                {
+                    'lot_number': 'ZARI-LOT-2024-0012',
+                    'sari_category': 'Banarasi Kinkhab & Kadwa',
+                    'estimated_sarees': 60,
+                    'estimated_zari_weight_gm': 1800.0,
+                    'target_grade': '1G',
+                    'target_origin': 'BANARAS'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/assay/<assay_id>/quality-gate', methods=['POST'])
+@jwt_required()
+def update_zari_quality_gate(assay_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        allowed_fields = ['is_free_from_tarnishing', 'is_free_from_wire_cuts', 'luster_sheen_match']
+        updates = {k: data.get(k) for k in allowed_fields if k in data}
+        
+        if not updates:
+            return jsonify({'error': 'NoFieldsToUpdate', 'message': 'Provide at least one quality toggle'}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        set_clauses = []
+        params = []
+        for key, value in updates.items():
+            set_clauses.append(f"{key} = %s")
+            params.append(value)
+        params.append(assay_id)
+        
+        cur.execute(f"""
+            UPDATE zari_assay_records
+            SET {', '.join(set_clauses)}
+            WHERE id = %s::uuid
+            RETURNING id, assay_certificate_no
+        """, params)
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'AssayNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'assay_certificate_no': result['assay_certificate_no'],
+            'updated_fields': list(updates.keys()),
+            'message': 'Quality gate toggles updated'
+        }), 200
         
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500

@@ -15,6 +15,8 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - `007_sku_buyback_link.sql` — Links finished_sarees to sku_catalog for buyback valuation
 - `008_assistant_weaver.sql` — Assistant Weaver job logs, wage distributions, breakage alarms, shift audits, and guardrail triggers
 - `009_bobbin_winder.sql` — Bobbin Winder job cards, bobbin records, waste variance alarms, production certificates, and stock routing view
+- `010_inward_quality_gate.sql` — Inward Quality Gate framework for Filature Supplier with Gate Clerk, QC Inspector, and Quality Manager roles, quality intake records, approval workflow, and certificates
+- `011_zari_refinery.sql` — Zari Refinery Inward & Quality Screen with lot batches, metallurgical assay records, quality gate toggles, certificates, and sales forecast API plugin
 
 ### 2. Backend Microservices (9 services)
 | Service | Port | Purpose |
@@ -22,7 +24,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 | auth | 5000 | JWT authentication, login, refresh, logout |
 | scanner | 5001 | Input/output scanning with pre-step validation |
 | ai | 5002 | 6 AI inspection services (zari, dye, warp, fabric, weaving, forecasting) |
-| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing |
+| workflow | 5003 | Lot status, input queue, quarantine override, Kafka events, assistant weaver shift logs, wage splits, breakage alarms, bobbin winder job cards, waste guardrails, stock routing, inward quality gate, Zari refinery assay and certification |
 | iot | 5004 | MQTT telemetry ingestion, design injection to ECU |
 | design | 5005 | GAN design generation, design file management |
 | buyback | 5006 | Buy-back valuation, NFC verification, depreciation calculation |
@@ -55,6 +57,7 @@ A complete, production-ready AI-Powered Silk Saree Manufacturing ERP system with
 - GAN design generation with viability filtering
 - Assistant Weaver floor operations module with shift logs, wage splits, breakage alarms, and guardrail validation
 - Bobbin Winder module with winding job cards, bobbin records, waste guardrails, stock routing, and certificate generation
+- Zari Refinery module with lot batch intake, metallurgical assay (silver/gold purity), physical quality toggles, certificate issuance with precious metal valuation, and sales forecast API plugin
 - SKU product catalog: 480 variants across 18 hubs, 14 weave categories (CSV fully populated)
 - Buy-Back valuation engine uses SKU selling price as base value
 - IoT design injection validates SKU-hook compatibility
@@ -90,7 +93,9 @@ silk-erp/
 │   ├── 006_sku_catalog.sql
 │   ├── 007_sku_buyback_link.sql
 │   ├── 008_assistant_weaver.sql
-│   └── 009_bobbin_winder.sql
+│   ├── 009_bobbin_winder.sql
+│   ├── 010_inward_quality_gate.sql
+│   └── 011_zari_refinery.sql
 ├── services/
 │   ├── auth/
 │   ├── scanner/

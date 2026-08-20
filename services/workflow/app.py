@@ -13200,5 +13200,529 @@ def get_sales_forecast_log_finishing_transit_specialist():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# STORE INVENTORY MANAGER MODULE
+# ============================================================
+
+def validate_store_inventory_manager_guardrails(data):
+    """Validate store inventory manager inputs against business guardrails."""
+    errors = []
+    warnings = []
+    
+    inventory_movement_action = data.get('inventory_movement_action')
+    dye_lot_matching_verification = data.get('dye_lot_matching_verification')
+    inventory_item_type = data.get('inventory_item_type')
+    vault_climate_status = data.get('vault_climate_status')
+    quarantine_hold_status = data.get('quarantine_hold_status')
+    zari_spool_gross_weight_grams = data.get('zari_spool_gross_weight_grams')
+    yarn_dye_lot_batch_id = data.get('yarn_dye_lot_batch_id')
+
+    if inventory_movement_action == 'ISSUE_TO_WARP_PREP' and dye_lot_matching_verification == 'REJECTED_DYE_LOT_MISMATCH':
+        errors.append({
+            'code': 'DYE_LOT_MIXING_PROHIBITED',
+            'message': 'PREVENTS_WARP_SHADING_DEFECTS_ON_80_SAREE_RUN'
+        })
+        data['inventory_manager_approval_state'] = 'HOLD_UNVERIFIED_LOT'
+
+    if inventory_item_type == 'Tested Pure Gold/Silver Zari Spools':
+        if vault_climate_status in ('WARNING_HUMIDITY_HIGH', 'CRITICAL_TEMPERATURE_EXCEEDED'):
+            errors.append({
+                'code': 'VAULT_ISSUE_HALTED',
+                'message': 'ENVIRONMENTAL_EXCURSION_RISK_OF_ZARI_TARNISH'
+            })
+            data['inventory_manager_approval_state'] = 'HOLD_CLIMATE_EXCURSION'
+
+    if inventory_movement_action == 'RELEASE_TO_DISPATCH_WAREHOUSE' and quarantine_hold_status != 'CLEARED_FOR_REGULAR_STOCK':
+        errors.append({
+            'code': 'DENY_UNCERTIFIED_STOCK_RELEASE',
+            'message': 'ITEM_MUST_PASS_QA_AND_SILK_MARK_BEFORE_DISPATCH'
+        })
+
+    if inventory_item_type == 'Tested Pure Gold/Silver Zari Spools' and inventory_movement_action == 'RECONCILIATION_ADJUSTMENT' and zari_spool_gross_weight_grams is not None:
+        if yarn_dye_lot_batch_id:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT zari_spool_gross_weight_grams FROM store_inventory_manager_logs
+                WHERE inventory_item_type = 'Tested Pure Gold/Silver Zari Spools'
+                  AND yarn_dye_lot_batch_id = %s
+                  AND zari_spool_gross_weight_grams IS NOT NULL
+                ORDER BY created_at DESC LIMIT 1
+            """, (yarn_dye_lot_batch_id,))
+            prev = cur.fetchone()
+            cur.close()
+            conn.close()
+            if prev and prev['zari_spool_gross_weight_grams'] is not None:
+                variance_pct = abs(zari_spool_gross_weight_grams - prev['zari_spool_gross_weight_grams']) / prev['zari_spool_gross_weight_grams'] * 100
+                if variance_pct > 0.1:
+                    warnings.append({
+                        'code': 'PRECIOUS_METAL_WEIGHT_DISCREPANCY_DETECTED',
+                        'message': 'AUTO_ALERT_SECURITY_AND_FINANCE'
+                    })
+
+    return errors, warnings
+
+@app.route('/api/v1/store-inventory-manager/logs', methods=['POST'])
+@jwt_required()
+def create_store_inventory_manager_log():
+    try:
+        manager_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['inventory_placement_id', 'inventory_item_type']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (manager_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        validation_errors, validation_warnings = validate_store_inventory_manager_guardrails(data)
+        
+        cur.execute("""
+            INSERT INTO store_inventory_manager_logs (
+                inventory_placement_id, factory_node_id, store_inventory_manager_id,
+                quality_inspector_log_id, qa_dyeing_inspector_log_id, silk_mark_officer_log_id,
+                log_finishing_transit_specialist_log_id, sup_supervisor_log_id,
+                assistant_weaver_job_log_id, master_weaver_job_id, b2b_sales_order_ref,
+                inventory_item_type, yarn_dye_lot_batch_id, storage_bin_location_code,
+                vault_climate_status, target_loom_warp_set_id, dye_lot_matching_verification,
+                zari_spool_gross_weight_grams, quarantine_hold_status, source_grn_or_job_ref,
+                bin_location_aisle_zone, physical_package_count, scale_weight_at_storage_kg,
+                storage_ambient_humidity_pct, storage_temperature_celsius,
+                production_requisition_slip_no, issued_quantity_weight_kg,
+                authorized_recipient_employee_id, saree_piece_serial_id,
+                inventory_movement_action, inventory_manager_approval_state,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, inventory_placement_id
+        """, (
+            data.get('inventory_placement_id'),
+            factory_node_id,
+            manager_id,
+            data.get('quality_inspector_log_id'),
+            data.get('qa_dyeing_inspector_log_id'),
+            data.get('silk_mark_officer_log_id'),
+            data.get('log_finishing_transit_specialist_log_id'),
+            data.get('sup_supervisor_log_id'),
+            data.get('assistant_weaver_job_log_id'),
+            data.get('master_weaver_job_id'),
+            data.get('b2b_sales_order_ref'),
+            data.get('inventory_item_type', 'Pure Mulberry Silk Yarn (16/18d)'),
+            data.get('yarn_dye_lot_batch_id'),
+            data.get('storage_bin_location_code'),
+            data.get('vault_climate_status', 'OPTIMAL_CLIMATE_LOCKED'),
+            data.get('target_loom_warp_set_id'),
+            data.get('dye_lot_matching_verification', '100%_SINGLE_DYE_LOT_VERIFIED'),
+            data.get('zari_spool_gross_weight_grams'),
+            data.get('quarantine_hold_status', 'CLEARED_FOR_REGULAR_STOCK'),
+            data.get('source_grn_or_job_ref'),
+            data.get('bin_location_aisle_zone'),
+            data.get('physical_package_count'),
+            data.get('scale_weight_at_storage_kg'),
+            data.get('storage_ambient_humidity_pct'),
+            data.get('storage_temperature_celsius'),
+            data.get('production_requisition_slip_no'),
+            data.get('issued_quantity_weight_kg'),
+            data.get('authorized_recipient_employee_id'),
+            data.get('saree_piece_serial_id'),
+            data.get('inventory_movement_action', 'TRANSFER_TO_FINISHING_BAY'),
+            data.get('inventory_manager_approval_state', 'STOCK_RELEASE_APPROVED'),
+            json.dumps(validation_errors),
+            json.dumps(validation_warnings),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'inventory_placement_id': log_row['inventory_placement_id'],
+            'validation_errors': validation_errors,
+            'validation_warnings': validation_warnings,
+            'status': 'submitted'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/store-inventory-manager/logs', methods=['GET'])
+@jwt_required()
+def list_store_inventory_manager_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sim.id, sim.inventory_placement_id, sim.inventory_item_type,
+                   sim.yarn_dye_lot_batch_id, sim.storage_bin_location_code,
+                   sim.vault_climate_status, sim.inventory_manager_approval_state,
+                   sim.auto_assigned_routing, sim.dye_lot_matching_verification,
+                   sim.zari_spool_gross_weight_grams, sim.quarantine_hold_status,
+                   sim.inventory_movement_action, sim.saree_piece_serial_id,
+                   sim.storage_ambient_humidity_pct, sim.storage_temperature_celsius,
+                   sim.created_at,
+                   u.full_name AS manager_name
+            FROM store_inventory_manager_logs sim
+            LEFT JOIN users u ON sim.store_inventory_manager_id = u.id
+            WHERE sim.store_inventory_manager_id = %s::uuid
+            ORDER BY sim.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(log['id']),
+                    'inventory_placement_id': log['inventory_placement_id'],
+                    'inventory_item_type': log['inventory_item_type'],
+                    'yarn_dye_lot_batch_id': log['yarn_dye_lot_batch_id'],
+                    'storage_bin_location_code': log['storage_bin_location_code'],
+                    'vault_climate_status': log['vault_climate_status'],
+                    'inventory_manager_approval_state': log['inventory_manager_approval_state'],
+                    'auto_assigned_routing': log['auto_assigned_routing'],
+                    'dye_lot_matching_verification': log['dye_lot_matching_verification'],
+                    'zari_spool_gross_weight_grams': float(log['zari_spool_gross_weight_grams']) if log['zari_spool_gross_weight_grams'] else None,
+                    'quarantine_hold_status': log['quarantine_hold_status'],
+                    'inventory_movement_action': log['inventory_movement_action'],
+                    'saree_piece_serial_id': log['saree_piece_serial_id'],
+                    'storage_ambient_humidity_pct': float(log['storage_ambient_humidity_pct']) if log['storage_ambient_humidity_pct'] else None,
+                    'storage_temperature_celsius': float(log['storage_temperature_celsius']) if log['storage_temperature_celsius'] else None,
+                    'created_at': log['created_at'].isoformat() if log['created_at'] else None,
+                    'manager_name': log['manager_name']
+                }
+                for log in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/store-inventory-manager/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_store_inventory_manager_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT sim.*,
+                   u.full_name AS manager_name
+            FROM store_inventory_manager_logs sim
+            LEFT JOIN users u ON sim.store_inventory_manager_id = u.id
+            WHERE sim.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'inventory_placement_id': log['inventory_placement_id'],
+            'factory_node_id': log['factory_node_id'],
+            'store_inventory_manager_id': str(log['store_inventory_manager_id']),
+            'quality_inspector_log_id': str(log['quality_inspector_log_id']) if log['quality_inspector_log_id'] else None,
+            'qa_dyeing_inspector_log_id': str(log['qa_dyeing_inspector_log_id']) if log['qa_dyeing_inspector_log_id'] else None,
+            'silk_mark_officer_log_id': str(log['silk_mark_officer_log_id']) if log['silk_mark_officer_log_id'] else None,
+            'log_finishing_transit_specialist_log_id': str(log['log_finishing_transit_specialist_log_id']) if log['log_finishing_transit_specialist_log_id'] else None,
+            'b2b_sales_order_ref': log['b2b_sales_order_ref'],
+            'inventory_item_type': log['inventory_item_type'],
+            'yarn_dye_lot_batch_id': log['yarn_dye_lot_batch_id'],
+            'storage_bin_location_code': log['storage_bin_location_code'],
+            'vault_climate_status': log['vault_climate_status'],
+            'target_loom_warp_set_id': log['target_loom_warp_set_id'],
+            'dye_lot_matching_verification': log['dye_lot_matching_verification'],
+            'zari_spool_gross_weight_grams': float(log['zari_spool_gross_weight_grams']) if log['zari_spool_gross_weight_grams'] else None,
+            'quarantine_hold_status': log['quarantine_hold_status'],
+            'source_grn_or_job_ref': log['source_grn_or_job_ref'],
+            'bin_location_aisle_zone': log['bin_location_aisle_zone'],
+            'physical_package_count': log['physical_package_count'],
+            'scale_weight_at_storage_kg': float(log['scale_weight_at_storage_kg']) if log['scale_weight_at_storage_kg'] else None,
+            'storage_ambient_humidity_pct': float(log['storage_ambient_humidity_pct']) if log['storage_ambient_humidity_pct'] else None,
+            'storage_temperature_celsius': float(log['storage_temperature_celsius']) if log['storage_temperature_celsius'] else None,
+            'production_requisition_slip_no': log['production_requisition_slip_no'],
+            'issued_quantity_weight_kg': float(log['issued_quantity_weight_kg']) if log['issued_quantity_weight_kg'] else None,
+            'authorized_recipient_employee_id': log['authorized_recipient_employee_id'],
+            'saree_piece_serial_id': log['saree_piece_serial_id'],
+            'inventory_movement_action': log['inventory_movement_action'],
+            'inventory_manager_approval_state': log['inventory_manager_approval_state'],
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'certificate_hash': log['certificate_hash'],
+            'qr_tag_id': log['qr_tag_id'],
+            'created_at': log['created_at'].isoformat() if log['created_at'] else None,
+            'manager_name': log['manager_name']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/store-inventory-manager/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_store_inventory_manager_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, inventory_placement_id, validation_errors, inventory_manager_approval_state
+            FROM store_inventory_manager_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['inventory_placement_id'])
+        qr_tag_id = 'INV-' + log['inventory_placement_id']
+        
+        cur.execute("""
+            UPDATE store_inventory_manager_logs
+            SET certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, inventory_placement_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO store_inventory_manager_certificates (
+                store_inventory_manager_log_id, certificate_hash, qr_tag_id,
+                inventory_placement_id, saree_piece_serial_id, inventory_item_type,
+                yarn_dye_lot_batch_id, storage_bin_location_code, vault_climate_status,
+                dye_lot_matching_verification, zari_spool_gross_weight_grams,
+                quarantine_hold_status, inventory_movement_action, inventory_manager_approval_state,
+                scale_weight_at_storage_kg, storage_ambient_humidity_pct, storage_temperature_celsius,
+                issued_quantity_weight_kg, manager_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.inventory_placement_id,
+                pj.saree_piece_serial_id,
+                pj.inventory_item_type,
+                pj.yarn_dye_lot_batch_id,
+                pj.storage_bin_location_code,
+                pj.vault_climate_status,
+                pj.dye_lot_matching_verification,
+                pj.zari_spool_gross_weight_grams,
+                pj.quarantine_hold_status,
+                pj.inventory_movement_action,
+                pj.inventory_manager_approval_state,
+                pj.scale_weight_at_storage_kg,
+                pj.storage_ambient_humidity_pct,
+                pj.storage_temperature_celsius,
+                pj.issued_quantity_weight_kg,
+                pj.store_inventory_manager_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'inventory_placement_id', pj.inventory_placement_id,
+                    'inventory_item_type', pj.inventory_item_type,
+                    'yarn_dye_lot_batch_id', pj.yarn_dye_lot_batch_id,
+                    'storage_bin_location_code', pj.storage_bin_location_code,
+                    'vault_climate_status', pj.vault_climate_status,
+                    'dye_lot_matching_verification', pj.dye_lot_matching_verification,
+                    'zari_spool_gross_weight_grams', pj.zari_spool_gross_weight_grams,
+                    'quarantine_hold_status', pj.quarantine_hold_status,
+                    'inventory_movement_action', pj.inventory_movement_action,
+                    'inventory_manager_approval_state', pj.inventory_manager_approval_state,
+                    'saree_piece_serial_id', pj.saree_piece_serial_id
+                )
+            FROM store_inventory_manager_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'inventory_placement_id': result['inventory_placement_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'STOCK_RELEASE_APPROVED',
+            'message': 'Inventory certification issued and stock released'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/store-inventory-manager/certificates', methods=['GET'])
+@jwt_required()
+def list_store_inventory_manager_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT simc.id, simc.certificate_hash, simc.qr_tag_id,
+                   simc.inventory_placement_id, simc.saree_piece_serial_id,
+                   simc.inventory_item_type, simc.yarn_dye_lot_batch_id,
+                   simc.storage_bin_location_code, simc.vault_climate_status,
+                   simc.dye_lot_matching_verification, simc.zari_spool_gross_weight_grams,
+                   simc.quarantine_hold_status, simc.inventory_movement_action,
+                   simc.inventory_manager_approval_state, simc.status, simc.certified_at
+            FROM store_inventory_manager_certificates simc
+            WHERE simc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY simc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'inventory_placement_id': c['inventory_placement_id'],
+                    'saree_piece_serial_id': c['saree_piece_serial_id'],
+                    'inventory_item_type': c['inventory_item_type'],
+                    'yarn_dye_lot_batch_id': c['yarn_dye_lot_batch_id'],
+                    'storage_bin_location_code': c['storage_bin_location_code'],
+                    'vault_climate_status': c['vault_climate_status'],
+                    'dye_lot_matching_verification': c['dye_lot_matching_verification'],
+                    'zari_spool_gross_weight_grams': float(c['zari_spool_gross_weight_grams']) if c['zari_spool_gross_weight_grams'] else None,
+                    'quarantine_hold_status': c['quarantine_hold_status'],
+                    'inventory_movement_action': c['inventory_movement_action'],
+                    'inventory_manager_approval_state': c['inventory_manager_approval_state'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR STORE INVENTORY MANAGER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/store-inventory-manager', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_store_inventory_manager():
+    """
+    API plugin endpoint for sales team store inventory manager material processing forecast.
+    Returns forecasted inventory, stock, and material requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'inventory_item_type': 'Pure Mulberry Silk Yarn (16/18d)',
+                    'yarn_dye_lot_batch_id': 'YDL-2024-001',
+                    'storage_bin_location_code': 'SILK-RACK-B04',
+                    'vault_climate_status': 'OPTIMAL_CLIMATE_LOCKED',
+                    'dye_lot_matching_verification': '100%_SINGLE_DYE_LOT_VERIFIED',
+                    'estimated_stock_kg': 500,
+                    'reorder_point_kg': 100,
+                    'priority': 'HIGH'
+                },
+                {
+                    'inventory_item_type': 'Tested Pure Gold/Silver Zari Spools',
+                    'yarn_dye_lot_batch_id': 'ZARI-2024-001',
+                    'storage_bin_location_code': 'VAULT-ZARI-A01',
+                    'vault_climate_status': 'OPTIMAL_CLIMATE_LOCKED',
+                    'dye_lot_matching_verification': '100%_SINGLE_DYE_LOT_VERIFIED',
+                    'estimated_stock_kg': 50,
+                    'reorder_point_kg': 20,
+                    'priority': 'HIGH'
+                },
+                {
+                    'inventory_item_type': 'Dye Chemicals',
+                    'yarn_dye_lot_batch_id': 'DYE-2024-001',
+                    'storage_bin_location_code': 'CHEM-VAULT-C01',
+                    'vault_climate_status': 'OPTIMAL_CLIMATE_LOCKED',
+                    'dye_lot_matching_verification': '100%_SINGLE_DYE_LOT_VERIFIED',
+                    'estimated_stock_kg': 200,
+                    'reorder_point_kg': 50,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'INV-LOT-2024-0011',
+                    'inventory_item_type': 'Pure Mulberry Silk Yarn (16/18d)',
+                    'yarn_dye_lot_batch_id': 'YDL-2024-0011',
+                    'estimated_stock_kg': 500
+                },
+                {
+                    'lot_number': 'INV-LOT-2024-0012',
+                    'inventory_item_type': 'Tested Pure Gold/Silver Zari Spools',
+                    'yarn_dye_lot_batch_id': 'ZARI-2024-0012',
+                    'estimated_stock_kg': 50
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

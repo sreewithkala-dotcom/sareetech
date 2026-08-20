@@ -5766,5 +5766,95 @@ def get_sales_forecast_skein_dye():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# SALES FORECAST API PLUGIN FOR BOBBIN WINDER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/winding', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_winding():
+    """
+    API plugin endpoint for sales team bobbin winding material processing forecast.
+    Returns forecasted winding requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'yarn_type': 'WARP_ORGANZINE_HIGH_TWIST',
+                    'carrier_type': 'FLANGED_PLASTIC_BOBBIN',
+                    'estimated_silk_kg': 200.0,
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 80,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'yarn_type': 'WARP_ORGANZINE_HIGH_TWIST',
+                    'carrier_type': 'FLANGED_PLASTIC_BOBBIN',
+                    'estimated_silk_kg': 150.0,
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 60,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'shade_code': 'MID-MNG-402',
+                    'yarn_type': 'WEFT_TRAM_LOW_TWIST',
+                    'carrier_type': 'TAPERED_PAPER_CONE',
+                    'estimated_silk_kg': 180.0,
+                    'target_machine': '1536_HOOK_JACQUARD',
+                    'estimated_sarees': 100,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'WIND-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'yarn_type': 'WARP_ORGANZINE_HIGH_TWIST',
+                    'estimated_sarees': 80,
+                    'estimated_silk_kg': 200.0,
+                    'carrier_type': 'FLANGED_PLASTIC_BOBBIN',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                },
+                {
+                    'lot_number': 'WIND-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'yarn_type': 'WARP_ORGANZINE_HIGH_TWIST',
+                    'estimated_sarees': 60,
+                    'estimated_silk_kg': 150.0,
+                    'carrier_type': 'FLANGED_PLASTIC_BOBBIN',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

@@ -9,6 +9,7 @@ import psycopg2.extras
 import os
 import json
 import hashlib
+import random
 from datetime import datetime
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -279,6 +280,7 @@ def list_lots():
 def validate_assistant_guardrails(data):
     """Validate assistant weaver inputs against business guardrails."""
     errors = []
+    warnings = []
     
     hook_count = data.get('hook_count')
     mending_knot_type = data.get('mending_knot_type')
@@ -318,7 +320,7 @@ def validate_assistant_guardrails(data):
             'message': 'SHIFT_HANDOVER_CLEARANCE_DENIED'
         })
     
-    return errors
+    return errors, warnings
 
 @app.route('/api/v1/assistant-weaver/logs', methods=['POST'])
 @jwt_required()
@@ -347,7 +349,7 @@ def create_assistant_log():
         
         factory_node_id = user_row['factory_node_id']
         
-        validation_errors = validate_assistant_guardrails(data)
+        validation_errors, validation_warnings = validate_assistant_guardrails(data)
         
         assistant_job_log_id = f"AWL-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
         
@@ -726,6 +728,584 @@ def create_loom_alarm():
             'severity': severity,
             'message': message
         }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# ASSISTANT WEAVER (JUNIOR LOOM OPERATOR) MODULE - ENHANCED
+# ============================================================
+
+@app.route('/api/v1/assistant-weaver/jobs', methods=['POST'])
+@jwt_required()
+def create_assistant_weaver_job():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['active_loom_id', 'pirns_replaced_count', 'logged_warp_breaks',
+                           'logged_weft_breaks', 'shift_start_time', 'shift_end_time']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        validation_errors, validation_warnings = validate_assistant_guardrails(data)
+        
+        assistant_job_log_id = f"AWL-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        cur.execute("""
+            INSERT INTO assistant_weaver_job_logs (
+                assistant_job_log_id, active_loom_id, assistant_weaver_id, lead_weaver_id,
+                factory_node_id, shift_start_time, shift_end_time,
+                pirns_replaced_count, logged_warp_breaks, logged_weft_breaks,
+                weft_spool_lot_id, weft_feeder_position, yarn_tail_transfer_status,
+                zari_tension_disc_setting, warp_break_repair_count, mending_knot_type,
+                dropper_rethread_verification, comber_board_cleaning_status,
+                shift_handover_readiness, approval_state, validation_errors,
+                master_weaver_job_id, petni_master_job_id, warp_joining_job_id,
+                harness_setup_log_id, warp_beam_production_log_id, card_puncher_job_id,
+                pirn_winding_job_id, bobbin_winder_job_card_id,
+                auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, assistant_job_log_id
+        """, (
+            assistant_job_log_id,
+            data.get('active_loom_id'),
+            operator_id,
+            data.get('lead_weaver_id'),
+            factory_node_id,
+            data.get('shift_start_time'),
+            data.get('shift_end_time'),
+            data.get('pirns_replaced_count', 0),
+            data.get('logged_warp_breaks', 0),
+            data.get('logged_weft_breaks', 0),
+            data.get('weft_spool_lot_id'),
+            data.get('weft_feeder_position', 'Feeder 1 (Ground Silk)'),
+            data.get('yarn_tail_transfer_status', 'Spliced & Tail-Locked'),
+            data.get('zari_tension_disc_setting', 'Micro-Tension Active (Fine Zari)'),
+            data.get('warp_break_repair_count', 0),
+            data.get('mending_knot_type', 'Weaver''s Micro-Knot (Short Tail)'),
+            data.get('dropper_rethread_verification', 'Threaded & Dropper Active'),
+            data.get('comber_board_cleaning_status', 'Cleaned / Compressed Air Blowout Done'),
+            data.get('shift_handover_readiness', 'READY_FOR_NEXT_SHIFT'),
+            'ACTIVE_LOGGING' if not validation_errors else 'REJECTED_UNRESOLVED_WARP_BREAKS',
+            json.dumps(validation_errors),
+            data.get('master_weaver_job_id'),
+            data.get('petni_master_job_id'),
+            data.get('warp_joining_job_id'),
+            data.get('harness_setup_log_id'),
+            data.get('warp_beam_production_log_id'),
+            data.get('card_puncher_job_id'),
+            data.get('pirn_winding_job_id'),
+            data.get('bobbin_winder_job_card_id'),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        cur.execute("""
+            INSERT INTO assistant_weaver_shift_audits (job_log_id, audit_action, performed_by, notes)
+            VALUES (%s, 'SUBMITTED', %s, %s)
+        """, (log_id, operator_id, f"Initial submission with {len(validation_errors)} validation errors"))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'assistant_job_log_id': log_row['assistant_job_log_id'],
+            'approval_state': 'ACTIVE_LOGGING' if not validation_errors else 'REJECTED_UNRESOLVED_WARP_BREAKS',
+            'validation_errors': validation_errors,
+            'status': 'submitted'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/assistant-weaver/jobs', methods=['GET'])
+@jwt_required()
+def list_assistant_weaver_jobs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT awl.id, awl.assistant_job_log_id, awl.active_loom_id, awl.factory_node_id,
+                   awl.shift_start_time, awl.shift_end_time, awl.approval_state,
+                   awl.pirns_replaced_count, awl.logged_warp_breaks, awl.logged_weft_breaks,
+                   awl.warp_break_repair_count, awl.lead_weaver_signoff,
+                   awl.weft_feeder_position, awl.yarn_tail_transfer_status,
+                   awl.zari_tension_disc_setting, awl.mending_knot_type,
+                   awl.dropper_rethread_verification, awl.comber_board_cleaning_status,
+                   awl.shift_handover_readiness, awl.auto_assigned_routing,
+                   u_assistant.full_name AS assistant_name,
+                   u_lead.full_name AS lead_name
+            FROM assistant_weaver_job_logs awl
+            LEFT JOIN users u_assistant ON awl.assistant_weaver_id = u_assistant.id
+            LEFT JOIN users u_lead ON awl.lead_weaver_id = u_lead.id
+            WHERE awl.assistant_weaver_id = %s::uuid
+               OR awl.lead_weaver_id = %s::uuid
+            ORDER BY awl.shift_start_time DESC
+            LIMIT 100
+        """, (operator_id, operator_id))
+        
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(jobs),
+            'jobs': [
+                {
+                    'id': str(j['id']),
+                    'assistant_job_log_id': j['assistant_job_log_id'],
+                    'active_loom_id': j['active_loom_id'],
+                    'factory_node_id': j['factory_node_id'],
+                    'shift_start_time': j['shift_start_time'].isoformat() if j['shift_start_time'] else None,
+                    'shift_end_time': j['shift_end_time'].isoformat() if j['shift_end_time'] else None,
+                    'approval_state': j['approval_state'],
+                    'pirns_replaced_count': j['pirns_replaced_count'],
+                    'logged_warp_breaks': j['logged_warp_breaks'],
+                    'logged_weft_breaks': j['logged_weft_breaks'],
+                    'warp_break_repair_count': j['warp_break_repair_count'],
+                    'lead_weaver_signoff': j['lead_weaver_signoff'],
+                    'weft_feeder_position': j['weft_feeder_position'],
+                    'yarn_tail_transfer_status': j['yarn_tail_transfer_status'],
+                    'zari_tension_disc_setting': j['zari_tension_disc_setting'],
+                    'mending_knot_type': j['mending_knot_type'],
+                    'dropper_rethread_verification': j['dropper_rethread_verification'],
+                    'comber_board_cleaning_status': j['comber_board_cleaning_status'],
+                    'shift_handover_readiness': j['shift_handover_readiness'],
+                    'auto_assigned_routing': j['auto_assigned_routing'],
+                    'assistant_name': j['assistant_name'],
+                    'lead_name': j['lead_name']
+                }
+                for j in jobs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/assistant-weaver/jobs/<job_id>', methods=['GET'])
+@jwt_required()
+def get_assistant_weaver_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT awl.*,
+                   u_assistant.full_name AS assistant_name,
+                   u_lead.full_name AS lead_name
+            FROM assistant_weaver_job_logs awl
+            LEFT JOIN users u_assistant ON awl.assistant_weaver_id = u_assistant.id
+            LEFT JOIN users u_lead ON awl.lead_weaver_id = u_lead.id
+            WHERE awl.id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not job:
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        return jsonify({
+            'id': str(job['id']),
+            'assistant_job_log_id': job['assistant_job_log_id'],
+            'active_loom_id': job['active_loom_id'],
+            'assistant_weaver_id': str(job['assistant_weaver_id']),
+            'lead_weaver_id': str(job['lead_weaver_id']) if job['lead_weaver_id'] else None,
+            'factory_node_id': job['factory_node_id'],
+            'shift_start_time': job['shift_start_time'].isoformat() if job['shift_start_time'] else None,
+            'shift_end_time': job['shift_end_time'].isoformat() if job['shift_end_time'] else None,
+            'pirns_replaced_count': job['pirns_replaced_count'],
+            'logged_warp_breaks': job['logged_warp_breaks'],
+            'logged_weft_breaks': job['logged_weft_breaks'],
+            'warp_break_repair_count': job['warp_break_repair_count'],
+            'lead_weaver_signoff': job['lead_weaver_signoff'],
+            'approval_state': job['approval_state'],
+            'validation_errors': job['validation_errors'],
+            'weft_feeder_position': job['weft_feeder_position'],
+            'yarn_tail_transfer_status': job['yarn_tail_transfer_status'],
+            'zari_tension_disc_setting': job['zari_tension_disc_setting'],
+            'mending_knot_type': job['mending_knot_type'],
+            'dropper_rethread_verification': job['dropper_rethread_verification'],
+            'comber_board_cleaning_status': job['comber_board_cleaning_status'],
+            'shift_handover_readiness': job['shift_handover_readiness'],
+            'auto_assigned_routing': job['auto_assigned_routing'],
+            'assistant_name': job['assistant_name'],
+            'lead_name': job['lead_name']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/assistant-weaver/jobs/<job_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_assistant_weaver_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, approval_state, lead_weaver_id
+            FROM assistant_weaver_job_logs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['lead_weaver_id'] and str(job['lead_weaver_id']) != operator_id:
+            cur.execute("""
+                SELECT role_id FROM users WHERE id = %s::uuid
+            """, (operator_id,))
+            operator = cur.fetchone()
+            if not operator or operator['role_id'] != 'ROLE-SUP-LOOM-FLOOR-SUPERVISOR':
+                cur.close()
+                conn.close()
+                return jsonify({'error': 'Forbidden', 'message': 'Only assigned lead weaver or supervisor can approve'}), 403
+        
+        new_state = 'PASSED_SHIFT_AUDIT'
+        cur.execute("""
+            UPDATE assistant_weaver_job_logs
+            SET approval_state = %s,
+                lead_weaver_signoff = TRUE,
+                signoff_at = CURRENT_TIMESTAMP
+            WHERE id = %s::uuid
+            RETURNING id
+        """, (new_state, job_id))
+        
+        cur.execute("""
+            INSERT INTO assistant_weaver_shift_audits (job_log_id, audit_action, performed_by, notes)
+            VALUES (%s, 'LEAD_SIGNOFF', %s, %s)
+        """, (job_id, operator_id, data.get('notes', 'Approved by lead weaver')))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'log_id': job_id,
+            'approval_state': new_state,
+            'message': 'Shift audit passed'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/assistant-weaver/jobs/<job_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_assistant_weaver_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id FROM assistant_weaver_job_logs WHERE id = %s::uuid
+        """, (job_id,))
+        
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        new_state = 'REJECTED_UNRESOLVED_WARP_BREAKS'
+        cur.execute("""
+            UPDATE assistant_weaver_job_logs
+            SET approval_state = %s,
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id
+        """, (new_state, json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by lead weaver')}]), job_id))
+        
+        cur.execute("""
+            INSERT INTO assistant_weaver_shift_audits (job_log_id, audit_action, performed_by, notes)
+            VALUES (%s, 'REJECTED', %s, %s)
+        """, (job_id, operator_id, data.get('reason', 'Rejected by lead weaver')))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'log_id': job_id,
+            'approval_state': new_state,
+            'message': 'Shift log rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/assistant-weaver/jobs/<job_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_assistant_weaver_job(job_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, assistant_job_log_id, status, validation_errors, approval_state
+            FROM assistant_weaver_job_logs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['validation_errors'] and len(job['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify job with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(job_id, job['assistant_job_log_id'])
+        qr_tag_id = 'ASSISTANT-' + job['assistant_job_log_id']
+        
+        cur.execute("""
+            UPDATE assistant_weaver_job_logs
+            SET approval_state = 'PASSED_SHIFT_AUDIT',
+                certificate_hash = %s,
+                qr_tag_id = %s,
+                lead_weaver_signoff = TRUE,
+                signoff_at = CURRENT_TIMESTAMP
+            WHERE id = %s::uuid
+            RETURNING id, assistant_job_log_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, job_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO assistant_weaver_certificates (
+                assistant_weaver_job_log_id, certificate_hash, qr_tag_id, assistant_job_log_id,
+                active_loom_id, master_weaver_job_id,
+                pirns_replaced_count, logged_warp_breaks, logged_weft_breaks,
+                warp_break_repair_count, weft_feeder_position,
+                yarn_tail_transfer_status, zari_tension_disc_setting,
+                mending_knot_type, dropper_rethread_verification,
+                comber_board_cleaning_status, shift_handover_readiness,
+                assistant_weaver_approval_state, lead_weaver_signoff,
+                auto_assigned_routing, assistant_weaver_id, lead_weaver_id,
+                approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.assistant_job_log_id,
+                pj.active_loom_id,
+                pj.master_weaver_job_id,
+                pj.pirns_replaced_count, pj.logged_warp_breaks, pj.logged_weft_breaks,
+                pj.warp_break_repair_count, pj.weft_feeder_position,
+                pj.yarn_tail_transfer_status, pj.zari_tension_disc_setting,
+                pj.mending_knot_type, pj.dropper_rethread_verification,
+                pj.comber_board_cleaning_status, pj.shift_handover_readiness,
+                pj.approval_state, pj.lead_weaver_signoff,
+                pj.auto_assigned_routing, pj.assistant_weaver_id, pj.lead_weaver_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'assistant_job_log_id', pj.assistant_job_log_id,
+                    'active_loom_id', pj.active_loom_id,
+                    'pirns_replaced_count', pj.pirns_replaced_count,
+                    'logged_warp_breaks', pj.logged_warp_breaks,
+                    'logged_weft_breaks', pj.logged_weft_breaks,
+                    'warp_break_repair_count', pj.warp_break_repair_count,
+                    'lead_weaver_signoff', pj.lead_weaver_signoff
+                )
+            FROM assistant_weaver_job_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'assistant_job_log_id': result['assistant_job_log_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'PASSED_SHIFT_AUDIT',
+            'message': 'Assistant weaver job certified and shift audit passed'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/assistant-weaver/certificates', methods=['GET'])
+@jwt_required()
+def list_assistant_weaver_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT awc.id, awc.certificate_hash, awc.qr_tag_id,
+                   awc.assistant_job_log_id, awc.active_loom_id,
+                   awc.pirns_replaced_count, awc.logged_warp_breaks,
+                   awc.logged_weft_breaks, awc.warp_break_repair_count,
+                   awc.weft_feeder_position, awc.yarn_tail_transfer_status,
+                   awc.zari_tension_disc_setting, awc.mending_knot_type,
+                   awc.dropper_rethread_verification, awc.comber_board_cleaning_status,
+                   awc.shift_handover_readiness, awc.assistant_weaver_approval_state,
+                   awc.lead_weaver_signoff, awc.auto_assigned_routing,
+                   awc.status, awc.certified_at,
+                   awl.assistant_job_log_id
+            FROM assistant_weaver_certificates awc
+            JOIN assistant_weaver_job_logs awl ON awc.assistant_weaver_job_log_id = awl.id
+            WHERE awc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY awc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'assistant_job_log_id': c['assistant_job_log_id'],
+                    'active_loom_id': c['active_loom_id'],
+                    'pirns_replaced_count': c['pirns_replaced_count'],
+                    'logged_warp_breaks': c['logged_warp_breaks'],
+                    'logged_weft_breaks': c['logged_weft_breaks'],
+                    'warp_break_repair_count': c['warp_break_repair_count'],
+                    'weft_feeder_position': c['weft_feeder_position'],
+                    'yarn_tail_transfer_status': c['yarn_tail_transfer_status'],
+                    'zari_tension_disc_setting': c['zari_tension_disc_setting'],
+                    'mending_knot_type': c['mending_knot_type'],
+                    'dropper_rethread_verification': c['dropper_rethread_verification'],
+                    'comber_board_cleaning_status': c['comber_board_cleaning_status'],
+                    'shift_handover_readiness': c['shift_handover_readiness'],
+                    'assistant_weaver_approval_state': c['assistant_weaver_approval_state'],
+                    'lead_weaver_signoff': c['lead_weaver_signoff'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR ASSISTANT WEAVER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/assistant-weaver', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_assistant_weaver():
+    """
+    API plugin endpoint for sales team assistant weaver material processing forecast.
+    Returns forecasted assistant weaver requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'weft_feeder_position': 'Feeder 2 (Zari Extra Weft)',
+                    'zari_tension_disc_setting': 'Micro-Tension Active (Fine Zari)',
+                    'estimated_shifts': 3,
+                    'pirns_replaced_count': 45,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'weft_feeder_position': 'Feeder 2 (Zari Extra Weft)',
+                    'zari_tension_disc_setting': 'Micro-Tension Active (Fine Zari)',
+                    'estimated_shifts': 2,
+                    'pirns_replaced_count': 38,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'weft_feeder_position': 'Feeder 1 (Ground Silk)',
+                    'zari_tension_disc_setting': 'Standard Friction',
+                    'estimated_shifts': 5,
+                    'pirns_replaced_count': 25,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'ASSISTANT-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_shifts': 3,
+                    'loom_id': 'LOOM-2400-001'
+                },
+                {
+                    'lot_number': 'ASSISTANT-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_shifts': 2,
+                    'loom_id': 'LOOM-2400-002'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
         
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500

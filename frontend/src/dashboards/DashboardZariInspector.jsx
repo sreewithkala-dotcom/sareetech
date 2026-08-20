@@ -6,104 +6,151 @@ import { useDashboard } from '../contexts/DashboardContext'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5003/api/v1'
 
 const ZARI_TABS = [
-  { id: 'lot-batch', label: 'Zari Lot Batch — Pre-Process Entry' },
-  { id: 'assay', label: 'Metallurgical & Assay — Post-Process' },
-  { id: 'quality-gate', label: 'Quality Gate — Physical Toggle' },
-  { id: 'certificates', label: 'Certificates — Post-Process Output' },
-  { id: 'sales-forecast', label: 'Sales Forecast — Material Plan' },
+  { id: 'preprocess', label: 'Pre-Process from Zari Refinery' },
+  { id: 'xrf-purity', label: 'XRF & Purity Verification' },
+  { id: 'physical-geometrics', label: 'Physical & Geometrics Inspection' },
+  { id: 'aesthetic-weight', label: 'Aesthetic & Weight Audit' },
+  { id: 'defect-routing', label: 'Defect Logging & ERP Routing' },
+  { id: 'certificates-forecast', label: 'Certificates & Sales Forecast' },
 ]
 
 const ZARI_TYPE_OPTIONS = [
-  { value: 'PURE_REAL_ZARI_GOLD_SILVER', label: 'Pure / Real Zari (Gold & Silver)' },
-  { value: 'TESTED_HALF_FINE_ZARI_COPPER_CORE', label: 'Tested / Half-Fine Zari (Copper-Core)' },
-  { value: 'IMITATION_METALLIC_ZARI', label: 'Imitation / Metallic Zari (Polyester Film)' },
+  { value: 'REAL_ZARI_GOLD_SILVER', label: 'Real Zari (Gold & Silver)' },
+  { value: 'REAL_ZARI_PURE_SILVER_WHITE', label: 'Real Zari (Pure Silver White)' },
+  { value: 'HALF_FINE_ZARI_SILVER_COPPER', label: 'Half-Fine Zari (Silver-Copper)' },
+  { value: 'HALF_FINE_ZARI_NICKEL_CORE', label: 'Half-Fine Zari (Nickel Core)' },
+  { value: 'IMITATION_ZARI_METALLIZED_POLYESTER', label: 'Imitation Zari (Metallized Polyester)' },
+  { value: 'PLASTIC_ZARI_LUREX', label: 'Plastic Zari Lurex' },
 ]
 
 const ORIGIN_CLUSTER_OPTIONS = [
-  { value: 'SURAT', label: 'Surat' },
-  { value: 'KANCHIPURAM', label: 'Kanchipuram' },
-  { value: 'DHARMAVARAM', label: 'Dharmavaram' },
-  { value: 'BANARAS', label: 'Banaras' },
-  { value: 'MYSORE', label: 'Mysore' },
-  { value: 'COCHIN', label: 'Cochin' },
-  { value: 'KOLKATA', label: 'Kolkata' },
-  { value: 'AHMEDABAD', label: 'Ahmedabad' },
+  { value: 'SURAT_GUJARAT', label: 'Surat, Gujarat' },
+  { value: 'KANCHIPURAM_TAMIL_NADU', label: 'Kanchipuram, Tamil Nadu' },
+  { value: 'VARANASI_UTTAR_PRADESH', label: 'Varanasi, Uttar Pradesh' },
+  { value: 'KYOTO_JAPAN', label: 'Kyoto, Japan' },
+  { value: 'LYON_FRANCE', label: 'Lyon, France' },
+  { value: 'CHANGZHOU_CHINA', label: 'Changzhou, China' },
 ]
 
 const CORE_YARN_OPTIONS = [
-  { value: 'PURE_SILK_THREAD_RED_DYED', label: 'Pure Silk Thread (Red Dyed)' },
-  { value: 'PURE_SILK_THREAD_YELLOW_DYED', label: 'Pure Silk Thread (Yellow Dyed)' },
-  { value: 'PURE_COTTON_THREAD', label: 'Pure Cotton Thread' },
-  { value: 'POLYESTER_FILAMENT', label: 'Polyester Filament' },
-  { value: 'NYLON_FILAMENT', label: 'Nylon Filament' },
+  { value: 'PURE_SILK_RED_MAROON_DYED', label: 'Pure Silk (Red/Maroon Dyed)' },
+  { value: 'PURE_SILK_UN_DYED_WHITE', label: 'Pure Silk (Undyed White)' },
+  { value: 'PURE_COTTON_COMBED_FINE', label: 'Pure Cotton (Combed Fine)' },
+  { value: 'POLYESTER_FILAMENT_HIGH_TENACITY', label: 'Polyester Filament (High Tenacity)' },
+  { value: 'VISCOSE_RAYON_CORE', label: 'Viscose Rayon Core' },
+  { value: 'NYLON_MONOFILAMENT', label: 'Nylon Monofilament' },
 ]
 
 const DENIER_OPTIONS = [
-  { value: '1200_YARDS_PER_OUNCE', label: '1200 Yards/Ounce' },
-  { value: '1300_YARDS_PER_OUNCE', label: '1300 Yards/Ounce' },
-  { value: '1400_YARDS_PER_OUNCE', label: '1400 Yards/Ounce' },
-  { value: '1500_YARDS_PER_OUNCE', label: '1500 Yards/Ounce' },
+  { value: '13/15_DENIER', label: '13/15 Denier — Ultra-fine' },
+  { value: '16/18_DENIER', label: '16/18 Denier — Fine' },
+  { value: '20/22_DENIER', label: '20/22 Denier — Industry Standard' },
+  { value: '24/26_DENIER', label: '24/26 Denier — Medium-heavy' },
+  { value: '28/30_DENIER', label: '28/30 Denier — Heavy' },
 ]
 
-const BOBBIN_TYPE_OPTIONS = [
-  { value: 'FLANGED_BOBBIN', label: 'Flanged Bobbin' },
-  { value: 'PAPER_CONE', label: 'Paper Cone' },
-  { value: 'PLASTIC_SPOOL', label: 'Plastic Spool' },
+const WINDING_INTEGRITY_OPTIONS = [
+  { value: 'EXCELLENT', label: 'Excellent' },
+  { value: 'GOOD', label: 'Good' },
+  { value: 'POOR', label: 'Poor' },
+  { value: 'FAIL', label: 'Fail' },
+]
+
+const TARGET_MACHINE_OPTIONS = [
+  { value: '1536_HOOK_JACQUARD', label: '1536 Hook Jacquard (Standard Luxury Brocade)' },
+  { value: '2400_HOOK_JACQUARD', label: '2400 Hook Jacquard (High-Density Fine Motif)' },
+  { value: 'HANDLOOM', label: 'Handloom' },
+  { value: 'POWERLOOM', label: 'Powerloom' },
+  { value: 'RAPIER_LOOM', label: 'Rapier Loom' },
+]
+
+const COATING_OPTIONS = [
+  { value: 'STANDARD_PARAFFIN', label: 'Standard Paraffin Wax' },
+  { value: 'SILICONE_MICRO_WAX', label: 'Silicone Micro-wax' },
+  { value: 'HIGH_GRADE_SILICONE', label: 'High-Grade Silicone' },
+  { value: 'NONE', label: 'None' },
+]
+
+const AUDIT_METHOD_OPTIONS = [
+  { value: 'BURN_TEST', label: 'Burn Test' },
+  { value: 'CHEMICAL_STRIP', label: 'Chemical Strip' },
+  { value: 'MICROSCOPE_VISUAL', label: 'Microscope Visual' },
+  { value: 'FTIR_SPECTROSCOPY', label: 'FTIR Spectroscopy' },
 ]
 
 export default function DashboardZariInspector() {
   const { user } = useAuth()
   const { addNotification } = useDashboard()
-  const [tab, setTab] = useState('lot-batch')
+  const [tab, setTab] = useState('preprocess')
   const [submitting, setSubmitting] = useState(false)
   const [validationResult, setValidationResult] = useState(null)
   const [certificateDetail, setCertificateDetail] = useState(null)
+  const [selectedAssayId, setSelectedAssayId] = useState('')
+  const [currentInspection, setCurrentInspection] = useState(null)
 
   const [lotBatches, setLotBatches] = useState([])
   const [assays, setAssays] = useState([])
+  const [inspections, setInspections] = useState([])
   const [certificates, setCertificates] = useState([])
   const [forecast, setForecast] = useState(null)
 
-  const [lotForm, setLotForm] = useState({
-    zari_lot_batch_no: '',
-    zari_type: 'PURE_REAL_ZARI_GOLD_SILVER',
-    zari_origin_cluster: 'KANCHIPURAM',
-    saree_bundle_size: 80
-  })
-
-  const [assayForm, setAssayForm] = useState({
+  const [xrfForm, setXrfForm] = useState({
+    zari_assay_id: '',
     zari_lot_batch_id: '',
-    assay_certificate_no: '',
-    silver_purity_pct: '',
-    gold_plating_pct: '',
-    copper_base_pct: '',
-    core_yarn_material: 'PURE_SILK_THREAD_RED_DYED',
-    zari_count_denier: '1400_YARDS_PER_OUNCE',
-    zari_wire_diameter_microns: '',
-    winding_bobbin_type: 'FLANGED_BOBBIN',
-    invoice_declared_weight_gm: '',
-    gross_scale_weight_gm: '',
-    bobbin_tare_weight_gm: '',
-    precious_metal_market_rate_per_gm: '',
-    is_free_from_tarnishing: false,
-    is_free_from_wire_cuts: false,
-    luster_sheen_match: false
+    xrf_silver_purity_pct: '',
+    xrf_gold_plating_pct: '',
+    xrf_verification_passed: false
   })
 
-  const [qualityForm, setQualityForm] = useState({
-    assay_id: '',
-    is_free_from_tarnishing: false,
-    is_free_from_wire_cuts: false,
-    luster_sheen_match: false,
-    notes: ''
+  const [physicalForm, setPhysicalForm] = useState({
+    zari_assay_id: '',
+    zari_lot_batch_id: '',
+    core_yarn_audit_result: 'PURE_SILK_RED_MAROON_DYED',
+    core_yarn_audit_method: 'BURN_TEST',
+    core_yarn_audit_passed: false,
+    denier_measured: '',
+    denier_target: '20/22_DENIER',
+    tensile_strength_gd: '',
+    bobbin_winding_integrity: 'GOOD'
+  })
+
+  const [aestheticForm, setAestheticForm] = useState({
+    zari_assay_id: '',
+    zari_lot_batch_id: '',
+    tarnish_free_scan: false,
+    color_luster_match: false,
+    delta_e_value: '',
+    gross_scale_weight_gm: '',
+    tare_weight_gm: '',
+    net_zari_weight_gm: '',
+    moisture_reading_pct: ''
+  })
+
+  const [defectForm, setDefectForm] = useState({
+    zari_assay_id: '',
+    zari_lot_batch_id: '',
+    wire_cuts_per_1000m: '',
+    micro_cuts_detected: false,
+    frayed_joints_detected: false,
+    target_machine_type: '1536_HOOK_JACQUARD',
+    flattened_wire_width_mm: '',
+    surface_coating_lubrication: 'STANDARD_PARAFFIN',
+    surface_coating_check_passed: false
   })
 
   useEffect(() => {
     fetchLotBatches()
     fetchAssays()
+    fetchInspections()
     fetchCertificates()
     fetchSalesForecast()
   }, [])
+
+  useEffect(() => {
+    if (selectedAssayId) {
+      fetchInspectionByAssay(selectedAssayId)
+    }
+  }, [selectedAssayId])
 
   const fetchLotBatches = async () => {
     try {
@@ -128,6 +175,77 @@ export default function DashboardZariInspector() {
       if (response.ok) setAssays(data.assays || [])
     } catch (error) {
       console.error('Failed to fetch assays:', error)
+    }
+  }
+
+  const fetchInspections = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`${API_URL}/zari/inspection`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok) setInspections(data.inspections || [])
+    } catch (error) {
+      console.error('Failed to fetch inspections:', error)
+    }
+  }
+
+  const fetchInspectionByAssay = async (assayId) => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`${API_URL}/zari/inspection?assay_id=${assayId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      if (response.ok && data.inspections && data.inspections.length > 0) {
+        const insp = data.inspections[0]
+        setCurrentInspection(insp)
+        setSelectedAssayId(insp.zari_assay_id)
+        // Populate forms
+        setXrfForm({
+          zari_assay_id: insp.zari_assay_id,
+          zari_lot_batch_id: insp.zari_lot_batch_id,
+          xrf_silver_purity_pct: insp.xrf_silver_purity_pct || '',
+          xrf_gold_plating_pct: insp.xrf_gold_plating_pct || '',
+          xrf_verification_passed: insp.xrf_verification_passed
+        })
+        setPhysicalForm({
+          zari_assay_id: insp.zari_assay_id,
+          zari_lot_batch_id: insp.zari_lot_batch_id,
+          core_yarn_audit_result: insp.core_yarn_audit_result || 'PURE_SILK_RED_MAROON_DYED',
+          core_yarn_audit_method: insp.core_yarn_audit_method || 'BURN_TEST',
+          core_yarn_audit_passed: insp.core_yarn_audit_passed,
+          denier_measured: insp.denier_measured || '',
+          denier_target: insp.denier_target || '20/22_DENIER',
+          tensile_strength_gd: insp.tensile_strength_gd || '',
+          bobbin_winding_integrity: insp.bobbin_winding_integrity || 'GOOD'
+        })
+        setAestheticForm({
+          zari_assay_id: insp.zari_assay_id,
+          zari_lot_batch_id: insp.zari_lot_batch_id,
+          tarnish_free_scan: insp.tarnish_free_scan,
+          color_luster_match: insp.color_luster_match,
+          delta_e_value: insp.delta_e_value || '',
+          gross_scale_weight_gm: insp.gross_scale_weight_gm || '',
+          tare_weight_gm: insp.tare_weight_gm || '',
+          net_zari_weight_gm: insp.net_zari_weight_gm || '',
+          moisture_reading_pct: insp.moisture_reading_pct || ''
+        })
+        setDefectForm({
+          zari_assay_id: insp.zari_assay_id,
+          zari_lot_batch_id: insp.zari_lot_batch_id,
+          wire_cuts_per_1000m: insp.wire_cuts_per_1000m || '',
+          micro_cuts_detected: insp.micro_cuts_detected,
+          frayed_joints_detected: insp.frayed_joints_detected,
+          target_machine_type: insp.target_machine_type || '1536_HOOK_JACQUARD',
+          flattened_wire_width_mm: insp.flattened_wire_width_mm || '',
+          surface_coating_lubrication: insp.surface_coating_lubrication || 'STANDARD_PARAFFIN',
+          surface_coating_check_passed: insp.surface_coating_check_passed
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch inspection by assay:', error)
     }
   }
 
@@ -157,55 +275,67 @@ export default function DashboardZariInspector() {
     }
   }
 
-  const handleLotBatchSubmit = async () => {
-    setSubmitting(true)
-    setValidationResult(null)
-    try {
-      const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/zari/lot-batches`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(lotForm)
+  const handleAssayChange = (assayId) => {
+    setSelectedAssayId(assayId)
+    const assay = assays.find(a => a.id === assayId)
+    if (assay) {
+      setXrfForm({
+        zari_assay_id: assayId,
+        zari_lot_batch_id: assay.zari_lot_batch_id,
+        xrf_silver_purity_pct: '',
+        xrf_gold_plating_pct: '',
+        xrf_verification_passed: false
       })
-      const data = await response.json()
-      if (response.ok) {
-        addNotification(`Zari lot batch ${data.zari_lot_batch_no} created`, 'success')
-        setValidationResult({ type: 'success', data })
-        setLotForm({ zari_lot_batch_no: '', zari_type: 'PURE_REAL_ZARI_GOLD_SILVER', zari_origin_cluster: 'KANCHIPURAM', saree_bundle_size: 80 })
-        fetchLotBatches()
-      } else {
-        addNotification(data.error || 'Submission failed', 'error')
-        setValidationResult({ type: 'error', data })
-      }
-    } catch (error) {
-      addNotification('Failed to create Zari lot batch', 'error')
-    } finally {
-      setSubmitting(false)
+      setPhysicalForm({
+        zari_assay_id: assayId,
+        zari_lot_batch_id: assay.zari_lot_batch_id,
+        core_yarn_audit_result: 'PURE_SILK_RED_MAROON_DYED',
+        core_yarn_audit_method: 'BURN_TEST',
+        core_yarn_audit_passed: false,
+        denier_measured: '',
+        denier_target: '20/22_DENIER',
+        tensile_strength_gd: '',
+        bobbin_winding_integrity: 'GOOD'
+      })
+      setAestheticForm({
+        zari_assay_id: assayId,
+        zari_lot_batch_id: assay.zari_lot_batch_id,
+        tarnish_free_scan: false,
+        color_luster_match: false,
+        delta_e_value: '',
+        gross_scale_weight_gm: '',
+        tare_weight_gm: '',
+        net_zari_weight_gm: '',
+        moisture_reading_pct: ''
+      })
+      setDefectForm({
+        zari_assay_id: assayId,
+        zari_lot_batch_id: assay.zari_lot_batch_id,
+        wire_cuts_per_1000m: '',
+        micro_cuts_detected: false,
+        frayed_joints_detected: false,
+        target_machine_type: '1536_HOOK_JACQUARD',
+        flattened_wire_width_mm: '',
+        surface_coating_lubrication: 'STANDARD_PARAFFIN',
+        surface_coating_check_passed: false
+      })
     }
   }
 
-  const handleAssaySubmit = async () => {
+  const handleXrfSubmit = async () => {
     setSubmitting(true)
     setValidationResult(null)
     try {
       const token = localStorage.getItem('access_token')
       const payload = {
-        ...assayForm,
-        zari_lot_batch_id: assayForm.zari_lot_batch_id || null,
-        silver_purity_pct: assayForm.silver_purity_pct ? parseFloat(assayForm.silver_purity_pct) : null,
-        gold_plating_pct: assayForm.gold_plating_pct ? parseFloat(assayForm.gold_plating_pct) : null,
-        copper_base_pct: assayForm.copper_base_pct ? parseFloat(assayForm.copper_base_pct) : null,
-        zari_wire_diameter_microns: assayForm.zari_wire_diameter_microns ? parseFloat(assayForm.zari_wire_diameter_microns) : null,
-        invoice_declared_weight_gm: assayForm.invoice_declared_weight_gm ? parseFloat(assayForm.invoice_declared_weight_gm) : null,
-        gross_scale_weight_gm: assayForm.gross_scale_weight_gm ? parseFloat(assayForm.gross_scale_weight_gm) : null,
-        bobbin_tare_weight_gm: assayForm.bobbin_tare_weight_gm ? parseFloat(assayForm.bobbin_tare_weight_gm) : null,
-        precious_metal_market_rate_per_gm: assayForm.precious_metal_market_rate_per_gm ? parseFloat(assayForm.precious_metal_market_rate_per_gm) : null
+        ...xrfForm,
+        zari_assay_id: xrfForm.zari_assay_id || null,
+        zari_lot_batch_id: xrfForm.zari_lot_batch_id || null,
+        xrf_silver_purity_pct: xrfForm.xrf_silver_purity_pct ? parseFloat(xrfForm.xrf_silver_purity_pct) : null,
+        xrf_gold_plating_pct: xrfForm.xrf_gold_plating_pct ? parseFloat(xrfForm.xrf_gold_plating_pct) : null
       }
 
-      const response = await fetch(`${API_URL}/zari/assay`, {
+      const response = await fetch(`${API_URL}/zari/inspection`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -215,101 +345,191 @@ export default function DashboardZariInspector() {
       })
       const data = await response.json()
       if (response.ok) {
-        addNotification(`Zari assay ${data.assay_certificate_no} created`, 'success')
+        addNotification(`XRF inspection created`, 'success')
         setValidationResult({ type: 'success', data })
-        setAssayForm({
-          zari_lot_batch_id: '', assay_certificate_no: '', silver_purity_pct: '',
-          gold_plating_pct: '', copper_base_pct: '', core_yarn_material: 'PURE_SILK_THREAD_RED_DYED',
-          zari_count_denier: '1400_YARDS_PER_OUNCE', zari_wire_diameter_microns: '',
-          winding_bobbin_type: 'FLANGED_BOBBIN', invoice_declared_weight_gm: '',
-          gross_scale_weight_gm: '', bobbin_tare_weight_gm: '',
-          precious_metal_market_rate_per_gm: '', is_free_from_tarnishing: false,
-          is_free_from_wire_cuts: false, luster_sheen_match: false
-        })
-        fetchAssays()
+        setCurrentInspection(data)
+        fetchInspections()
       } else {
         addNotification(data.error || 'Submission failed', 'error')
         setValidationResult({ type: 'error', data })
       }
     } catch (error) {
-      addNotification('Failed to create Zari assay', 'error')
+      addNotification('Failed to create XRF inspection', 'error')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handleCertifyAssay = async (assayId) => {
+  const handlePhysicalSubmit = async () => {
+    if (!currentInspection) {
+      addNotification('Please create XRF inspection first', 'error')
+      return
+    }
+    setSubmitting(true)
     try {
       const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/zari/assay/${assayId}/certify`, {
+      const payload = {
+        ...physicalForm,
+        zari_assay_id: currentInspection.zari_assay_id,
+        zari_lot_batch_id: currentInspection.zari_lot_batch_id,
+        denier_measured: physicalForm.denier_measured ? parseFloat(physicalForm.denier_measured) : null,
+        tensile_strength_gd: physicalForm.tensile_strength_gd ? parseFloat(physicalForm.tensile_strength_gd) : null
+      }
+
+      const response = await fetch(`${API_URL}/zari/inspection/${currentInspection.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      const data = await response.json()
+      if (response.ok) {
+        addNotification('Physical inspection updated', 'success')
+        setValidationResult({ type: 'success', data })
+        fetchInspections()
+      } else {
+        addNotification(data.error || 'Update failed', 'error')
+        setValidationResult({ type: 'error', data })
+      }
+    } catch (error) {
+      addNotification('Failed to update physical inspection', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleAestheticSubmit = async () => {
+    if (!currentInspection) {
+      addNotification('Please create XRF inspection first', 'error')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const payload = {
+        ...aestheticForm,
+        zari_assay_id: currentInspection.zari_assay_id,
+        zari_lot_batch_id: currentInspection.zari_lot_batch_id,
+        delta_e_value: aestheticForm.delta_e_value ? parseFloat(aestheticForm.delta_e_value) : null,
+        gross_scale_weight_gm: aestheticForm.gross_scale_weight_gm ? parseFloat(aestheticForm.gross_scale_weight_gm) : null,
+        tare_weight_gm: aestheticForm.tare_weight_gm ? parseFloat(aestheticForm.tare_weight_gm) : null,
+        net_zari_weight_gm: aestheticForm.net_zari_weight_gm ? parseFloat(aestheticForm.net_zari_weight_gm) : null,
+        moisture_reading_pct: aestheticForm.moisture_reading_pct ? parseFloat(aestheticForm.moisture_reading_pct) : null
+      }
+
+      const response = await fetch(`${API_URL}/zari/inspection/${currentInspection.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      const data = await response.json()
+      if (response.ok) {
+        addNotification('Aesthetic & weight audit updated', 'success')
+        setValidationResult({ type: 'success', data })
+        fetchInspections()
+      } else {
+        addNotification(data.error || 'Update failed', 'error')
+        setValidationResult({ type: 'error', data })
+      }
+    } catch (error) {
+      addNotification('Failed to update aesthetic audit', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDefectSubmit = async () => {
+    if (!currentInspection) {
+      addNotification('Please create XRF inspection first', 'error')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const payload = {
+        ...defectForm,
+        zari_assay_id: currentInspection.zari_assay_id,
+        zari_lot_batch_id: currentInspection.zari_lot_batch_id,
+        wire_cuts_per_1000m: defectForm.wire_cuts_per_1000m ? parseInt(defectForm.wire_cuts_per_1000m) : 0,
+        flattened_wire_width_mm: defectForm.flattened_wire_width_mm ? parseFloat(defectForm.flattened_wire_width_mm) : null
+      }
+
+      const response = await fetch(`${API_URL}/zari/inspection/${currentInspection.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      const data = await response.json()
+      if (response.ok) {
+        addNotification('Defect logging & routing updated', 'success')
+        setValidationResult({ type: 'success', data })
+        fetchInspections()
+      } else {
+        addNotification(data.error || 'Update failed', 'error')
+        setValidationResult({ type: 'error', data })
+      }
+    } catch (error) {
+      addNotification('Failed to update defect logging', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCertify = async () => {
+    if (!currentInspection) {
+      addNotification('No inspection to certify', 'error')
+      return
+    }
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`${API_URL}/zari/inspection/${currentInspection.id}/certify`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: 'Approved by Zari Inspector' })
       })
       const data = await response.json()
       if (response.ok) {
-        addNotification(`Assay certified: ${data.certificate_hash}`, 'success')
+        addNotification(`Inspection certified: ${data.certificate_hash}`, 'success')
         setCertificateDetail(data)
-        fetchAssays()
+        fetchInspections()
         fetchCertificates()
       } else {
         addNotification(data.error || 'Certification failed', 'error')
       }
     } catch (error) {
-      addNotification('Failed to certify assay', 'error')
+      addNotification('Failed to certify inspection', 'error')
     }
   }
 
-  const handleRejectAssay = async (assayId) => {
+  const handleReject = async () => {
+    if (!currentInspection) {
+      addNotification('No inspection to reject', 'error')
+      return
+    }
     try {
       const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/zari/assay/${assayId}/reject`, {
+      const response = await fetch(`${API_URL}/zari/inspection/${currentInspection.id}/reject`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'Rejected by Zari Inspector' })
       })
       const data = await response.json()
       if (response.ok) {
-        addNotification('Assay rejected', 'warning')
-        fetchAssays()
+        addNotification('Inspection rejected', 'warning')
+        fetchInspections()
       } else {
         addNotification(data.error || 'Rejection failed', 'error')
       }
     } catch (error) {
-      addNotification('Failed to reject assay', 'error')
-    }
-  }
-
-  const handleQualityGateSave = async () => {
-    if (!qualityForm.assay_id) {
-      addNotification('Please select an assay', 'error')
-      return
-    }
-    setSubmitting(true)
-    try {
-      const token = localStorage.getItem('access_token')
-      const response = await fetch(`${API_URL}/zari/assay/${qualityForm.assay_id}/quality-gate`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          is_free_from_tarnishing: qualityForm.is_free_from_tarnishing,
-          is_free_from_wire_cuts: qualityForm.is_free_from_wire_cuts,
-          luster_sheen_match: qualityForm.luster_sheen_match
-        })
-      })
-      const data = await response.json()
-      if (response.ok) {
-        addNotification('Quality gate inspection saved', 'success')
-        setValidationResult({ type: 'success', data })
-        setQualityForm({ assay_id: '', is_free_from_tarnishing: false, is_free_from_wire_cuts: false, luster_sheen_match: false, notes: '' })
-        fetchAssays()
-      } else {
-        addNotification(data.error || 'Failed to save quality gate', 'error')
-      }
-    } catch (error) {
-      addNotification('Failed to save quality gate inspection', 'error')
-    } finally {
-      setSubmitting(false)
+      addNotification('Failed to reject inspection', 'error')
     }
   }
 
@@ -321,6 +541,17 @@ export default function DashboardZariInspector() {
       case 'ASSAY_IN_PROGRESS': return 'info'
       case 'SUBMITTED': return 'info'
       case 'OPEN': return 'default'
+      case 'DOWNGRADE_TO_1536_HOOK_OR_HANDLOOM': return 'warning'
+      default: return 'default'
+    }
+  }
+
+  const getRoutingColor = (routing) => {
+    switch (routing) {
+      case 'LUXURY_JACQUARD_LOOM_POOL': return 'success'
+      case 'COMMERCIAL_SEMI_PREMIUM': return 'info'
+      case 'QC_REJECT_HOLD': return 'error'
+      case 'DOWNGRADE_TO_1536_HOOK_OR_HANDLOOM': return 'warning'
       default: return 'default'
     }
   }
@@ -330,7 +561,7 @@ export default function DashboardZariInspector() {
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <div>
           <Typography variant="h4" component="h1" gutterBottom>
-            Zari Refinery — Inward & Quality Screen
+            Zari Inspector — Post-Process Quality Control
           </Typography>
           <Typography variant="subtitle1" color="text.secondary">
             Factory: {user?.factory_node_id} | Operator: {user?.full_name}
@@ -348,7 +579,7 @@ export default function DashboardZariInspector() {
 
       {validationResult && validationResult.type === 'error' && validationResult.data.validation_errors && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" gutterBottom>Metallurgical Guardrail Violations</Typography>
+          <Typography variant="subtitle1" gutterBottom>Guardrail Violations</Typography>
           {validationResult.data.validation_errors.map((err, idx) => (
             <Typography key={idx} variant="body2">• [{err.code}] {err.message}</Typography>
           ))}
@@ -357,9 +588,10 @@ export default function DashboardZariInspector() {
 
       {validationResult && validationResult.type === 'success' && (
         <Alert severity="success" sx={{ mb: 3 }}>
-          {tab === 'lot-batch' && `Zari lot batch ${validationResult.data.zari_lot_batch_no} created`}
-          {tab === 'assay' && `Zari assay ${validationResult.data.assay_certificate_no} created`}
-          {tab === 'quality-gate' && `Quality gate action completed: ${validationResult.data.status}`}
+          {tab === 'xrf-purity' && 'XRF inspection created'}
+          {tab === 'physical-geometrics' && 'Physical inspection updated'}
+          {tab === 'aesthetic-weight' && 'Aesthetic & weight audit updated'}
+          {tab === 'defect-routing' && 'Defect logging & routing updated'}
         </Alert>
       )}
 
@@ -368,68 +600,19 @@ export default function DashboardZariInspector() {
           <Typography variant="subtitle1" gutterBottom>Certificate Generated</Typography>
           <Typography variant="body2"><strong>Hash:</strong> {certificateDetail.certificate_hash}</Typography>
           <Typography variant="body2"><strong>QR Tag:</strong> {certificateDetail.qr_tag_id}</Typography>
-          <Typography variant="body2"><strong>Status:</strong> {certificateDetail.status}</Typography>
+          <Typography variant="body2"><strong>Routing:</strong> {certificateDetail.auto_assigned_routing}</Typography>
           {certificateDetail.precious_metal_value_estimate && (
             <Typography variant="body2"><strong>Precious Metal Value:</strong> ₹{certificateDetail.precious_metal_value_estimate}</Typography>
           )}
         </Alert>
       )}
 
-      {/* ===================== LOT BATCH TAB ===================== */}
-      {tab === 'lot-batch' && (
+      {/* ===================== PRE-PROCESS TAB ===================== */}
+      {tab === 'preprocess' && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Category 1: Batch & Traceability Intakes (Pre-Process from Filature Supplier)</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth label="Zari Lot Batch No" value={lotForm.zari_lot_batch_no}
-                    onChange={(e) => setLotForm({ ...lotForm, zari_lot_batch_no: e.target.value })}
-                    placeholder="Unique tracking ID from refinery"
-                    required
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Zari Type</InputLabel>
-                    <Select value={lotForm.zari_type} label="Zari Type"
-                      onChange={(e) => setLotForm({ ...lotForm, zari_type: e.target.value })}>
-                      {ZARI_TYPE_OPTIONS.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Zari Origin Cluster</InputLabel>
-                    <Select value={lotForm.zari_origin_cluster} label="Zari Origin Cluster"
-                      onChange={(e) => setLotForm({ ...lotForm, zari_origin_cluster: e.target.value })}>
-                      {ORIGIN_CLUSTER_OPTIONS.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Saree Bundle Size" type="number"
-                    value={lotForm.saree_bundle_size}
-                    onChange={(e) => setLotForm({ ...lotForm, saree_bundle_size: parseInt(e.target.value) || 80 })}
-                    inputProps={{ min: 1 }} helperText="Default: 80 sarees per lot" />
-                </Grid>
-                <Grid item xs={12}>
-                  <Button variant="contained" onClick={handleLotBatchSubmit} disabled={submitting}>
-                    {submitting ? 'Creating...' : 'Create Zari Lot Batch'}
-                  </Button>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Zari Lot Batches</Typography>
+              <Typography variant="h6" gutterBottom>Zari Lot Batches from Refinery (Pre-Process)</Typography>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -458,126 +641,10 @@ export default function DashboardZariInspector() {
               </TableContainer>
             </Paper>
           </Grid>
-        </Grid>
-      )}
-
-      {/* ===================== ASSAY TAB ===================== */}
-      {tab === 'assay' && (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Category 2, 3, 4: Metallurgical & Assay Intakes</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Zari Lot Batch</InputLabel>
-                    <Select value={assayForm.zari_lot_batch_id} label="Zari Lot Batch"
-                      onChange={(e) => setAssayForm({ ...assayForm, zari_lot_batch_id: e.target.value })}>
-                      <MenuItem value="">Select batch</MenuItem>
-                      {lotBatches.map((batch) => (
-                        <MenuItem key={batch.id} value={batch.id}>{batch.zari_lot_batch_no} — {batch.zari_type}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Assay Certificate No" value={assayForm.assay_certificate_no}
-                    onChange={(e) => setAssayForm({ ...assayForm, assay_certificate_no: e.target.value })}
-                    placeholder="XRF / Chemical assay certificate ID" required />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Silver Purity %" type="number"
-                    value={assayForm.silver_purity_pct}
-                    onChange={(e) => setAssayForm({ ...assayForm, silver_purity_pct: e.target.value })}
-                    inputProps={{ step: '0.01', min: 0, max: 100 }} helperText="Luxury standard: 55% to 57%" />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Gold Plating %" type="number"
-                    value={assayForm.gold_plating_pct}
-                    onChange={(e) => setAssayForm({ ...assayForm, gold_plating_pct: e.target.value })}
-                    inputProps={{ step: '0.01', min: 0, max: 100 }} helperText="Luxury standard: 0.5% to 1.0%" />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Copper Base %" type="number"
-                    value={assayForm.copper_base_pct}
-                    onChange={(e) => setAssayForm({ ...assayForm, copper_base_pct: e.target.value })}
-                    inputProps={{ step: '0.01', min: 0, max: 100 }} helperText="For Tested Zari tracking" />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Core Yarn Material</InputLabel>
-                    <Select value={assayForm.core_yarn_material} label="Core Yarn Material"
-                      onChange={(e) => setAssayForm({ ...assayForm, core_yarn_material: e.target.value })}>
-                      {CORE_YARN_OPTIONS.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Zari Count (Denier)</InputLabel>
-                    <Select value={assayForm.zari_count_denier} label="Zari Count (Denier)"
-                      onChange={(e) => setAssayForm({ ...assayForm, zari_count_denier: e.target.value })}>
-                      {DENIER_OPTIONS.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Wire Diameter (Microns)" type="number"
-                    value={assayForm.zari_wire_diameter_microns}
-                    onChange={(e) => setAssayForm({ ...assayForm, zari_wire_diameter_microns: e.target.value })}
-                    inputProps={{ step: '0.1', min: 0, max: 100 }} helperText="Standard: 20 to 30 microns" />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>Winding Bobbin Type</InputLabel>
-                    <Select value={assayForm.winding_bobbin_type} label="Winding Bobbin Type"
-                      onChange={(e) => setAssayForm({ ...assayForm, winding_bobbin_type: e.target.value })}>
-                      {BOBBIN_TYPE_OPTIONS.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Invoice Declared Weight (gm)" type="number"
-                    value={assayForm.invoice_declared_weight_gm}
-                    onChange={(e) => setAssayForm({ ...assayForm, invoice_declared_weight_gm: e.target.value })}
-                    inputProps={{ step: '0.001', min: 0 }} />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Gross Scale Weight (gm)" type="number"
-                    value={assayForm.gross_scale_weight_gm}
-                    onChange={(e) => setAssayForm({ ...assayForm, gross_scale_weight_gm: e.target.value })}
-                    inputProps={{ step: '0.001', min: 0 }} />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Bobbin Tare Weight (gm)" type="number"
-                    value={assayForm.bobbin_tare_weight_gm}
-                    onChange={(e) => setAssayForm({ ...assayForm, bobbin_tare_weight_gm: e.target.value })}
-                    inputProps={{ step: '0.001', min: 0 }} helperText="Net weight = Gross - Tare" />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField fullWidth label="Precious Metal Market Rate (₹/gm)" type="number"
-                    value={assayForm.precious_metal_market_rate_per_gm}
-                    onChange={(e) => setAssayForm({ ...assayForm, precious_metal_market_rate_per_gm: e.target.value })}
-                    inputProps={{ step: '0.01', min: 0 }} helperText="Spot price on invoice day" />
-                </Grid>
-                <Grid item xs={12}>
-                  <Button variant="contained" onClick={handleAssaySubmit} disabled={submitting}>
-                    {submitting ? 'Submitting...' : 'Submit Zari Assay'}
-                  </Button>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
 
           <Grid item xs={12}>
             <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Zari Assays</Typography>
+              <Typography variant="h6" gutterBottom>Zari Assay Records from Refinery (Pre-Process)</Typography>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -587,6 +654,7 @@ export default function DashboardZariInspector() {
                       <TableCell>Zari Type</TableCell>
                       <TableCell>Silver %</TableCell>
                       <TableCell>Gold %</TableCell>
+                      <TableCell>Copper %</TableCell>
                       <TableCell>Net Wt (gm)</TableCell>
                       <TableCell>Status</TableCell>
                     </TableRow>
@@ -599,6 +667,7 @@ export default function DashboardZariInspector() {
                         <TableCell>{assay.zari_type}</TableCell>
                         <TableCell>{assay.silver_purity_pct}%</TableCell>
                         <TableCell>{assay.gold_plating_pct}%</TableCell>
+                        <TableCell>{assay.copper_base_pct}%</TableCell>
                         <TableCell>{assay.net_zari_weight_gm}</TableCell>
                         <TableCell><Chip label={assay.status} color={getStatusColor(assay.status)} size="small" /></TableCell>
                       </TableRow>
@@ -611,18 +680,18 @@ export default function DashboardZariInspector() {
         </Grid>
       )}
 
-      {/* ===================== QUALITY GATE TAB ===================== */}
-      {tab === 'quality-gate' && (
+      {/* ===================== XRF & PURITY TAB ===================== */}
+      {tab === 'xrf-purity' && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Category 5: Physical Gate-Keeper Quality Toggles</Typography>
+              <Typography variant="h6" gutterBottom>1. XRF Spectrometer Testing & Assay Verification</Typography>
               <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <FormControl fullWidth>
-                    <InputLabel>Select Assay</InputLabel>
-                    <Select value={qualityForm.assay_id} label="Select Assay"
-                      onChange={(e) => setQualityForm({ ...qualityForm, assay_id: e.target.value })}>
+                    <InputLabel>Select Assay from Refinery</InputLabel>
+                    <Select value={xrfForm.zari_assay_id} label="Select Assay from Refinery"
+                      onChange={(e) => handleAssayChange(e.target.value)}>
                       <MenuItem value="">Select assay</MenuItem>
                       {assays.map((assay) => (
                         <MenuItem key={assay.id} value={assay.id}>{assay.assay_certificate_no} — {assay.zari_lot_batch_no}</MenuItem>
@@ -630,52 +699,32 @@ export default function DashboardZariInspector() {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>Binary Pass/Fail Inspections</Typography>
+                <Grid item xs={12} md={4}>
+                  <TextField fullWidth label="XRF Silver Purity %" type="number"
+                    value={xrfForm.xrf_silver_purity_pct}
+                    onChange={(e) => setXrfForm({ ...xrfForm, xrf_silver_purity_pct: e.target.value })}
+                    inputProps={{ step: '0.01', min: 0, max: 100 }} helperText="Luxury standard: 55% to 57%" />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField fullWidth label="XRF Gold Plating %" type="number"
+                    value={xrfForm.xrf_gold_plating_pct}
+                    onChange={(e) => setXrfForm({ ...xrfForm, xrf_gold_plating_pct: e.target.value })}
+                    inputProps={{ step: '0.01', min: 0, max: 100 }} helperText="Luxury standard: 0.5% to 1.0%" />
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={qualityForm.is_free_from_tarnishing}
-                        onChange={(e) => setQualityForm({ ...qualityForm, is_free_from_tarnishing: e.target.checked })}
+                        checked={xrfForm.xrf_verification_passed}
+                        onChange={(e) => setXrfForm({ ...xrfForm, xrf_verification_passed: e.target.checked })}
                       />
                     }
-                    label="Is Free From Tarnishing? (No dark/black oxidation under 5000K lamp)"
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={qualityForm.is_free_from_wire_cuts}
-                        onChange={(e) => setQualityForm({ ...qualityForm, is_free_from_wire_cuts: e.target.checked })}
-                      />
-                    }
-                    label="Is Free From Wire Cuts? (Zero continuous knots per bobbin)"
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={qualityForm.luster_sheen_match}
-                        onChange={(e) => setQualityForm({ ...qualityForm, luster_sheen_match: e.target.checked })}
-                      />
-                    }
-                    label="Luster Sheen Match? (Delta-E < 1.0 against master sample)"
+                    label="XRF Verification Passed (matches refinery assay within tolerance)"
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <TextField
-                    fullWidth label="Inspector Notes" multiline rows={3}
-                    value={qualityForm.notes}
-                    onChange={(e) => setQualityForm({ ...qualityForm, notes: e.target.value })}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <Button variant="contained" onClick={handleQualityGateSave} disabled={submitting}>
-                    {submitting ? 'Saving...' : 'Save Quality Gate Inspection'}
+                  <Button variant="contained" onClick={handleXrfSubmit} disabled={submitting || !xrfForm.zari_assay_id}>
+                    {submitting ? 'Submitting...' : 'Create XRF Inspection'}
                   </Button>
                 </Grid>
               </Grid>
@@ -684,12 +733,270 @@ export default function DashboardZariInspector() {
         </Grid>
       )}
 
-      {/* ===================== CERTIFICATES TAB ===================== */}
-      {tab === 'certificates' && (
+      {/* ===================== PHYSICAL & GEOMETRICS TAB ===================== */}
+      {tab === 'physical-geometrics' && (
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Zari Certificates — Post-Process Output</Typography>
+              <Typography variant="h6" gutterBottom>2. Physical & Textile Geometrics Inspection</Typography>
+              {!currentInspection ? (
+                <Alert severity="info">Please create XRF inspection first</Alert>
+              ) : (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Core Yarn Audit Result" select
+                      value={physicalForm.core_yarn_audit_result}
+                      onChange={(e) => setPhysicalForm({ ...physicalForm, core_yarn_audit_result: e.target.value })}>
+                      {CORE_YARN_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Core Yarn Audit Method" select
+                      value={physicalForm.core_yarn_audit_method}
+                      onChange={(e) => setPhysicalForm({ ...physicalForm, core_yarn_audit_method: e.target.value })}>
+                      {AUDIT_METHOD_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={physicalForm.core_yarn_audit_passed}
+                          onChange={(e) => setPhysicalForm({ ...physicalForm, core_yarn_audit_passed: e.target.checked })}
+                        />
+                      }
+                      label="Core Yarn Audit Passed"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Denier Measured" type="number"
+                      value={physicalForm.denier_measured}
+                      onChange={(e) => setPhysicalForm({ ...physicalForm, denier_measured: e.target.value })}
+                      inputProps={{ step: '0.1', min: 0 }} helperText="Measured thread thickness" />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Denier Target" select
+                      value={physicalForm.denier_target}
+                      onChange={(e) => setPhysicalForm({ ...physicalForm, denier_target: e.target.value })}>
+                      {DENIER_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Tensile Strength (g/d)" type="number"
+                      value={physicalForm.tensile_strength_gd}
+                      onChange={(e) => setPhysicalForm({ ...physicalForm, tensile_strength_gd: e.target.value })}
+                      inputProps={{ step: '0.1', min: 0 }} helperText="Min 3.5 g/d (3.8+ for powerlooms)" />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Bobbin Winding Integrity" select
+                      value={physicalForm.bobbin_winding_integrity}
+                      onChange={(e) => setPhysicalForm({ ...physicalForm, bobbin_winding_integrity: e.target.value })}>
+                      {WINDING_INTEGRITY_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button variant="contained" onClick={handlePhysicalSubmit} disabled={submitting}>
+                      {submitting ? 'Saving...' : 'Save Physical Inspection'}
+                    </Button>
+                  </Grid>
+                </Grid>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* ===================== AESTHETIC & WEIGHT TAB ===================== */}
+      {tab === 'aesthetic-weight' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>3. Aesthetic & Oxidation Control + Precision Weight Auditing</Typography>
+              {!currentInspection ? (
+                <Alert severity="info">Please create XRF inspection first</Alert>
+              ) : (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={aestheticForm.tarnish_free_scan}
+                          onChange={(e) => setAestheticForm({ ...aestheticForm, tarnish_free_scan: e.target.checked })}
+                        />
+                      }
+                      label="Free From Tarnishing (No dark/black oxidation under 5000K lamp)"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={aestheticForm.color_luster_match}
+                          onChange={(e) => setAestheticForm({ ...aestheticForm, color_luster_match: e.target.checked })}
+                        />
+                      }
+                      label="Color & Luster Match (Delta-E < 1.0 against master sample)"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Delta-E Value" type="number"
+                      value={aestheticForm.delta_e_value}
+                      onChange={(e) => setAestheticForm({ ...aestheticForm, delta_e_value: e.target.value })}
+                      inputProps={{ step: '0.01', min: 0 }} helperText="Target < 1.0" />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Gross Scale Weight (gm)" type="number"
+                      value={aestheticForm.gross_scale_weight_gm}
+                      onChange={(e) => setAestheticForm({ ...aestheticForm, gross_scale_weight_gm: e.target.value })}
+                      inputProps={{ step: '0.001', min: 0 }} />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Tare Weight (gm)" type="number"
+                      value={aestheticForm.tare_weight_gm}
+                      onChange={(e) => setAestheticForm({ ...aestheticForm, tare_weight_gm: e.target.value })}
+                      inputProps={{ step: '0.001', min: 0 }} />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Net Zari Weight (gm)" type="number"
+                      value={aestheticForm.net_zari_weight_gm}
+                      onChange={(e) => setAestheticForm({ ...aestheticForm, net_zari_weight_gm: e.target.value })}
+                      inputProps={{ step: '0.001', min: 0 }} helperText="Auto-calculated: Gross - Tare" />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Moisture Reading %" type="number"
+                      value={aestheticForm.moisture_reading_pct}
+                      onChange={(e) => setAestheticForm({ ...aestheticForm, moisture_reading_pct: e.target.value })}
+                      inputProps={{ step: '0.1', min: 0, max: 100 }} helperText="Ensure moisture-free storage" />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button variant="contained" onClick={handleAestheticSubmit} disabled={submitting}>
+                      {submitting ? 'Saving...' : 'Save Aesthetic & Weight Audit'}
+                    </Button>
+                  </Grid>
+                </Grid>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* ===================== DEFECT LOGGING & ROUTING TAB ===================== */}
+      {tab === 'defect-routing' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>4. Defect Logging & Inventory Routing</Typography>
+              {!currentInspection ? (
+                <Alert severity="info">Please create XRF inspection first</Alert>
+              ) : (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Wire Cuts per 1000m" type="number"
+                      value={defectForm.wire_cuts_per_1000m}
+                      onChange={(e) => setDefectForm({ ...defectForm, wire_cuts_per_1000m: e.target.value })}
+                      inputProps={{ step: '1', min: 0 }} helperText="Zero tolerance for 2400 Hook" />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={defectForm.micro_cuts_detected}
+                          onChange={(e) => setDefectForm({ ...defectForm, micro_cuts_detected: e.target.checked })}
+                        />
+                      }
+                      label="Micro-Cuts Detected"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={defectForm.frayed_joints_detected}
+                          onChange={(e) => setDefectForm({ ...defectForm, frayed_joints_detected: e.target.checked })}
+                        />
+                      }
+                      label="Frayed Joints Detected"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Target Machine Type" select
+                      value={defectForm.target_machine_type}
+                      onChange={(e) => setDefectForm({ ...defectForm, target_machine_type: e.target.value })}>
+                      {TARGET_MACHINE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Flattened Wire Width (mm)" type="number"
+                      value={defectForm.flattened_wire_width_mm}
+                      onChange={(e) => setDefectForm({ ...defectForm, flattened_wire_width_mm: e.target.value })}
+                      inputProps={{ step: '0.01', min: 0 }} helperText="0.10-0.12mm for 2400 Hook, 0.15-0.22mm for 1536 Hook" />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <TextField fullWidth label="Surface Coating & Lubrication" select
+                      value={defectForm.surface_coating_lubrication}
+                      onChange={(e) => setDefectForm({ ...defectForm, surface_coating_lubrication: e.target.value })}>
+                      {COATING_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={defectForm.surface_coating_check_passed}
+                          onChange={(e) => setDefectForm({ ...defectForm, surface_coating_check_passed: e.target.checked })}
+                        />
+                      }
+                      label="Surface Coating Check Passed"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2">Automated ERP Routing Rules</Typography>
+                      <Typography variant="body2">
+                        • 2400 Hook + Non-Silk Core → BLOCK (Reject for 2400 Hook)<br/>
+                        • 2400 Hook + Joints > 0 → DOWNGRADE to 1536 Hook or Handloom<br/>
+                        • 2400 Hook + Badla Width > 0.15mm → WARNING (Fabric stiffness risk)
+                      </Typography>
+                    </Alert>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Box display="flex" gap={2}>
+                      <Button variant="contained" onClick={handleDefectSubmit} disabled={submitting}>
+                        {submitting ? 'Saving...' : 'Save Defect Logging & Routing'}
+                      </Button>
+                      <Button variant="outlined" color="success" onClick={handleCertify} disabled={!currentInspection}>
+                        Certify Inspection
+                      </Button>
+                      <Button variant="outlined" color="error" onClick={handleReject} disabled={!currentInspection}>
+                        Reject Inspection
+                      </Button>
+                    </Box>
+                  </Grid>
+                </Grid>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* ===================== CERTIFICATES & FORECAST TAB ===================== */}
+      {tab === 'certificates-forecast' && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>Zari Inspector Certificates — Post-Process Output</Typography>
               {certificates.length === 0 ? (
                 <Typography color="text.secondary">No certificates issued yet</Typography>
               ) : (
@@ -705,7 +1012,7 @@ export default function DashboardZariInspector() {
                         <TableCell>Silver %</TableCell>
                         <TableCell>Gold %</TableCell>
                         <TableCell>Net Wt (gm)</TableCell>
-                        <TableCell>Precious Value (₹)</TableCell>
+                        <TableCell>Routing</TableCell>
                         <TableCell>Status</TableCell>
                         <TableCell>Certified At</TableCell>
                       </TableRow>
@@ -721,7 +1028,7 @@ export default function DashboardZariInspector() {
                           <TableCell>{cert.silver_purity_pct}%</TableCell>
                           <TableCell>{cert.gold_plating_pct}%</TableCell>
                           <TableCell>{cert.net_zari_weight_gm}</TableCell>
-                          <TableCell>{cert.precious_metal_value_estimate ? parseFloat(cert.precious_metal_value_estimate).toFixed(2) : '-'}</TableCell>
+                          <TableCell><Chip label={cert.auto_assigned_routing} color={getRoutingColor(cert.auto_assigned_routing)} size="small" /></TableCell>
                           <TableCell><Chip label={cert.status} color={getStatusColor(cert.status)} size="small" /></TableCell>
                           <TableCell>{new Date(cert.certified_at).toLocaleString()}</TableCell>
                         </TableRow>
@@ -732,12 +1039,7 @@ export default function DashboardZariInspector() {
               )}
             </Paper>
           </Grid>
-        </Grid>
-      )}
 
-      {/* ===================== SALES FORECAST TAB ===================== */}
-      {tab === 'sales-forecast' && (
-        <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 2 }}>
               <Typography variant="h6" gutterBottom>Sales Forecast — Zari Material Processing Plan</Typography>
@@ -804,34 +1106,6 @@ export default function DashboardZariInspector() {
                             <TableCell>{item.estimated_gold_gm}</TableCell>
                             <TableCell><Chip label={item.priority} color={item.priority === 'HIGH' ? 'error' : 'warning'} size="small" /></TableCell>
                             <TableCell>{item.origin_cluster}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-
-                  <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>Upcoming Lots</Typography>
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Lot Number</TableCell>
-                          <TableCell>Saree Category</TableCell>
-                          <TableCell>Est. Sarees</TableCell>
-                          <TableCell>Est. Zari Wt (gm)</TableCell>
-                          <TableCell>Target Grade</TableCell>
-                          <TableCell>Target Origin</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {forecast.upcoming_lots.map((lot, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>{lot.lot_number}</TableCell>
-                            <TableCell>{lot.sari_category}</TableCell>
-                            <TableCell>{lot.estimated_sarees}</TableCell>
-                            <TableCell>{lot.estimated_zari_weight_gm}</TableCell>
-                            <TableCell>{lot.target_grade}</TableCell>
-                            <TableCell>{lot.target_origin}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

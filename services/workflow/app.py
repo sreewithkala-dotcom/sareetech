@@ -2772,5 +2772,529 @@ def update_zari_quality_gate(assay_id):
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# ZARI INSPECTOR POST-PROCESS MODULE
+# ============================================================
+
+@app.route('/api/v1/zari/inspection', methods=['POST'])
+@jwt_required()
+def create_zari_inspection():
+    try:
+        inspector_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['zari_assay_id', 'zari_lot_batch_id', 'xrf_silver_purity_pct', 'xrf_gold_plating_pct']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (inspector_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO zari_inspection_records (
+                zari_assay_id, zari_lot_batch_id, xrf_silver_purity_pct,
+                xrf_gold_plating_pct, xrf_verification_passed,
+                core_yarn_audit_result, core_yarn_audit_method, core_yarn_audit_passed,
+                denier_measured, denier_target, tensile_strength_gd,
+                bobbin_winding_integrity, tarnish_free_scan, color_luster_match,
+                delta_e_value, gross_scale_weight_gm, tare_weight_gm,
+                net_zari_weight_gm, moisture_reading_pct,
+                wire_cuts_per_1000m, micro_cuts_detected, frayed_joints_detected,
+                target_machine_type, flattened_wire_width_mm,
+                surface_coating_lubrication, surface_coating_check_passed,
+                validation_errors, validation_warnings, auto_assigned_routing,
+                status, factory_node_id, inspector_id
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            data.get('zari_assay_id'),
+            data.get('zari_lot_batch_id'),
+            data.get('xrf_silver_purity_pct'),
+            data.get('xrf_gold_plating_pct'),
+            data.get('xrf_verification_passed', False),
+            data.get('core_yarn_audit_result'),
+            data.get('core_yarn_audit_method'),
+            data.get('core_yarn_audit_passed', False),
+            data.get('denier_measured'),
+            data.get('denier_target'),
+            data.get('tensile_strength_gd'),
+            data.get('bobbin_winding_integrity'),
+            data.get('tarnish_free_scan', False),
+            data.get('color_luster_match', False),
+            data.get('delta_e_value'),
+            data.get('gross_scale_weight_gm'),
+            data.get('tare_weight_gm'),
+            data.get('net_zari_weight_gm'),
+            data.get('moisture_reading_pct'),
+            data.get('wire_cuts_per_1000m', 0),
+            data.get('micro_cuts_detected', False),
+            data.get('frayed_joints_detected', False),
+            data.get('target_machine_type'),
+            data.get('flattened_wire_width_mm'),
+            data.get('surface_coating_lubrication'),
+            data.get('surface_coating_check_passed', False),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing'),
+            'DRAFT',
+            factory_node_id,
+            inspector_id
+        ))
+        
+        inspection_row = cur.fetchone()
+        inspection_id = inspection_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status
+            FROM zari_inspection_records WHERE id = %s::uuid
+        """, (inspection_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'SUBMITTED'
+        else:
+            status = 'SUBMITTED'
+        
+        cur.execute("""
+            UPDATE zari_inspection_records SET status = %s WHERE id = %s::uuid
+        """, (status, inspection_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(inspection_id),
+            'status': status,
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Zari inspection record created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/inspection', methods=['GET'])
+@jwt_required()
+def list_zari_inspections():
+    try:
+        inspector_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        assay_id = request.args.get('assay_id')
+        
+        if assay_id:
+            cur.execute("""
+                SELECT zir.id, zir.xrf_silver_purity_pct, zir.xrf_gold_plating_pct,
+                       zir.core_yarn_audit_result, zir.denier_measured,
+                       zir.tensile_strength_gd, zir.bobbin_winding_integrity,
+                       zir.tarnish_free_scan, zir.color_luster_match,
+                       zir.net_zari_weight_gm, zir.wire_cuts_per_1000m,
+                       zir.target_machine_type, zir.flattened_wire_width_mm,
+                       zir.auto_assigned_routing, zir.status, zir.certificate_hash,
+                       zlb.zari_lot_batch_no, zar.assay_certificate_no
+                FROM zari_inspection_records zir
+                JOIN zari_lot_batches zlb ON zir.zari_lot_batch_id = zlb.id
+                JOIN zari_assay_records zar ON zir.zari_assay_id = zar.id
+                WHERE zir.zari_assay_id = %s::uuid
+                ORDER BY zir.created_at DESC
+                LIMIT 10
+            """, (assay_id,))
+        else:
+            cur.execute("""
+                SELECT zir.id, zir.xrf_silver_purity_pct, zir.xrf_gold_plating_pct,
+                       zir.core_yarn_audit_result, zir.denier_measured,
+                       zir.tensile_strength_gd, zir.bobbin_winding_integrity,
+                       zir.tarnish_free_scan, zir.color_luster_match,
+                       zir.net_zari_weight_gm, zir.wire_cuts_per_1000m,
+                       zir.target_machine_type, zir.flattened_wire_width_mm,
+                       zir.auto_assigned_routing, zir.status, zir.certificate_hash,
+                       zlb.zari_lot_batch_no, zar.assay_certificate_no
+                FROM zari_inspection_records zir
+                JOIN zari_lot_batches zlb ON zir.zari_lot_batch_id = zlb.id
+                JOIN zari_assay_records zar ON zir.zari_assay_id = zar.id
+                WHERE zir.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+                ORDER BY zir.created_at DESC
+                LIMIT 100
+            """, (inspector_id,))
+        
+        inspections = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(inspections),
+            'inspections': [
+                {
+                    'id': str(i['id']),
+                    'zari_lot_batch_no': i['zari_lot_batch_no'],
+                    'assay_certificate_no': i['assay_certificate_no'],
+                    'xrf_silver_purity_pct': float(i['xrf_silver_purity_pct']) if i['xrf_silver_purity_pct'] else None,
+                    'xrf_gold_plating_pct': float(i['xrf_gold_plating_pct']) if i['xrf_gold_plating_pct'] else None,
+                    'core_yarn_audit_result': i['core_yarn_audit_result'],
+                    'denier_measured': float(i['denier_measured']) if i['denier_measured'] else None,
+                    'tensile_strength_gd': float(i['tensile_strength_gd']) if i['tensile_strength_gd'] else None,
+                    'bobbin_winding_integrity': i['bobbin_winding_integrity'],
+                    'tarnish_free_scan': i['tarnish_free_scan'],
+                    'color_luster_match': i['color_luster_match'],
+                    'net_zari_weight_gm': float(i['net_zari_weight_gm']) if i['net_zari_weight_gm'] else None,
+                    'wire_cuts_per_1000m': i['wire_cuts_per_1000m'],
+                    'target_machine_type': i['target_machine_type'],
+                    'flattened_wire_width_mm': float(i['flattened_wire_width_mm']) if i['flattened_wire_width_mm'] else None,
+                    'auto_assigned_routing': i['auto_assigned_routing'],
+                    'status': i['status'],
+                    'certificate_hash': i['certificate_hash']
+                }
+                for i in inspections
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/inspection/<inspection_id>', methods=['PUT'])
+@jwt_required()
+def update_zari_inspection(inspection_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        allowed_fields = [
+            'xrf_silver_purity_pct', 'xrf_gold_plating_pct', 'xrf_verification_passed',
+            'core_yarn_audit_result', 'core_yarn_audit_method', 'core_yarn_audit_passed',
+            'denier_measured', 'denier_target', 'tensile_strength_gd',
+            'bobbin_winding_integrity', 'tarnish_free_scan', 'color_luster_match',
+            'delta_e_value', 'gross_scale_weight_gm', 'tare_weight_gm',
+            'net_zari_weight_gm', 'moisture_reading_pct',
+            'wire_cuts_per_1000m', 'micro_cuts_detected', 'frayed_joints_detected',
+            'target_machine_type', 'flattened_wire_width_mm',
+            'surface_coating_lubrication', 'surface_coating_check_passed'
+        ]
+        updates = {k: data.get(k) for k in allowed_fields if k in data}
+        
+        if not updates:
+            return jsonify({'error': 'NoFieldsToUpdate', 'message': 'Provide at least one field to update'}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        set_clauses = []
+        params = []
+        for key, value in updates.items():
+            set_clauses.append(f"{key} = %s")
+            params.append(value)
+        params.append(inspection_id)
+        
+        cur.execute(f"""
+            UPDATE zari_inspection_records
+            SET {', '.join(set_clauses)}
+            WHERE id = %s::uuid
+            RETURNING id
+        """, params)
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'InspectionNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'updated_fields': list(updates.keys()),
+            'message': 'Zari inspection updated successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/inspection/<inspection_id>', methods=['GET'])
+@jwt_required()
+def get_zari_inspection(inspection_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zir.*, zlb.zari_lot_batch_no, zlb.zari_type, zlb.zari_origin_cluster,
+                   zar.assay_certificate_no, zar.silver_purity_pct, zar.gold_plating_pct
+            FROM zari_inspection_records zir
+            JOIN zari_lot_batches zlb ON zir.zari_lot_batch_id = zlb.id
+            JOIN zari_assay_records zar ON zir.zari_assay_id = zar.id
+            WHERE zir.id = %s::uuid
+        """, (inspection_id,))
+        
+        inspection = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not inspection:
+            return jsonify({'error': 'InspectionNotFound'}), 404
+        
+        return jsonify({
+            'id': str(inspection['id']),
+            'zari_assay_id': str(inspection['zari_assay_id']),
+            'zari_lot_batch_id': str(inspection['zari_lot_batch_id']),
+            'zari_lot_batch_no': inspection['zari_lot_batch_no'],
+            'zari_type': inspection['zari_type'],
+            'zari_origin_cluster': inspection['zari_origin_cluster'],
+            'assay_certificate_no': inspection['assay_certificate_no'],
+            'xrf_silver_purity_pct': float(inspection['xrf_silver_purity_pct']) if inspection['xrf_silver_purity_pct'] else None,
+            'xrf_gold_plating_pct': float(inspection['xrf_gold_plating_pct']) if inspection['xrf_gold_plating_pct'] else None,
+            'xrf_verification_passed': inspection['xrf_verification_passed'],
+            'core_yarn_audit_result': inspection['core_yarn_audit_result'],
+            'core_yarn_audit_method': inspection['core_yarn_audit_method'],
+            'core_yarn_audit_passed': inspection['core_yarn_audit_passed'],
+            'denier_measured': float(inspection['denier_measured']) if inspection['denier_measured'] else None,
+            'denier_target': inspection['denier_target'],
+            'tensile_strength_gd': float(inspection['tensile_strength_gd']) if inspection['tensile_strength_gd'] else None,
+            'bobbin_winding_integrity': inspection['bobbin_winding_integrity'],
+            'tarnish_free_scan': inspection['tarnish_free_scan'],
+            'color_luster_match': inspection['color_luster_match'],
+            'delta_e_value': float(inspection['delta_e_value']) if inspection['delta_e_value'] else None,
+            'gross_scale_weight_gm': float(inspection['gross_scale_weight_gm']) if inspection['gross_scale_weight_gm'] else None,
+            'tare_weight_gm': float(inspection['tare_weight_gm']) if inspection['tare_weight_gm'] else None,
+            'net_zari_weight_gm': float(inspection['net_zari_weight_gm']) if inspection['net_zari_weight_gm'] else None,
+            'moisture_reading_pct': float(inspection['moisture_reading_pct']) if inspection['moisture_reading_pct'] else None,
+            'wire_cuts_per_1000m': inspection['wire_cuts_per_1000m'],
+            'micro_cuts_detected': inspection['micro_cuts_detected'],
+            'frayed_joints_detected': inspection['frayed_joints_detected'],
+            'target_machine_type': inspection['target_machine_type'],
+            'flattened_wire_width_mm': float(inspection['flattened_wire_width_mm']) if inspection['flattened_wire_width_mm'] else None,
+            'surface_coating_lubrication': inspection['surface_coating_lubrication'],
+            'surface_coating_check_passed': inspection['surface_coating_check_passed'],
+            'validation_errors': inspection['validation_errors'],
+            'validation_warnings': inspection['validation_warnings'],
+            'auto_assigned_routing': inspection['auto_assigned_routing'],
+            'status': inspection['status'],
+            'certificate_hash': inspection['certificate_hash'],
+            'qr_tag_id': inspection['qr_tag_id']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/inspection/<inspection_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_zari_inspection(inspection_id):
+    try:
+        approver_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT zir.id, zir.status, zir.validation_errors, zir.auto_assigned_routing,
+                   zir.xrf_silver_purity_pct, zir.xrf_gold_plating_pct,
+                   zir.net_zari_weight_gm, zlb.zari_lot_batch_no,
+                   zlb.zari_type, zlb.zari_origin_cluster
+            FROM zari_inspection_records zir
+            JOIN zari_lot_batches zlb ON zir.zari_lot_batch_id = zlb.id
+            WHERE zir.id = %s::uuid
+        """, (inspection_id,))
+        
+        inspection = cur.fetchone()
+        if not inspection:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'InspectionNotFound'}), 404
+        
+        if inspection['validation_errors'] and len(inspection['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify inspection with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(inspection_id, inspection['zari_lot_batch_no'])
+        qr_tag_id = 'ZARI-INSP-' + inspection['zari_lot_batch_no']
+        
+        precious_metal_value = None
+        if inspection['net_zari_weight_gm']:
+            cur.execute("""
+                SELECT precious_metal_market_rate_per_gm
+                FROM zari_assay_records
+                WHERE id = (SELECT zari_assay_id FROM zari_inspection_records WHERE id = %s::uuid)
+            """, (inspection_id,))
+            rate_row = cur.fetchone()
+            if rate_row and rate_row['precious_metal_market_rate_per_gm']:
+                precious_metal_value = round(float(inspection['net_zari_weight_gm']) * float(rate_row['precious_metal_market_rate_per_gm']), 4)
+        
+        cur.execute("""
+            UPDATE zari_inspection_records
+            SET status = 'CERTIFIED',
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, certificate_hash
+        """, (certificate_hash, qr_tag_id, inspection_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO zari_inspector_certificates (
+                zari_inspection_id, zari_assay_id, zari_lot_batch_id,
+                certificate_hash, qr_tag_id, zari_type, zari_origin_cluster,
+                xrf_silver_purity_pct, xrf_gold_plating_pct, core_yarn_audit_result,
+                tensile_strength_gd, net_zari_weight_gm, precious_metal_value_estimate,
+                inspector_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                zir.id,
+                zir.zari_assay_id,
+                zir.zari_lot_batch_id,
+                zir.certificate_hash,
+                zir.qr_tag_id,
+                zlb.zari_type,
+                zlb.zari_origin_cluster,
+                zir.xrf_silver_purity_pct,
+                zir.xrf_gold_plating_pct,
+                zir.core_yarn_audit_result,
+                zir.tensile_strength_gd,
+                zir.net_zari_weight_gm,
+                %s,
+                zir.inspector_id,
+                %s,
+                zir.factory_node_id,
+                jsonb_build_object(
+                    'zari_lot_batch_no', zlb.zari_lot_batch_no,
+                    'assay_certificate_no', zar.assay_certificate_no,
+                    'xrf_verification_passed', zir.xrf_verification_passed,
+                    'core_yarn_audit_passed', zir.core_yarn_audit_passed,
+                    'denier_measured', zir.denier_measured,
+                    'bobbin_winding_integrity', zir.bobbin_winding_integrity,
+                    'tarnish_free_scan', zir.tarnish_free_scan,
+                    'color_luster_match', zir.color_luster_match,
+                    'delta_e_value', zir.delta_e_value,
+                    'wire_cuts_per_1000m', zir.wire_cuts_per_1000m,
+                    'target_machine_type', zir.target_machine_type,
+                    'flattened_wire_width_mm', zir.flattened_wire_width_mm,
+                    'surface_coating_lubrication', zir.surface_coating_lubrication,
+                    'auto_assigned_routing', zir.auto_assigned_routing
+                )
+            FROM zari_inspection_records zir
+            JOIN zari_lot_batches zlb ON zir.zari_lot_batch_id = zlb.id
+            JOIN zari_assay_records zar ON zir.zari_assay_id = zar.id
+            WHERE zir.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM zari_inspector_certificates WHERE zari_inspection_id = zir.id
+            )
+        """, (precious_metal_value, approver_id, inspection_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'auto_assigned_routing': inspection['auto_assigned_routing'],
+            'precious_metal_value_estimate': float(precious_metal_value) if precious_metal_value else None,
+            'status': 'CERTIFIED',
+            'message': 'Zari inspection certified successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/inspection/<inspection_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_zari_inspection(inspection_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE zari_inspection_records
+            SET status = 'REJECTED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by Zari Inspector')}]),
+            inspection_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'InspectionNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'status': 'REJECTED',
+            'message': 'Zari inspection rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/zari/inspection/<inspection_id>/routing', methods=['GET'])
+@jwt_required()
+def get_zari_inspection_routing(inspection_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT auto_assigned_routing, validation_errors, validation_warnings,
+                   target_machine_type, core_yarn_audit_result, tensile_strength_gd,
+                   tarnish_free_scan, wire_cuts_per_1000m, flattened_wire_width_mm
+            FROM zari_inspection_records
+            WHERE id = %s::uuid
+        """, (inspection_id,))
+        
+        inspection = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not inspection:
+            return jsonify({'error': 'InspectionNotFound'}), 404
+        
+        routing = {
+            'inspection_id': str(inspection_id),
+            'auto_assigned_routing': inspection['auto_assigned_routing'],
+            'validation_errors': inspection['validation_errors'],
+            'validation_warnings': inspection['validation_warnings'],
+            'target_machine_type': inspection['target_machine_type'],
+            'core_yarn_audit_result': inspection['core_yarn_audit_result'],
+            'tensile_strength_gd': float(inspection['tensile_strength_gd']) if inspection['tensile_strength_gd'] else None,
+            'tarnish_free_scan': inspection['tarnish_free_scan'],
+            'wire_cuts_per_1000m': inspection['wire_cuts_per_1000m'],
+            'flattened_wire_width_mm': float(inspection['flattened_wire_width_mm']) if inspection['flattened_wire_width_mm'] else None
+        }
+        
+        return jsonify(routing), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

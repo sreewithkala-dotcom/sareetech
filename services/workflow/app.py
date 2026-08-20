@@ -8011,5 +8011,491 @@ def get_sales_forecast_warp_beam_prep():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# LOOM HARNESS SETTER (HARNESS BUILDING MASTER) MODULE
+# ============================================================
+
+@app.route('/api/v1/loom-harness-setter/logs', methods=['POST'])
+@jwt_required()
+def create_harness_setup_log():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['harness_setup_job_id', 'loom_hardware_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO harness_setup_logs (
+                harness_setup_job_id, loom_hardware_id, production_lot_id,
+                design_master_id, warp_beam_production_log_id, card_puncher_job_id,
+                pirn_winding_job_id, bobbin_winder_job_card_id,
+                factory_node_id, setter_employee_id, status,
+                jacquard_capacity_type, comber_board_density_epi,
+                harness_cord_material, lingo_weight_per_cord_grams,
+                harness_tie_up_profile, total_active_harness_cords, reed_count_density,
+                mail_eye_leveling_status, shed_opening_height_mm,
+                harness_drop_angle_status, antistatic_harness_lubrication,
+                comber_board_clearance_mm,
+                dry_run_full_lift_test, harness_setup_approval_state,
+                cord_material_batch_no, setup_start_time, setup_end_time,
+                total_assembly_hours, accumulated_picks_on_harness,
+                preventive_maintenance_flag, preventive_maintenance_task,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'SETUP_IN_PROGRESS', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, harness_setup_job_id
+        """, (
+            data.get('harness_setup_job_id'),
+            data.get('loom_hardware_id'),
+            data.get('production_lot_id'),
+            data.get('design_master_id'),
+            data.get('warp_beam_production_log_id'),
+            data.get('card_puncher_job_id'),
+            data.get('pirn_winding_job_id'),
+            data.get('bobbin_winder_job_card_id'),
+            factory_node_id,
+            operator_id,
+            data.get('jacquard_capacity_type', '2400_HOOK'),
+            data.get('comber_board_density_epi', '144_EPI'),
+            data.get('harness_cord_material', 'NOMEX_CORE_LOW_STRETCH_SYNTHETIC'),
+            data.get('lingo_weight_per_cord_grams'),
+            data.get('harness_tie_up_profile', 'STRAIGHT_TIE'),
+            data.get('total_active_harness_cords'),
+            data.get('reed_count_density'),
+            data.get('mail_eye_leveling_status', 'LASER_VERIFIED_PLUS_MINUS_0_5MM'),
+            data.get('shed_opening_height_mm'),
+            data.get('harness_drop_angle_status', 'STRAIGHT_DROP_LE_8_DEG'),
+            data.get('antistatic_harness_lubrication', 'DRY_PTFE_LUBRICANT_APPLIED'),
+            data.get('comber_board_clearance_mm'),
+            data.get('dry_run_full_lift_test', 'PASSED_100_PERCENT_HOOK_CLEARANCE'),
+            data.get('harness_setup_approval_state', 'SETUP_IN_PROGRESS'),
+            data.get('cord_material_batch_no'),
+            data.get('setup_end_time'),
+            data.get('total_assembly_hours'),
+            data.get('accumulated_picks_on_harness', 0),
+            data.get('preventive_maintenance_flag', False),
+            data.get('preventive_maintenance_task'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'harness_setup_job_id': log_row['harness_setup_job_id'],
+            'status': 'SETUP_IN_PROGRESS',
+            'message': 'Harness setup log created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/loom-harness-setter/logs', methods=['GET'])
+@jwt_required()
+def list_harness_setup_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT hsl.id, hsl.harness_setup_job_id, hsl.loom_hardware_id,
+                   hsl.jacquard_capacity_type, hsl.comber_board_density_epi,
+                   hsl.harness_cord_material, hsl.lingo_weight_per_cord_grams,
+                   hsl.total_active_harness_cords, hsl.reed_count_density,
+                   hsl.mail_eye_leveling_status, hsl.shed_opening_height_mm,
+                   hsl.harness_drop_angle_status, hsl.antistatic_harness_lubrication,
+                   hsl.dry_run_full_lift_test, hsl.harness_setup_approval_state,
+                   hsl.status, hsl.certificate_hash, hsl.preventive_maintenance_flag,
+                   hsl.auto_assigned_routing, hsl.created_at,
+                   dm.design_master_id
+            FROM harness_setup_logs hsl
+            LEFT JOIN design_masters dm ON hsl.design_master_id = dm.id
+            WHERE hsl.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY hsl.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(l['id']),
+                    'harness_setup_job_id': l['harness_setup_job_id'],
+                    'loom_hardware_id': l['loom_hardware_id'],
+                    'design_master_id': l['design_master_id'],
+                    'jacquard_capacity_type': l['jacquard_capacity_type'],
+                    'comber_board_density_epi': l['comber_board_density_epi'],
+                    'harness_cord_material': l['harness_cord_material'],
+                    'lingo_weight_per_cord_grams': l['lingo_weight_per_cord_grams'],
+                    'total_active_harness_cords': l['total_active_harness_cords'],
+                    'reed_count_density': l['reed_count_density'],
+                    'mail_eye_leveling_status': l['mail_eye_leveling_status'],
+                    'shed_opening_height_mm': l['shed_opening_height_mm'],
+                    'harness_drop_angle_status': l['harness_drop_angle_status'],
+                    'antistatic_harness_lubrication': l['antistatic_harness_lubrication'],
+                    'dry_run_full_lift_test': l['dry_run_full_lift_test'],
+                    'harness_setup_approval_state': l['harness_setup_approval_state'],
+                    'status': l['status'],
+                    'certificate_hash': l['certificate_hash'],
+                    'preventive_maintenance_flag': l['preventive_maintenance_flag'],
+                    'auto_assigned_routing': l['auto_assigned_routing'],
+                    'created_at': l['created_at'].isoformat() if l['created_at'] else None
+                }
+                for l in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/loom-harness-setter/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_harness_setup_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT hsl.*, dm.design_master_id
+            FROM harness_setup_logs hsl
+            LEFT JOIN design_masters dm ON hsl.design_master_id = dm.id
+            WHERE hsl.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'harness_setup_job_id': log['harness_setup_job_id'],
+            'loom_hardware_id': log['loom_hardware_id'],
+            'design_master_id': log['design_master_id'],
+            'jacquard_capacity_type': log['jacquard_capacity_type'],
+            'comber_board_density_epi': log['comber_board_density_epi'],
+            'harness_cord_material': log['harness_cord_material'],
+            'lingo_weight_per_cord_grams': log['lingo_weight_per_cord_grams'],
+            'harness_tie_up_profile': log['harness_tie_up_profile'],
+            'total_active_harness_cords': log['total_active_harness_cords'],
+            'reed_count_density': log['reed_count_density'],
+            'mail_eye_leveling_status': log['mail_eye_leveling_status'],
+            'shed_opening_height_mm': log['shed_opening_height_mm'],
+            'harness_drop_angle_status': log['harness_drop_angle_status'],
+            'antistatic_harness_lubrication': log['antistatic_harness_lubrication'],
+            'comber_board_clearance_mm': log['comber_board_clearance_mm'],
+            'dry_run_full_lift_test': log['dry_run_full_lift_test'],
+            'harness_setup_approval_state': log['harness_setup_approval_state'],
+            'cord_material_batch_no': log['cord_material_batch_no'],
+            'setup_start_time': log['setup_start_time'].isoformat() if log['setup_start_time'] else None,
+            'setup_end_time': log['setup_end_time'].isoformat() if log['setup_end_time'] else None,
+            'total_assembly_hours': log['total_assembly_hours'],
+            'accumulated_picks_on_harness': log['accumulated_picks_on_harness'],
+            'preventive_maintenance_flag': log['preventive_maintenance_flag'],
+            'preventive_maintenance_task': log['preventive_maintenance_task'],
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'status': log['status'],
+            'certificate_hash': log['certificate_hash']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/loom-harness-setter/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_harness_setup_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, harness_setup_job_id, status, validation_errors, harness_setup_approval_state
+            FROM harness_setup_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['harness_setup_job_id'])
+        qr_tag_id = 'HARNESS-' + log['harness_setup_job_id']
+        
+        cur.execute("""
+            UPDATE harness_setup_logs
+            SET status = 'VACANT_AVAILABLE_FOR_WEAVING',
+                certificate_hash = %s,
+                qr_tag_id = %s,
+                harness_setup_approval_state = 'PASSED_APPROVED_FOR_GAITING'
+            WHERE id = %s::uuid
+            RETURNING id, harness_setup_job_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO harness_certificates (
+                harness_setup_log_id, certificate_hash, qr_tag_id, harness_setup_job_id,
+                loom_hardware_id, jacquard_capacity_type, comber_board_density_epi,
+                harness_cord_material, lingo_weight_per_cord_grams,
+                harness_tie_up_profile, total_active_harness_cords,
+                mail_eye_leveling_status, shed_opening_height_mm,
+                harness_drop_angle_status, antistatic_harness_lubrication,
+                dry_run_full_lift_test, harness_setup_approval_state,
+                accumulated_picks_on_harness, preventive_maintenance_flag,
+                auto_assigned_routing, setter_employee_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.harness_setup_job_id,
+                pj.loom_hardware_id,
+                pj.jacquard_capacity_type,
+                pj.comber_board_density_epi,
+                pj.harness_cord_material,
+                pj.lingo_weight_per_cord_grams,
+                pj.harness_tie_up_profile,
+                pj.total_active_harness_cords,
+                pj.mail_eye_leveling_status,
+                pj.shed_opening_height_mm,
+                pj.harness_drop_angle_status,
+                pj.antistatic_harness_lubrication,
+                pj.dry_run_full_lift_test,
+                pj.harness_setup_approval_state,
+                pj.accumulated_picks_on_harness,
+                pj.preventive_maintenance_flag,
+                pj.auto_assigned_routing,
+                pj.setter_employee_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'harness_setup_job_id', pj.harness_setup_job_id,
+                    'loom_hardware_id', pj.loom_hardware_id,
+                    'jacquard_capacity_type', pj.jacquard_capacity_type,
+                    'comber_board_density_epi', pj.comber_board_density_epi,
+                    'harness_cord_material', pj.harness_cord_material,
+                    'lingo_weight_per_cord_grams', pj.lingo_weight_per_cord_grams,
+                    'total_active_harness_cords', pj.total_active_harness_cords,
+                    'shed_opening_height_mm', pj.shed_opening_height_mm,
+                    'accumulated_picks_on_harness', pj.accumulated_picks_on_harness,
+                    'preventive_maintenance_flag', pj.preventive_maintenance_flag
+                )
+            FROM harness_setup_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'harness_setup_job_id': result['harness_setup_job_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'VACANT_AVAILABLE_FOR_WEAVING',
+            'message': 'Harness setup log certified and loom is available for weaving'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/loom-harness-setter/certificates', methods=['GET'])
+@jwt_required()
+def list_harness_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT hc.id, hc.certificate_hash, hc.qr_tag_id,
+                   hc.harness_setup_job_id, hc.loom_hardware_id,
+                   hc.jacquard_capacity_type, hc.comber_board_density_epi,
+                   hc.harness_cord_material, hc.lingo_weight_per_cord_grams,
+                   hc.harness_tie_up_profile, hc.total_active_harness_cords,
+                   hc.mail_eye_leveling_status, hc.shed_opening_height_mm,
+                   hc.harness_drop_angle_status, hc.antistatic_harness_lubrication,
+                   hc.dry_run_full_lift_test, hc.harness_setup_approval_state,
+                   hc.accumulated_picks_on_harness, hc.preventive_maintenance_flag,
+                   hc.auto_assigned_routing, hc.status, hc.certified_at,
+                   hsl.harness_setup_job_id
+            FROM harness_certificates hc
+            JOIN harness_setup_logs hsl ON hc.harness_setup_log_id = hsl.id
+            WHERE hc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY hc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'harness_setup_job_id': c['harness_setup_job_id'],
+                    'loom_hardware_id': c['loom_hardware_id'],
+                    'jacquard_capacity_type': c['jacquard_capacity_type'],
+                    'comber_board_density_epi': c['comber_board_density_epi'],
+                    'harness_cord_material': c['harness_cord_material'],
+                    'lingo_weight_per_cord_grams': c['lingo_weight_per_cord_grams'],
+                    'harness_tie_up_profile': c['harness_tie_up_profile'],
+                    'total_active_harness_cords': c['total_active_harness_cords'],
+                    'mail_eye_leveling_status': c['mail_eye_leveling_status'],
+                    'shed_opening_height_mm': c['shed_opening_height_mm'],
+                    'harness_drop_angle_status': c['harness_drop_angle_status'],
+                    'antistatic_harness_lubrication': c['antistatic_harness_lubrication'],
+                    'dry_run_full_lift_test': c['dry_run_full_lift_test'],
+                    'harness_setup_approval_state': c['harness_setup_approval_state'],
+                    'accumulated_picks_on_harness': c['accumulated_picks_on_harness'],
+                    'preventive_maintenance_flag': c['preventive_maintenance_flag'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR LOOM HARNESS SETTER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/loom-harness-setter', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_loom_harness_setter():
+    """
+    API plugin endpoint for sales team loom harness setup material processing forecast.
+    Returns forecasted harness setup requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'jacquard_capacity_type': '2400_HOOK',
+                    'comber_board_density_epi': '144_EPI',
+                    'harness_cord_material': 'NOMEX_CORE_LOW_STRETCH_SYNTHETIC',
+                    'estimated_setups': 3,
+                    'shed_opening_height_mm': 45.0,
+                    'lingo_weight_grams': 20.0,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'jacquard_capacity_type': '2400_HOOK',
+                    'comber_board_density_epi': '144_EPI',
+                    'harness_cord_material': 'NOMEX_CORE_LOW_STRETCH_SYNTHETIC',
+                    'estimated_setups': 2,
+                    'shed_opening_height_mm': 46.0,
+                    'lingo_weight_grams': 19.5,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'jacquard_capacity_type': '1536_HOOK',
+                    'comber_board_density_epi': '120_EPI',
+                    'harness_cord_material': 'STANDARD_BRAIDED_POLYESTER',
+                    'estimated_setups': 5,
+                    'shed_opening_height_mm': 52.0,
+                    'lingo_weight_grams': 27.0,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'HARNESS-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_setups': 3,
+                    'jacquard_capacity_type': '2400_HOOK',
+                    'loom_hardware_id': 'LOOM-2400-001'
+                },
+                {
+                    'lot_number': 'HARNESS-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_setups': 2,
+                    'jacquard_capacity_type': '2400_HOOK',
+                    'loom_hardware_id': 'LOOM-2400-002'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

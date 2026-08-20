@@ -11641,5 +11641,489 @@ def get_sales_forecast_quality_inspector():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# QA DYEING INSPECTOR MODULE
+# ============================================================
+
+def validate_qa_dyeing_inspector_guardrails(data):
+    """Validate QA dyeing inspector inputs against business guardrails."""
+    errors = []
+    warnings = []
+    
+    color_delta_e = data.get('color_delta_e')
+    color_fastness_grade = data.get('color_fastness_grade')
+    primary_dye_defect_code = data.get('primary_dye_defect_code')
+    qa_dyeing_approval_state = data.get('qa_dyeing_approval_state')
+    
+    if color_delta_e is not None and color_delta_e > 1.0:
+        errors.append({
+            'code': 'COLOR_VARIANCE_FAIL',
+            'message': 'COLOR_DELTA_E_EXCEEDS_ACCEPTABLE_THRESHOLD_OF_1.0'
+        })
+    
+    if color_fastness_grade in ('GRADE_C_ACCEPTABLE', 'GRADE_D_POOR'):
+        errors.append({
+            'code': 'FASTNESS_FAIL',
+            'message': 'COLOR_FASTNESS_GRADE_BELOW_ACCEPTABLE_THRESHOLD'
+        })
+    
+    if primary_dye_defect_code in ('SHADE_VARIATION_LOT', 'DYE_STREAK_MARK', 'UNEVEN_PENETRATION'):
+        warnings.append({
+            'code': 'AUTO_ALERT_DYEING_SUPERVISOR',
+            'message': 'DYE_DEFECT_DETECTED_REQUIRES_SUPERVISOR_REVIEW'
+        })
+    
+    if qa_dyeing_approval_state is not None and qa_dyeing_approval_state != 'PASSED_CLEARED_FOR_FINISHING':
+        errors.append({
+            'code': 'DENY_FINISHING_TRANSFER',
+            'message': 'DYEING_INSPECTION_NOT_CLEARED'
+        })
+    
+    return errors, warnings
+
+@app.route('/api/v1/qa-dyeing-inspector/logs', methods=['POST'])
+@jwt_required()
+def create_qa_dyeing_inspector_log():
+    try:
+        inspector_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['batch_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (inspector_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        validation_errors, validation_warnings = validate_qa_dyeing_inspector_guardrails(data)
+        
+        inspection_id = f"QDI-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        cur.execute("""
+            INSERT INTO qa_dyeing_inspector_logs (
+                inspection_id, batch_id, saree_serial_barcode, factory_node_id,
+                inspector_employee_id, quality_inspector_log_id, sup_supervisor_log_id,
+                dye_batch_ref, color_code, color_name, dyeing_process_type,
+                color_delta_e, color_fastness_grade, shade_variation_detected,
+                dye_penetration_uniform, metamerism_risk,
+                primary_dye_defect_code, batch_clearance_status, qa_dyeing_approval_state,
+                piece_rate_penalty_applied, piece_rate_penalty_percent,
+                piece_rate_release_status, b2b_order_matched, b2b_order_status,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, inspection_id
+        """, (
+            inspection_id,
+            data.get('batch_id'),
+            data.get('saree_serial_barcode'),
+            factory_node_id,
+            inspector_id,
+            data.get('quality_inspector_log_id'),
+            data.get('sup_supervisor_log_id'),
+            data.get('dye_batch_ref'),
+            data.get('color_code'),
+            data.get('color_name'),
+            data.get('dyeing_process_type', 'SKEIN_DYE'),
+            data.get('color_delta_e'),
+            data.get('color_fastness_grade', 'GRADE_A_EXCELLENT'),
+            data.get('shade_variation_detected', False),
+            data.get('dye_penetration_uniform', True),
+            data.get('metamerism_risk', 'LOW'),
+            data.get('primary_dye_defect_code', 'DEFECT_NONE_CLEAN_BATCH'),
+            data.get('batch_clearance_status', 'CLEARED_FOR_FINISHING'),
+            data.get('qa_dyeing_approval_state', 'INSPECTION_IN_PROGRESS'),
+            data.get('piece_rate_penalty_applied', False),
+            data.get('piece_rate_penalty_percent', 0.0),
+            data.get('piece_rate_release_status', 'PENDING_RELEASE'),
+            data.get('b2b_order_matched', False),
+            data.get('b2b_order_status', 'PENDING_MATCH'),
+            json.dumps(validation_errors),
+            json.dumps(validation_warnings),
+            data.get('auto_assigned_routing')
+        ))
+        
+        log_row = cur.fetchone()
+        log_id = log_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(log_id),
+            'inspection_id': log_row['inspection_id'],
+            'validation_errors': validation_errors,
+            'validation_warnings': validation_warnings,
+            'status': 'submitted'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/qa-dyeing-inspector/logs', methods=['GET'])
+@jwt_required()
+def list_qa_dyeing_inspector_logs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qdil.id, qdil.inspection_id, qdil.batch_id, qdil.saree_serial_barcode,
+                   qdil.color_code, qdil.color_name, qdil.color_delta_e,
+                   qdil.color_fastness_grade, qdil.primary_dye_defect_code,
+                   qdil.batch_clearance_status, qdil.qa_dyeing_approval_state,
+                   qdil.auto_assigned_routing, qdil.piece_rate_release_status,
+                   qdil.b2b_order_status, qdil.inspection_timestamp,
+                   u_inspector.full_name AS inspector_name
+            FROM qa_dyeing_inspector_logs qdil
+            LEFT JOIN users u_inspector ON qdil.inspector_employee_id = u_inspector.id
+            WHERE qdil.inspector_employee_id = %s::uuid
+            ORDER BY qdil.inspection_timestamp DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        logs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(logs),
+            'logs': [
+                {
+                    'id': str(log['id']),
+                    'inspection_id': log['inspection_id'],
+                    'batch_id': log['batch_id'],
+                    'saree_serial_barcode': log['saree_serial_barcode'],
+                    'color_code': log['color_code'],
+                    'color_name': log['color_name'],
+                    'color_delta_e': float(log['color_delta_e']) if log['color_delta_e'] else None,
+                    'color_fastness_grade': log['color_fastness_grade'],
+                    'primary_dye_defect_code': log['primary_dye_defect_code'],
+                    'batch_clearance_status': log['batch_clearance_status'],
+                    'qa_dyeing_approval_state': log['qa_dyeing_approval_state'],
+                    'auto_assigned_routing': log['auto_assigned_routing'],
+                    'piece_rate_release_status': log['piece_rate_release_status'],
+                    'b2b_order_status': log['b2b_order_status'],
+                    'inspection_timestamp': log['inspection_timestamp'].isoformat() if log['inspection_timestamp'] else None,
+                    'inspector_name': log['inspector_name']
+                }
+                for log in logs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/qa-dyeing-inspector/logs/<log_id>', methods=['GET'])
+@jwt_required()
+def get_qa_dyeing_inspector_log(log_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qdil.*,
+                   u_inspector.full_name AS inspector_name
+            FROM qa_dyeing_inspector_logs qdil
+            LEFT JOIN users u_inspector ON qdil.inspector_employee_id = u_inspector.id
+            WHERE qdil.id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not log:
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        return jsonify({
+            'id': str(log['id']),
+            'inspection_id': log['inspection_id'],
+            'batch_id': log['batch_id'],
+            'saree_serial_barcode': log['saree_serial_barcode'],
+            'factory_node_id': log['factory_node_id'],
+            'inspector_employee_id': str(log['inspector_employee_id']),
+            'quality_inspector_log_id': str(log['quality_inspector_log_id']) if log['quality_inspector_log_id'] else None,
+            'sup_supervisor_log_id': str(log['sup_supervisor_log_id']) if log['sup_supervisor_log_id'] else None,
+            'inspection_timestamp': log['inspection_timestamp'].isoformat() if log['inspection_timestamp'] else None,
+            'dye_batch_ref': log['dye_batch_ref'],
+            'color_code': log['color_code'],
+            'color_name': log['color_name'],
+            'dyeing_process_type': log['dyeing_process_type'],
+            'color_delta_e': float(log['color_delta_e']) if log['color_delta_e'] else None,
+            'color_fastness_grade': log['color_fastness_grade'],
+            'shade_variation_detected': log['shade_variation_detected'],
+            'dye_penetration_uniform': log['dye_penetration_uniform'],
+            'metamerism_risk': log['metamerism_risk'],
+            'primary_dye_defect_code': log['primary_dye_defect_code'],
+            'batch_clearance_status': log['batch_clearance_status'],
+            'qa_dyeing_approval_state': log['qa_dyeing_approval_state'],
+            'piece_rate_penalty_applied': log['piece_rate_penalty_applied'],
+            'piece_rate_penalty_percent': float(log['piece_rate_penalty_percent']) if log['piece_rate_penalty_percent'] else None,
+            'piece_rate_release_status': log['piece_rate_release_status'],
+            'b2b_order_matched': log['b2b_order_matched'],
+            'b2b_order_status': log['b2b_order_status'],
+            'validation_errors': log['validation_errors'],
+            'validation_warnings': log['validation_warnings'],
+            'auto_assigned_routing': log['auto_assigned_routing'],
+            'certificate_hash': log['certificate_hash'],
+            'qr_tag_id': log['qr_tag_id'],
+            'inspector_name': log['inspector_name']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/qa-dyeing-inspector/logs/<log_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_qa_dyeing_inspector_log(log_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, inspection_id, validation_errors, qa_dyeing_approval_state
+            FROM qa_dyeing_inspector_logs
+            WHERE id = %s::uuid
+        """, (log_id,))
+        
+        log = cur.fetchone()
+        if not log:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'LogNotFound'}), 404
+        
+        if log['validation_errors'] and len(log['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify log with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(log_id, log['inspection_id'])
+        qr_tag_id = 'QDI-' + log['inspection_id']
+        
+        cur.execute("""
+            UPDATE qa_dyeing_inspector_logs
+            SET certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, inspection_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, log_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO qa_dyeing_inspector_certificates (
+                qa_dyeing_inspector_log_id, certificate_hash, qr_tag_id, inspection_id,
+                batch_id, saree_serial_barcode, color_code, color_name,
+                dyeing_process_type, color_delta_e, color_fastness_grade,
+                shade_variation_detected, dye_penetration_uniform, metamerism_risk,
+                primary_dye_defect_code, batch_clearance_status, qa_dyeing_approval_state,
+                piece_rate_penalty_applied, piece_rate_penalty_percent,
+                piece_rate_release_status, b2b_order_matched, b2b_order_status,
+                inspector_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.inspection_id,
+                pj.batch_id,
+                pj.saree_serial_barcode,
+                pj.color_code, pj.color_name,
+                pj.dyeing_process_type, pj.color_delta_e, pj.color_fastness_grade,
+                pj.shade_variation_detected, pj.dye_penetration_uniform, pj.metamerism_risk,
+                pj.primary_dye_defect_code, pj.batch_clearance_status, pj.qa_dyeing_approval_state,
+                pj.piece_rate_penalty_applied, pj.piece_rate_penalty_percent,
+                pj.piece_rate_release_status, pj.b2b_order_matched, pj.b2b_order_status,
+                pj.inspector_employee_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'inspection_id', pj.inspection_id,
+                    'batch_id', pj.batch_id,
+                    'color_code', pj.color_code,
+                    'color_delta_e', pj.color_delta_e,
+                    'color_fastness_grade', pj.color_fastness_grade,
+                    'primary_dye_defect_code', pj.primary_dye_defect_code,
+                    'qa_dyeing_approval_state', pj.qa_dyeing_approval_state,
+                    'piece_rate_release_status', pj.piece_rate_release_status,
+                    'b2b_order_status', pj.b2b_order_status
+                )
+            FROM qa_dyeing_inspector_logs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, log_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'inspection_id': result['inspection_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'PASSED_CLEARED_FOR_FINISHING',
+            'message': 'QA dyeing inspection certified and cleared for finishing'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/qa-dyeing-inspector/certificates', methods=['GET'])
+@jwt_required()
+def list_qa_dyeing_inspector_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qdic.id, qdic.certificate_hash, qdic.qr_tag_id,
+                   qdic.inspection_id, qdic.batch_id, qdic.color_code,
+                   qdic.color_delta_e, qdic.color_fastness_grade,
+                   qdic.primary_dye_defect_code, qdic.batch_clearance_status,
+                   qdic.qa_dyeing_approval_state, qdic.piece_rate_penalty_applied,
+                   qdic.piece_rate_penalty_percent, qdic.piece_rate_release_status,
+                   qdic.b2b_order_matched, qdic.b2b_order_status,
+                   qdic.status, qdic.certified_at
+            FROM qa_dyeing_inspector_certificates qdic
+            WHERE qdic.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY qdic.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'inspection_id': c['inspection_id'],
+                    'batch_id': c['batch_id'],
+                    'color_code': c['color_code'],
+                    'color_delta_e': float(c['color_delta_e']) if c['color_delta_e'] else None,
+                    'color_fastness_grade': c['color_fastness_grade'],
+                    'primary_dye_defect_code': c['primary_dye_defect_code'],
+                    'batch_clearance_status': c['batch_clearance_status'],
+                    'qa_dyeing_approval_state': c['qa_dyeing_approval_state'],
+                    'piece_rate_penalty_applied': c['piece_rate_penalty_applied'],
+                    'piece_rate_penalty_percent': float(c['piece_rate_penalty_percent']) if c['piece_rate_penalty_percent'] else None,
+                    'piece_rate_release_status': c['piece_rate_release_status'],
+                    'b2b_order_matched': c['b2b_order_matched'],
+                    'b2b_order_status': c['b2b_order_status'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR QA DYEING INSPECTOR
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/qa-dyeing-inspector', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_qa_dyeing_inspector():
+    """
+    API plugin endpoint for sales team QA dyeing inspector material processing forecast.
+    Returns forecasted dyeing inspection requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'color_code': 'DEEP_MAROON',
+                    'dyeing_process_type': 'SKEIN_DYE',
+                    'color_delta_e_threshold': 1.0,
+                    'color_fastness_grade': 'GRADE_A_EXCELLENT',
+                    'estimated_batches': 5,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'color_code': 'ROYAL_BLUE',
+                    'dyeing_process_type': 'SKEIN_DYE',
+                    'color_delta_e_threshold': 1.0,
+                    'color_fastness_grade': 'GRADE_A_EXCELLENT',
+                    'estimated_batches': 3,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'color_code': 'EMERALD_GREEN',
+                    'dyeing_process_type': 'HANK_DYE',
+                    'color_delta_e_threshold': 1.5,
+                    'color_fastness_grade': 'GRADE_B_GOOD',
+                    'estimated_batches': 8,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'QDI-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'color_code': 'DEEP_MAROON',
+                    'estimated_batches': 5
+                },
+                {
+                    'lot_number': 'QDI-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'color_code': 'ROYAL_BLUE',
+                    'estimated_batches': 3
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

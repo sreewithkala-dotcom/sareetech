@@ -1368,5 +1368,701 @@ def create_waste_alarm():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# INWARD QUALITY GATE MODULE
+# ============================================================
+
+def validate_quality_intake_guardrails(data):
+    """Validate QC intake against industry benchmarks."""
+    errors = []
+    warnings = []
+    
+    if data.get('live_moisture_reading_pct') is not None and data['live_moisture_reading_pct'] > 11.0:
+        errors.append({
+            'code': 'MOISTURE_EXCEEDS_LIMIT',
+            'message': f"Moisture {data['live_moisture_reading_pct']}% exceeds 11.0% legal standard"
+        })
+    
+    if data.get('size_deviation_pct') is not None and data['size_deviation_pct'] > 4.0:
+        errors.append({
+            'code': 'SIZE_DEVIATION_EXCEEDED',
+            'message': f"Size deviation {data['size_deviation_pct']}% exceeds 4.0% threshold"
+        })
+    
+    if data.get('evenness_pct') is not None and data['evenness_pct'] < 95:
+        warnings.append({
+            'code': 'EVENNESS_BELOW_TARGET',
+            'message': f"Evenness {data['evenness_pct']}% below 95% target"
+        })
+    
+    if data.get('cleanness_pct') is not None and data['cleanness_pct'] < 95:
+        warnings.append({
+            'code': 'CLEANNESS_BELOW_TARGET',
+            'message': f"Cleanness {data['cleanness_pct']}% below 95% target"
+        })
+    
+    if data.get('neatness_pct') is not None and data['neatness_pct'] < 93:
+        warnings.append({
+            'code': 'NEATNESS_BELOW_TARGET',
+            'message': f"Neatness {data['neatness_pct']}% below 93% target"
+        })
+    
+    if data.get('tenacity_gd') is not None and data['tenacity_gd'] < 3.5:
+        errors.append({
+            'code': 'TENACITY_BELOW_MINIMUM',
+            'message': f"Tenacity {data['tenacity_gd']} g/d below 3.5 minimum"
+        })
+    
+    if data.get('cohesion_strokes') is not None and data['cohesion_strokes'] < 60:
+        warnings.append({
+            'code': 'COHESION_BELOW_TARGET',
+            'message': f"Cohesion {data['cohesion_strokes']} strokes below 60 minimum"
+        })
+    
+    if data.get('has_machine_oil_stains'):
+        errors.append({
+            'code': 'MACHINE_OIL_CONTAMINATION',
+            'message': 'Material flagged as structurally contaminated'
+        })
+    
+    if data.get('has_mixed_dye_lots'):
+        warnings.append({
+            'code': 'MIXED_DYE_LOTS_RISK',
+            'message': 'High risk of dual-tone saree defects'
+        })
+    
+    return errors, warnings
+
+# ============================================================
+# GATE CLERK ENDPOINTS
+# ============================================================
+
+@app.route('/api/v1/inward-gate/entries', methods=['POST'])
+@jwt_required()
+def create_inward_gate_entry():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['supplier_id', 'invoice_number', 'invoice_gross_weight_kg', 'actual_scale_weight_kg', 'filature_lot_number']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        inward_gate_entry_no = f"IGE-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        cur.execute("""
+            INSERT INTO inward_gate_entries (
+                inward_gate_entry_no, supplier_id, invoice_number,
+                invoice_gross_weight_kg, actual_scale_weight_kg,
+                filature_lot_number, factory_node_id, recorded_by
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, inward_gate_entry_no
+        """, (
+            inward_gate_entry_no,
+            data.get('supplier_id'),
+            data.get('invoice_number'),
+            data.get('invoice_gross_weight_kg'),
+            data.get('actual_scale_weight_kg'),
+            data.get('filature_lot_number'),
+            factory_node_id,
+            operator_id
+        ))
+        
+        entry_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(entry_row['id']),
+            'inward_gate_entry_no': entry_row['inward_gate_entry_no'],
+            'status': 'QC_HOLD',
+            'message': 'Inward gate entry created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/inward-gate/entries', methods=['GET'])
+@jwt_required()
+def list_inward_gate_entries():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT ige.id, ige.inward_gate_entry_no, ige.supplier_id,
+                   u.full_name AS supplier_name, ige.invoice_number,
+                   ige.invoice_gross_weight_kg, ige.actual_scale_weight_kg,
+                   ige.filature_lot_number, ige.status, ige.created_at
+            FROM inward_gate_entries ige
+            LEFT JOIN users u ON ige.supplier_id = u.id
+            WHERE ige.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY ige.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        entries = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(entries),
+            'entries': [
+                {
+                    'id': str(e['id']),
+                    'inward_gate_entry_no': e['inward_gate_entry_no'],
+                    'supplier_id': str(e['supplier_id']),
+                    'supplier_name': e['supplier_name'],
+                    'invoice_number': e['invoice_number'],
+                    'invoice_gross_weight_kg': float(e['invoice_gross_weight_kg']),
+                    'actual_scale_weight_kg': float(e['actual_scale_weight_kg']),
+                    'filature_lot_number': e['filature_lot_number'],
+                    'status': e['status'],
+                    'created_at': e['created_at'].isoformat() if e['created_at'] else None
+                }
+                for e in entries
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# QC INSPECTOR ENDPOINTS
+# ============================================================
+
+@app.route('/api/v1/quality/intake', methods=['POST'])
+@jwt_required()
+def create_quality_intake():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['inward_gate_entry_id', 'silk_type', 'machinery_source', 'certified_grade']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        errors, warnings = validate_quality_intake_guardrails(data)
+        
+        quality_intake_no = f"QIR-{datetime.utcnow().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+        
+        status = 'SUBMITTED' if not errors else 'DRAFT'
+        
+        cur.execute("""
+            INSERT INTO quality_intake_records (
+                quality_intake_no, inward_gate_entry_id, inspector_id,
+                factory_node_id, silk_type, machinery_source, silk_mark_tag_id,
+                lab_report_number, certified_grade, size_deviation_pct,
+                evenness_pct, cleanness_pct, neatness_pct, tenacity_gd,
+                cohesion_strokes, live_moisture_reading_pct,
+                has_machine_oil_stains, has_mixed_dye_lots, sample_hank_weight_g,
+                validation_errors, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, quality_intake_no
+        """, (
+            quality_intake_no,
+            data.get('inward_gate_entry_id'),
+            operator_id,
+            factory_node_id,
+            data.get('silk_type'),
+            data.get('machinery_source'),
+            data.get('silk_mark_tag_id'),
+            data.get('lab_report_number'),
+            data.get('certified_grade'),
+            data.get('size_deviation_pct'),
+            data.get('evenness_pct'),
+            data.get('cleanness_pct'),
+            data.get('neatness_pct'),
+            data.get('tenacity_gd'),
+            data.get('cohesion_strokes'),
+            data.get('live_moisture_reading_pct'),
+            data.get('has_machine_oil_stains', False),
+            data.get('has_mixed_dye_lots', False),
+            data.get('sample_hank_weight_g'),
+            json.dumps(errors + warnings),
+            status
+        ))
+        
+        intake_row = cur.fetchone()
+        intake_id = intake_row['id']
+        
+        if errors:
+            conn.commit()
+            cur.close()
+            conn.close()
+            return jsonify({
+                'id': str(intake_id),
+                'quality_intake_no': quality_intake_no,
+                'status': status,
+                'errors': errors,
+                'warnings': warnings
+            }), 400
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(intake_id),
+            'quality_intake_no': quality_intake_no,
+            'status': status,
+            'warnings': warnings,
+            'message': 'Quality intake created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality/intake', methods=['GET'])
+@jwt_required()
+def list_quality_intakes():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qir.id, qir.quality_intake_no, qir.inward_gate_entry_id,
+                   ige.inward_gate_entry_no, qir.silk_type, qir.machinery_source,
+                   qir.certified_grade, qir.size_deviation_pct, qir.evenness_pct,
+                   qir.cleanness_pct, qir.neatness_pct, qir.tenacity_gd,
+                   qir.cohesion_strokes, qir.live_moisture_reading_pct,
+                   qir.auto_assigned_routing, qir.status, qir.certificate_hash,
+                   qir.created_at
+            FROM quality_intake_records qir
+            JOIN inward_gate_entries ige ON qir.inward_gate_entry_id = ige.id
+            WHERE qir.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY qir.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        intakes = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(intakes),
+            'intakes': [
+                {
+                    'id': str(i['id']),
+                    'quality_intake_no': i['quality_intake_no'],
+                    'inward_gate_entry_id': str(i['inward_gate_entry_id']),
+                    'inward_gate_entry_no': i['inward_gate_entry_no'],
+                    'silk_type': i['silk_type'],
+                    'machinery_source': i['machinery_source'],
+                    'certified_grade': i['certified_grade'],
+                    'size_deviation_pct': float(i['size_deviation_pct']) if i['size_deviation_pct'] else None,
+                    'evenness_pct': float(i['evenness_pct']) if i['evenness_pct'] else None,
+                    'cleanness_pct': float(i['cleanness_pct']) if i['cleanness_pct'] else None,
+                    'neatness_pct': float(i['neatness_pct']) if i['neatness_pct'] else None,
+                    'tenacity_gd': float(i['tenacity_gd']) if i['tenacity_gd'] else None,
+                    'cohesion_strokes': i['cohesion_strokes'],
+                    'live_moisture_reading_pct': float(i['live_moisture_reading_pct']) if i['live_moisture_reading_pct'] else None,
+                    'auto_assigned_routing': i['auto_assigned_routing'],
+                    'status': i['status'],
+                    'certificate_hash': i['certificate_hash'],
+                    'created_at': i['created_at'].isoformat() if i['created_at'] else None
+                }
+                for i in intakes
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality/intake/<intake_id>', methods=['GET'])
+@jwt_required()
+def get_quality_intake(intake_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT qir.*, ige.inward_gate_entry_no, ige.invoice_number,
+                   ige.actual_scale_weight_kg, ige.filature_lot_number
+            FROM quality_intake_records qir
+            JOIN inward_gate_entries ige ON qir.inward_gate_entry_id = ige.id
+            WHERE qir.id = %s::uuid
+        """, (intake_id,))
+        
+        intake = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not intake:
+            return jsonify({'error': 'IntakeNotFound'}), 404
+        
+        return jsonify({
+            'id': str(intake['id']),
+            'quality_intake_no': intake['quality_intake_no'],
+            'inward_gate_entry_id': str(intake['inward_gate_entry_id']),
+            'inward_gate_entry_no': intake['inward_gate_entry_no'],
+            'invoice_number': intake['invoice_number'],
+            'actual_scale_weight_kg': float(intake['actual_scale_weight_kg']),
+            'filature_lot_number': intake['filature_lot_number'],
+            'silk_type': intake['silk_type'],
+            'machinery_source': intake['machinery_source'],
+            'silk_mark_tag_id': intake['silk_mark_tag_id'],
+            'lab_report_number': intake['lab_report_number'],
+            'certified_grade': intake['certified_grade'],
+            'size_deviation_pct': float(intake['size_deviation_pct']) if intake['size_deviation_pct'] else None,
+            'evenness_pct': float(intake['evenness_pct']) if intake['evenness_pct'] else None,
+            'cleanness_pct': float(intake['cleanness_pct']) if intake['cleanness_pct'] else None,
+            'neatness_pct': float(intake['neatness_pct']) if intake['neatness_pct'] else None,
+            'tenacity_gd': float(intake['tenacity_gd']) if intake['tenacity_gd'] else None,
+            'cohesion_strokes': intake['cohesion_strokes'],
+            'live_moisture_reading_pct': float(intake['live_moisture_reading_pct']) if intake['live_moisture_reading_pct'] else None,
+            'has_machine_oil_stains': intake['has_machine_oil_stains'],
+            'has_mixed_dye_lots': intake['has_mixed_dye_lots'],
+            'sample_hank_weight_g': intake['sample_hank_weight_g'],
+            'calculated_conditioned_weight_kg': float(intake['calculated_conditioned_weight_kg']) if intake['calculated_conditioned_weight_kg'] else None,
+            'billing_weight_discrepancy_kg': float(intake['billing_weight_discrepancy_kg']) if intake['billing_weight_discrepancy_kg'] else None,
+            'auto_assigned_routing': intake['auto_assigned_routing'],
+            'validation_errors': intake['validation_errors'],
+            'status': intake['status'],
+            'certificate_hash': intake['certificate_hash'],
+            'qr_tag_id': intake['qr_tag_id']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# QUALITY MANAGER ENDPOINTS
+# ============================================================
+
+@app.route('/api/v1/quality/intake/<intake_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_quality_intake(intake_id):
+    try:
+        approver_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, status, auto_assigned_routing, validation_errors
+            FROM quality_intake_records
+            WHERE id = %s::uuid
+        """, (intake_id,))
+        
+        intake = cur.fetchone()
+        if not intake:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'IntakeNotFound'}), 404
+        
+        if intake['validation_errors'] and len(intake['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot approve intake with validation errors'}), 400
+        
+        new_status = intake['auto_assigned_routing'] or 'WARP_PREMIUM'
+        certificate_hash = encode(digest(intake_id::text || quality_intake_no || CURRENT_TIMESTAMP::text, 'sha256'), 'hex')
+        
+        cur.execute("""
+            UPDATE quality_intake_records
+            SET status = %s,
+                certificate_hash = %s,
+                qr_tag_id = 'QC-' || quality_intake_no
+            WHERE id = %s::uuid
+            RETURNING id, quality_intake_no, certificate_hash
+        """, (new_status, certificate_hash, intake_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO quality_approval_workflow (
+                quality_intake_id, approver_id, action, from_status, to_status, notes
+            )
+            VALUES (%s, %s, 'APPROVED', %s, %s, %s)
+        """, (intake_id, approver_id, intake['status'], new_status, data.get('notes', 'Approved by Quality Manager')))
+        
+        cur.execute("""
+            INSERT INTO quality_certificates (
+                quality_intake_id, inward_gate_entry_id, certificate_hash,
+                qr_tag_id, certified_grade, auto_assigned_routing,
+                inspector_id, approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                qir.id,
+                qir.inward_gate_entry_id,
+                qir.certificate_hash,
+                qir.qr_tag_id,
+                qir.certified_grade,
+                qir.auto_assigned_routing,
+                qir.inspector_id,
+                %s,
+                qir.factory_node_id,
+                jsonb_build_object(
+                    'quality_intake_no', qir.quality_intake_no,
+                    'certified_grade', qir.certified_grade,
+                    'auto_assigned_routing', qir.auto_assigned_routing,
+                    'size_deviation_pct', qir.size_deviation_pct,
+                    'evenness_pct', qir.evenness_pct,
+                    'cleanness_pct', qir.cleanness_pct,
+                    'neatness_pct', qir.neatness_pct,
+                    'tenacity_gd', qir.tenacity_gd,
+                    'cohesion_strokes', qir.cohesion_strokes,
+                    'live_moisture_reading_pct', qir.live_moisture_reading_pct
+                )
+            FROM quality_intake_records qir
+            WHERE qir.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM quality_certificates WHERE quality_intake_id = qir.id
+            )
+        """, (approver_id, intake_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'quality_intake_no': result['quality_intake_no'],
+            'certificate_hash': result['certificate_hash'],
+            'status': new_status,
+            'message': 'Quality intake approved and certified'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality/intake/<intake_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_quality_intake(intake_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE quality_intake_records
+            SET status = 'REJECTED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id, quality_intake_no
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by Quality Manager')}]),
+            intake_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'IntakeNotFound'}), 404
+        
+        cur.execute("""
+            INSERT INTO quality_approval_workflow (
+                quality_intake_id, approver_id, action, from_status, to_status, notes
+            )
+            VALUES (%s, %s, 'REJECTED', 'QC_HOLD', 'REJECTED_VENDOR_RETURN', %s)
+        """, (intake_id, operator_id, data.get('reason', 'Rejected by Quality Manager')))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'quality_intake_no': result['quality_intake_no'],
+            'status': 'REJECTED',
+            'message': 'Quality intake rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality/intake/<intake_id>/hold', methods=['POST'])
+@jwt_required()
+def hold_quality_intake(intake_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE quality_intake_records
+            SET status = 'QC_HOLD',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id, quality_intake_no
+        """, (
+            json.dumps([{'code': 'MANUAL_HOLD', 'message': data.get('reason', 'Placed on hold by Quality Manager')}]),
+            intake_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'IntakeNotFound'}), 404
+        
+        cur.execute("""
+            INSERT INTO quality_approval_workflow (
+                quality_intake_id, approver_id, action, from_status, to_status, notes
+            )
+            VALUES (%s, %s, 'HOLD', 'QC_HOLD', 'QC_HOLD', %s)
+        """, (intake_id, operator_id, data.get('reason', 'Placed on hold')))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'quality_intake_no': result['quality_intake_no'],
+            'status': 'QC_HOLD',
+            'message': 'Quality intake placed on hold'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/quality/certificates', methods=['GET'])
+@jwt_required()
+def list_quality_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = cur.cursor()
+        
+        cur.execute("""
+            SELECT qc.id, qc.certificate_hash, qc.qr_tag_id, qc.certified_grade,
+                   qc.auto_assigned_routing, qc.status, qc.certified_at,
+                   qir.quality_intake_no, ige.inward_gate_entry_no
+            FROM quality_certificates qc
+            JOIN quality_intake_records qir ON qc.quality_intake_id = qir.id
+            JOIN inward_gate_entries ige ON qc.inward_gate_entry_id = ige.id
+            WHERE qc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY qc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'certified_grade': c['certified_grade'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None,
+                    'quality_intake_no': c['quality_intake_no'],
+                    'inward_gate_entry_no': c['inward_gate_entry_no']
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/material', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_material():
+    """
+    API plugin endpoint for sales team material processing forecast.
+    Returns forecasted material requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        # In production, this would join with sales orders/forecasting tables
+        # For now, return mock forecast data structure
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'silk_type': 'BIVOLTINE_WHITE_SILK',
+                    'denier': '20/22 Denier',
+                    'estimated_quantity_kg': 500.0,
+                    'priority': 'HIGH',
+                    'destination': 'WARP_PREMIUM',
+                    'recommended_grade': '4A+'
+                },
+                {
+                    'silk_type': 'MULTIVOLTINE_YELLOW_SILK',
+                    'denier': '16/18 Denier',
+                    'estimated_quantity_kg': 300.0,
+                    'priority': 'MEDIUM',
+                    'destination': 'WEFT_ONLY',
+                    'recommended_grade': '5A'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'LOT-2024-0011',
+                    'estimated_sarees': 80,
+                    'estimated_yarn_kg': 45.5,
+                    'target_grade': '4A'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

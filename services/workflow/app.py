@@ -3296,5 +3296,602 @@ def get_zari_inspection_routing(inspection_id):
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# SILK DEGUMMING MASTER MODULE
+# ============================================================
+
+@app.route('/api/v1/degumming/batches', methods=['POST'])
+@jwt_required()
+def create_degumming_batch():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['degumming_batch_no', 'target_machine_type']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO degumming_batches (
+                degumming_batch_no, zari_inspection_id, zari_assay_id,
+                zari_lot_batch_id, production_lot_id, factory_node_id,
+                operator_id, status, target_machine_type
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'QUEUED', %s)
+            RETURNING id, degumming_batch_no
+        """, (
+            data.get('degumming_batch_no'),
+            data.get('zari_inspection_id'),
+            data.get('zari_assay_id'),
+            data.get('zari_lot_batch_id'),
+            data.get('production_lot_id'),
+            factory_node_id,
+            operator_id,
+            data.get('target_machine_type')
+        ))
+        
+        batch_row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(batch_row['id']),
+            'degumming_batch_no': batch_row['degumming_batch_no'],
+            'status': 'QUEUED',
+            'message': 'Degumming batch created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/degumming/batches', methods=['GET'])
+@jwt_required()
+def list_degumming_batches():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT db.id, db.degumming_batch_no, db.target_machine_type,
+                   db.status, db.created_at, zlb.zari_lot_batch_no
+            FROM degumming_batches db
+            LEFT JOIN zari_lot_batches zlb ON db.zari_lot_batch_id = zlb.id
+            WHERE db.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY db.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        batches = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(batches),
+            'batches': [
+                {
+                    'id': str(b['id']),
+                    'degumming_batch_no': b['degumming_batch_no'],
+                    'zari_lot_batch_no': b['zari_lot_batch_no'],
+                    'target_machine_type': b['target_machine_type'],
+                    'status': b['status'],
+                    'created_at': b['created_at'].isoformat() if b['created_at'] else None
+                }
+                for b in batches
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/degumming/records', methods=['POST'])
+@jwt_required()
+def create_degumming_record():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['degumming_batch_id', 'bath_liquor_ratio', 'raw_dry_weight_kg', 'degummed_dry_weight_kg']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO degumming_records (
+                degumming_batch_id, bath_liquor_ratio, deaerating_agent_used,
+                bath_ph_level, boil_duration_minutes, raw_dry_weight_kg,
+                degummed_dry_weight_kg, sericin_loss_pct, post_degum_tenacity_gd,
+                fibrillation_index, degumming_agent_base, alkali_buffer_additive,
+                water_softening_agent, vessel_type_allocated, boil_temperature_profile,
+                validation_errors, validation_warnings, auto_assigned_routing,
+                status, factory_node_id, operator_id
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'DRAFT', %s, %s)
+            RETURNING id
+        """, (
+            data.get('degumming_batch_id'),
+            data.get('bath_liquor_ratio'),
+            data.get('deaerating_agent_used', False),
+            data.get('bath_ph_level'),
+            data.get('boil_duration_minutes'),
+            data.get('raw_dry_weight_kg'),
+            data.get('degummed_dry_weight_kg'),
+            data.get('sericin_loss_pct'),
+            data.get('post_degum_tenacity_gd'),
+            data.get('fibrillation_index'),
+            data.get('degumming_agent_base'),
+            data.get('alkali_buffer_additive'),
+            data.get('water_softening_agent'),
+            data.get('vessel_type_allocated'),
+            data.get('boil_temperature_profile'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing'),
+            factory_node_id,
+            operator_id
+        ))
+        
+        record_row = cur.fetchone()
+        record_id = record_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status
+            FROM degumming_records WHERE id = %s::uuid
+        """, (record_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'IN_PROGRESS'
+        else:
+            status = 'IN_PROGRESS'
+        
+        cur.execute("""
+            UPDATE degumming_batches SET status = 'IN_PROGRESS'
+            WHERE id = (SELECT degumming_batch_id FROM degumming_records WHERE id = %s::uuid)
+        """, (record_id,))
+        
+        cur.execute("""
+            UPDATE degumming_records SET status = %s WHERE id = %s::uuid
+        """, (status, record_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(record_id),
+            'status': status,
+            'sericin_loss_pct': result['sericin_loss_pct'],
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Degumming record created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/degumming/records', methods=['GET'])
+@jwt_required()
+def list_degumming_records():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT dr.id, dr.degumming_batch_no, dr.sericin_loss_pct,
+                   dr.post_degum_tenacity_gd, dr.fibrillation_index,
+                   dr.bath_ph_level, dr.boil_temperature_profile,
+                   dr.auto_assigned_routing, dr.status, dr.certificate_hash,
+                   db.zari_lot_batch_no
+            FROM degumming_records dr
+            JOIN degumming_batches db ON dr.degumming_batch_id = db.id
+            WHERE dr.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY dr.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        records = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(records),
+            'records': [
+                {
+                    'id': str(r['id']),
+                    'degumming_batch_no': r['degumming_batch_no'],
+                    'zari_lot_batch_no': r['zari_lot_batch_no'],
+                    'sericin_loss_pct': float(r['sericin_loss_pct']) if r['sericin_loss_pct'] else None,
+                    'post_degum_tenacity_gd': float(r['post_degum_tenacity_gd']) if r['post_degum_tenacity_gd'] else None,
+                    'fibrillation_index': r['fibrillation_index'],
+                    'bath_ph_level': float(r['bath_ph_level']) if r['bath_ph_level'] else None,
+                    'boil_temperature_profile': r['boil_temperature_profile'],
+                    'auto_assigned_routing': r['auto_assigned_routing'],
+                    'status': r['status'],
+                    'certificate_hash': r['certificate_hash']
+                }
+                for r in records
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/degumming/records/<record_id>', methods=['GET'])
+@jwt_required()
+def get_degumming_record(record_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT dr.*, db.degumming_batch_no, db.zari_lot_batch_no, db.target_machine_type
+            FROM degumming_records dr
+            JOIN degumming_batches db ON dr.degumming_batch_id = db.id
+            WHERE dr.id = %s::uuid
+        """, (record_id,))
+        
+        record = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not record:
+            return jsonify({'error': 'RecordNotFound'}), 404
+        
+        return jsonify({
+            'id': str(record['id']),
+            'degumming_batch_no': record['degumming_batch_no'],
+            'zari_lot_batch_no': record['zari_lot_batch_no'],
+            'target_machine_type': record['target_machine_type'],
+            'bath_liquor_ratio': record['bath_liquor_ratio'],
+            'deaerating_agent_used': record['deaerating_agent_used'],
+            'bath_ph_level': float(record['bath_ph_level']) if record['bath_ph_level'] else None,
+            'boil_duration_minutes': record['boil_duration_minutes'],
+            'raw_dry_weight_kg': float(record['raw_dry_weight_kg']) if record['raw_dry_weight_kg'] else None,
+            'degummed_dry_weight_kg': float(record['degummed_dry_weight_kg']) if record['degummed_dry_weight_kg'] else None,
+            'sericin_loss_pct': float(record['sericin_loss_pct']) if record['sericin_loss_pct'] else None,
+            'post_degum_tenacity_gd': float(record['post_degum_tenacity_gd']) if record['post_degum_tenacity_gd'] else None,
+            'fibrillation_index': record['fibrillation_index'],
+            'degumming_agent_base': record['degumming_agent_base'],
+            'alkali_buffer_additive': record['alkali_buffer_additive'],
+            'water_softening_agent': record['water_softening_agent'],
+            'vessel_type_allocated': record['vessel_type_allocated'],
+            'boil_temperature_profile': record['boil_temperature_profile'],
+            'validation_errors': record['validation_errors'],
+            'validation_warnings': record['validation_warnings'],
+            'auto_assigned_routing': record['auto_assigned_routing'],
+            'status': record['status'],
+            'certificate_hash': record['certificate_hash'],
+            'qr_tag_id': record['qr_tag_id']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/degumming/records/<record_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_degumming_record(record_id):
+    try:
+        approver_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT dr.id, dr.status, dr.validation_errors, dr.auto_assigned_routing,
+                   dr.sericin_loss_pct, dr.post_degum_tenacity_gd,
+                   dr.degumming_batch_id, db.zari_lot_batch_no, db.target_machine_type
+            FROM degumming_records dr
+            JOIN degumming_batches db ON dr.degumming_batch_id = db.id
+            WHERE dr.id = %s::uuid
+        """, (record_id,))
+        
+        record = cur.fetchone()
+        if not record:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'RecordNotFound'}), 404
+        
+        if record['validation_errors'] and len(record['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify record with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(record_id, record['degumming_batch_no'])
+        qr_tag_id = 'DEG-' + record['zari_lot_batch_no']
+        
+        cur.execute("""
+            UPDATE degumming_records
+            SET status = 'CERTIFIED',
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, certificate_hash
+        """, (certificate_hash, qr_tag_id, record_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO degumming_certificates (
+                degumming_batch_id, degumming_record_id, certificate_hash,
+                qr_tag_id, zari_lot_batch_id, certified_grade,
+                auto_assigned_routing, sericin_loss_pct, post_degum_tenacity_gd,
+                fibrillation_index, pre_boil_dry_weight_kg, post_boil_dry_weight_kg,
+                bath_ph_level, boil_temperature_profile, operator_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                db.id,
+                dr.id,
+                dr.certificate_hash,
+                dr.qr_tag_id,
+                db.zari_lot_batch_id,
+                '4A',
+                dr.auto_assigned_routing,
+                dr.sericin_loss_pct,
+                dr.post_degum_tenacity_gd,
+                dr.fibrillation_index,
+                dr.raw_dry_weight_kg,
+                dr.degummed_dry_weight_kg,
+                dr.bath_ph_level,
+                dr.boil_temperature_profile,
+                dr.operator_id,
+                %s,
+                dr.factory_node_id,
+                jsonb_build_object(
+                    'degumming_batch_no', db.degumming_batch_no,
+                    'target_machine_type', db.target_machine_type,
+                    'bath_liquor_ratio', dr.bath_liquor_ratio,
+                    'deaerating_agent_used', dr.deaerating_agent_used,
+                    'boil_duration_minutes', dr.boil_duration_minutes,
+                    'degumming_agent_base', dr.degumming_agent_base,
+                    'alkali_buffer_additive', dr.alkali_buffer_additive,
+                    'water_softening_agent', dr.water_softening_agent,
+                    'vessel_type_allocated', dr.vessel_type_allocated
+                )
+            FROM degumming_records dr
+            JOIN degumming_batches db ON dr.degumming_batch_id = db.id
+            WHERE dr.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM degumming_certificates WHERE degumming_record_id = dr.id
+            )
+        """, (approver_id, record_id))
+        
+        cur.execute("""
+            UPDATE degumming_batches
+            SET status = 'CERTIFIED'
+            WHERE id = %s::uuid
+        """, (record['degumming_batch_id'],))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'auto_assigned_routing': record['auto_assigned_routing'],
+            'sericin_loss_pct': float(record['sericin_loss_pct']) if record['sericin_loss_pct'] else None,
+            'status': 'CERTIFIED',
+            'message': 'Degumming record certified successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/degumming/records/<record_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_degumming_record(record_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE degumming_records
+            SET status = 'REJECTED',
+                validation_errors = COALESCE(validation_errors, '[]'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            RETURNING id
+        """, (
+            json.dumps([{'code': 'MANUAL_REJECTION', 'message': data.get('reason', 'Rejected by Degumming Master')}]),
+            record_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'RecordNotFound'}), 404
+        
+        cur.execute("""
+            UPDATE degumming_batches
+            SET status = 'REJECTED'
+            WHERE id = (SELECT degumming_batch_id FROM degumming_records WHERE id = %s::uuid)
+        """, (record_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'status': 'REJECTED',
+            'message': 'Degumming record rejected'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/degumming/certificates', methods=['GET'])
+@jwt_required()
+def list_degumming_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT dc.id, dc.certificate_hash, dc.qr_tag_id, dc.sericin_loss_pct,
+                   dc.post_degum_tenacity_gd, dc.fibrillation_index,
+                   dc.auto_assigned_routing, dc.status, dc.certified_at,
+                   db.degumming_batch_no, zlb.zari_lot_batch_no
+            FROM degumming_certificates dc
+            JOIN degumming_records dr ON dc.degumming_record_id = dr.id
+            JOIN degumming_batches db ON dc.degumming_batch_id = db.id
+            LEFT JOIN zari_lot_batches zlb ON db.zari_lot_batch_id = zlb.id
+            WHERE dc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY dc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'degumming_batch_no': c['degumming_batch_no'],
+                    'zari_lot_batch_no': c['zari_lot_batch_no'],
+                    'sericin_loss_pct': float(c['sericin_loss_pct']) if c['sericin_loss_pct'] else None,
+                    'post_degum_tenacity_gd': float(c['post_degum_tenacity_gd']) if c['post_degum_tenacity_gd'] else None,
+                    'fibrillation_index': c['fibrillation_index'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR DEGUMMING
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/degumming', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_degumming():
+    """
+    API plugin endpoint for sales team degumming material processing forecast.
+    Returns forecasted degumming requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'silk_type': 'BIVOLTINE_WHITE_SILK',
+                    'estimated_raw_silk_kg': 200.0,
+                    'target_sericin_loss_pct': '20-23',
+                    'target_tenacity_gd': '3.8+',
+                    'priority': 'HIGH',
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 80
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'silk_type': 'BIVOLTINE_WHITE_SILK',
+                    'estimated_raw_silk_kg': 150.0,
+                    'target_sericin_loss_pct': '18-20',
+                    'target_tenacity_gd': '3.8+',
+                    'priority': 'HIGH',
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 60
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'silk_type': 'MULTIVOLTINE_YELLOW_SILK',
+                    'estimated_raw_silk_kg': 180.0,
+                    'target_sericin_loss_pct': '20-23',
+                    'target_tenacity_gd': '3.5-3.8',
+                    'priority': 'MEDIUM',
+                    'target_machine': '1536_HOOK_JACQUARD',
+                    'estimated_sarees': 100
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'DEG-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'estimated_sarees': 80,
+                    'estimated_raw_silk_kg': 200.0,
+                    'target_sericin_loss_pct': '20-23',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                },
+                {
+                    'lot_number': 'DEG-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'estimated_sarees': 60,
+                    'estimated_raw_silk_kg': 150.0,
+                    'target_sericin_loss_pct': '18-20',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

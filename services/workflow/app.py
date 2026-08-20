@@ -7015,5 +7015,524 @@ def get_sales_forecast_design():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# CARD PUNCHER (DIGITAL/E-JACQUARD PROGRAMMER) MODULE
+# ============================================================
+
+@app.route('/api/v1/card-puncher/jobs', methods=['POST'])
+@jwt_required()
+def create_programming_job():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['programming_job_id', 'design_master_id', 'target_loom_type']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO programming_jobs (
+                programming_job_id, design_master_id, design_certificate_id,
+                pirn_winding_job_id, bobbin_winder_job_card_id,
+                master_colorist_recipe_id, skein_dye_job_id,
+                throwster_record_id, production_lot_id,
+                factory_node_id, programmer_employee_id, status,
+                compiled_cam_file_name, target_loom_type,
+                loom_hardware_id, controller_brand_type,
+                physical_hook_matrix, data_transfer_method,
+                pattern_repeat_mode, solenoid_firing_profile,
+                pick_sequence_interlock, file_integrity_checksum,
+                dry_run_simulation_status, card_program_approval_state,
+                input_blank_cards_weight_kg, actual_punched_cards_count,
+                punch_waste_scrap_weight_gm,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PENDING_COMPILATION', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, programming_job_id
+        """, (
+            data.get('programming_job_id'),
+            data.get('design_master_id'),
+            data.get('design_certificate_id'),
+            data.get('pirn_winding_job_id'),
+            data.get('bobbin_winder_job_card_id'),
+            data.get('master_colorist_recipe_id'),
+            data.get('skein_dye_job_id'),
+            data.get('throwster_record_id'),
+            data.get('production_lot_id'),
+            factory_node_id,
+            operator_id,
+            data.get('compiled_cam_file_name'),
+            data.get('target_loom_type'),
+            data.get('loom_hardware_id'),
+            data.get('controller_brand_type'),
+            data.get('physical_hook_matrix', '2400_HOOK_2250_DESIGN_150_BORDER'),
+            data.get('data_transfer_method', 'DIRECT_LOOM_NETWORK_LAN'),
+            data.get('pattern_repeat_mode', 'STRAIGHT_REPEAT'),
+            data.get('solenoid_firing_profile', 'HIGH_DENSITY_FAST_PULSE_LE_8MS'),
+            data.get('pick_sequence_interlock', 'GROUND_1_1_EXTRA_WEFT'),
+            data.get('file_integrity_checksum'),
+            data.get('dry_run_simulation_status', 'PENDING'),
+            data.get('card_program_approval_state', 'PENDING_COMPILATION'),
+            data.get('input_blank_cards_weight_kg'),
+            data.get('actual_punched_cards_count'),
+            data.get('punch_waste_scrap_weight_gm'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        job_row = cur.fetchone()
+        job_id = job_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status, card_program_approval_state
+            FROM programming_jobs WHERE id = %s::uuid
+        """, (job_id,))
+        result = cur.fetchone()
+        
+        status = 'PENDING_COMPILATION'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'PENDING_COMPILATION'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'COMPILED'
+        else:
+            status = 'COMPILED'
+        
+        cur.execute("""
+            UPDATE programming_jobs SET status = %s WHERE id = %s::uuid
+        """, (status, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(job_id),
+            'programming_job_id': job_row['programming_job_id'],
+            'status': status,
+            'card_program_approval_state': result['card_program_approval_state'],
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Programming job created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/card-puncher/jobs', methods=['GET'])
+@jwt_required()
+def list_programming_jobs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pj.id, pj.programming_job_id, pj.compiled_cam_file_name,
+                   pj.target_loom_type, pj.loom_hardware_id, pj.controller_brand_type,
+                   pj.physical_hook_matrix, pj.data_transfer_method,
+                   pj.pattern_repeat_mode, pj.solenoid_firing_profile,
+                   pj.pick_sequence_interlock, pj.file_integrity_checksum,
+                   pj.dry_run_simulation_status, pj.card_program_approval_state,
+                   pj.auto_assigned_routing, pj.status, pj.certificate_hash,
+                   pj.created_at, dm.design_master_id
+            FROM programming_jobs pj
+            LEFT JOIN design_masters dm ON pj.design_master_id = dm.id
+            WHERE pj.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY pj.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(jobs),
+            'jobs': [
+                {
+                    'id': str(j['id']),
+                    'programming_job_id': j['programming_job_id'],
+                    'design_master_id': j['design_master_id'],
+                    'compiled_cam_file_name': j['compiled_cam_file_name'],
+                    'target_loom_type': j['target_loom_type'],
+                    'loom_hardware_id': j['loom_hardware_id'],
+                    'controller_brand_type': j['controller_brand_type'],
+                    'physical_hook_matrix': j['physical_hook_matrix'],
+                    'data_transfer_method': j['data_transfer_method'],
+                    'pattern_repeat_mode': j['pattern_repeat_mode'],
+                    'solenoid_firing_profile': j['solenoid_firing_profile'],
+                    'pick_sequence_interlock': j['pick_sequence_interlock'],
+                    'file_integrity_checksum': j['file_integrity_checksum'],
+                    'dry_run_simulation_status': j['dry_run_simulation_status'],
+                    'card_program_approval_state': j['card_program_approval_state'],
+                    'auto_assigned_routing': j['auto_assigned_routing'],
+                    'status': j['status'],
+                    'certificate_hash': j['certificate_hash'],
+                    'created_at': j['created_at'].isoformat() if j['created_at'] else None
+                }
+                for j in jobs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/card-puncher/jobs/<job_id>', methods=['GET'])
+@jwt_required()
+def get_programming_job(job_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pj.*, dm.design_master_id, dm.target_hook_capacity
+            FROM programming_jobs pj
+            LEFT JOIN design_masters dm ON pj.design_master_id = dm.id
+            WHERE pj.id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not job:
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        return jsonify({
+            'id': str(job['id']),
+            'programming_job_id': job['programming_job_id'],
+            'design_master_id': job['design_master_id'],
+            'target_hook_capacity': job['target_hook_capacity'],
+            'compiled_cam_file_name': job['compiled_cam_file_name'],
+            'target_loom_type': job['target_loom_type'],
+            'loom_hardware_id': job['loom_hardware_id'],
+            'controller_brand_type': job['controller_brand_type'],
+            'physical_hook_matrix': job['physical_hook_matrix'],
+            'data_transfer_method': job['data_transfer_method'],
+            'pattern_repeat_mode': job['pattern_repeat_mode'],
+            'solenoid_firing_profile': job['solenoid_firing_profile'],
+            'pick_sequence_interlock': job['pick_sequence_interlock'],
+            'file_integrity_checksum': job['file_integrity_checksum'],
+            'dry_run_simulation_status': job['dry_run_simulation_status'],
+            'card_program_approval_state': job['card_program_approval_state'],
+            'validation_errors': job['validation_errors'],
+            'validation_warnings': job['validation_warnings'],
+            'auto_assigned_routing': job['auto_assigned_routing'],
+            'status': job['status'],
+            'certificate_hash': job['certificate_hash']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/card-puncher/jobs/<job_id>/simulate', methods=['POST'])
+@jwt_required()
+def simulate_programming_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE programming_jobs
+            SET dry_run_simulation_status = %s,
+                file_integrity_checksum = COALESCE(%s, file_integrity_checksum)
+            WHERE id = %s::uuid
+            RETURNING id, programming_job_id, status
+        """, (
+            data.get('dry_run_simulation_status', 'PASSED_ZERO_ERRORS'),
+            data.get('file_integrity_checksum'),
+            job_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'programming_job_id': result['programming_job_id'],
+            'status': result['status'],
+            'message': 'Dry-run simulation updated'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/card-puncher/jobs/<job_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_programming_job(job_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, programming_job_id, status, validation_errors, dry_run_simulation_status
+            FROM programming_jobs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['validation_errors'] and len(job['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify job with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(job_id, job['programming_job_id'])
+        qr_tag_id = 'CARD-' + job['programming_job_id']
+        
+        cur.execute("""
+            UPDATE programming_jobs
+            SET status = 'LOADED_TO_LOOM',
+                certificate_hash = %s,
+                qr_tag_id = %s,
+                card_program_approval_state = 'SIMULATION_PASSED'
+            WHERE id = %s::uuid
+            RETURNING id, programming_job_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, job_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO programming_certificates (
+                programming_job_id, certificate_hash, qr_tag_id, programming_job_id_ref,
+                design_master_id_ref, compiled_cam_file_name, target_loom_type,
+                loom_hardware_id, controller_brand_type, physical_hook_matrix,
+                data_transfer_method, pattern_repeat_mode, solenoid_firing_profile,
+                pick_sequence_interlock, file_integrity_checksum,
+                dry_run_simulation_status, card_program_approval_state,
+                auto_assigned_routing, operator_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.programming_job_id,
+                dm.design_master_id,
+                pj.compiled_cam_file_name,
+                pj.target_loom_type,
+                pj.loom_hardware_id,
+                pj.controller_brand_type,
+                pj.physical_hook_matrix,
+                pj.data_transfer_method,
+                pj.pattern_repeat_mode,
+                pj.solenoid_firing_profile,
+                pj.pick_sequence_interlock,
+                pj.file_integrity_checksum,
+                pj.dry_run_simulation_status,
+                pj.card_program_approval_state,
+                pj.auto_assigned_routing,
+                pj.programmer_employee_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'programming_job_id', pj.programming_job_id,
+                    'design_master_id', dm.design_master_id,
+                    'target_hook_capacity', dm.target_hook_capacity,
+                    'hook_allocation_profile', dm.hook_allocation_profile,
+                    'total_allocated_hooks', dm.total_allocated_hooks
+                )
+            FROM programming_jobs pj
+            LEFT JOIN design_masters dm ON pj.design_master_id = dm.id
+            WHERE pj.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM programming_certificates WHERE programming_job_id = pj.id
+            )
+        """, (approver_id, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'programming_job_id': result['programming_job_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'LOADED_TO_LOOM',
+            'message': 'Programming job certified and loaded to loom'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/card-puncher/certificates', methods=['GET'])
+@jwt_required()
+def list_programming_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pc.id, pc.certificate_hash, pc.qr_tag_id,
+                   pc.programming_job_id_ref, pc.design_master_id_ref,
+                   pc.compiled_cam_file_name, pc.target_loom_type,
+                   pc.loom_hardware_id, pc.controller_brand_type,
+                   pc.physical_hook_matrix, pc.data_transfer_method,
+                   pc.pattern_repeat_mode, pc.solenoid_firing_profile,
+                   pc.pick_sequence_interlock, pc.file_integrity_checksum,
+                   pc.dry_run_simulation_status, pc.card_program_approval_state,
+                   pc.auto_assigned_routing, pc.status, pc.certified_at,
+                   pj.programming_job_id
+            FROM programming_certificates pc
+            JOIN programming_jobs pj ON pc.programming_job_id = pj.id
+            WHERE pc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY pc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'programming_job_id': c['programming_job_id'],
+                    'design_master_id_ref': c['design_master_id_ref'],
+                    'compiled_cam_file_name': c['compiled_cam_file_name'],
+                    'target_loom_type': c['target_loom_type'],
+                    'loom_hardware_id': c['loom_hardware_id'],
+                    'controller_brand_type': c['controller_brand_type'],
+                    'physical_hook_matrix': c['physical_hook_matrix'],
+                    'data_transfer_method': c['data_transfer_method'],
+                    'pattern_repeat_mode': c['pattern_repeat_mode'],
+                    'solenoid_firing_profile': c['solenoid_firing_profile'],
+                    'pick_sequence_interlock': c['pick_sequence_interlock'],
+                    'file_integrity_checksum': c['file_integrity_checksum'],
+                    'dry_run_simulation_status': c['dry_run_simulation_status'],
+                    'card_program_approval_state': c['card_program_approval_state'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR CARD PUNCHER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/card-puncher', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_card_puncher():
+    """
+    API plugin endpoint for sales team card puncher material processing forecast.
+    Returns forecasted programming/card-punching requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'target_hook_capacity': 2400,
+                    'controller_brand_type': 'STAUBLI_JC5_JC6',
+                    'estimated_programs': 5,
+                    'cad_output_format': 'JC5',
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'target_hook_capacity': 2400,
+                    'controller_brand_type': 'STAUBLI_JC5_JC6',
+                    'estimated_programs': 4,
+                    'cad_output_format': 'JC5',
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'target_hook_capacity': 1536,
+                    'controller_brand_type': 'BONAS_EP_SI',
+                    'estimated_programs': 8,
+                    'cad_output_format': '.EP',
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'CARD-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_programs': 5,
+                    'target_hook_capacity': 2400,
+                    'controller_brand_type': 'STAUBLI_JC5_JC6',
+                    'cad_output_format': 'JC5'
+                },
+                {
+                    'lot_number': 'CARD-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_programs': 4,
+                    'target_hook_capacity': 2400,
+                    'controller_brand_type': 'STAUBLI_JC5_JC6',
+                    'cad_output_format': 'JC5'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

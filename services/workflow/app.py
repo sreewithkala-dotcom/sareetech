@@ -9499,5 +9499,543 @@ def get_sales_forecast_petni_master():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# MASTER WEAVER (LOOM OPERATOR & SAREE PRODUCTION SPECIALIST) MODULE
+# ============================================================
+
+@app.route('/api/v1/master-weaver/jobs', methods=['POST'])
+@jwt_required()
+def create_master_weaver_job():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['production_run_id', 'loom_id']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO master_weaver_jobs (
+                production_run_id, loom_id, production_lot_id,
+                design_master_id, petni_master_job_id, warp_joining_job_id,
+                harness_setup_log_id, warp_beam_production_log_id, card_puncher_job_id,
+                pirn_winding_job_id, bobbin_winder_job_card_id,
+                factory_node_id, master_weaver_employee_id, assigned_weaver_id, status,
+                saree_production_id, loom_operating_speed_ppm, warp_let_off_tension_cn,
+                weft_insertion_feeder_profile, dynamic_ppi_control_mode,
+                on_loom_defect_category, zari_catch_selvage_status,
+                saree_section_phase, saree_length_measured_meters,
+                saree_piece_clearance_status, weaver_approval_state,
+                saree_production_order_no, reed_width_inches, picks_per_inch_ppi,
+                first_pick_sample_status, shuttle_setup_mode,
+                allocated_weft_silk_lot_no, allocated_zari_lot_no, issued_zari_weight_gm,
+                loom_rpm, target_ppi, efficiency_percent,
+                target_output_yards_per_hour, actual_output_yards, low_efficiency_alert,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'WEAVING_IN_PROGRESS', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, production_run_id
+        """, (
+            data.get('production_run_id'),
+            data.get('loom_id'),
+            data.get('production_lot_id'),
+            data.get('design_master_id'),
+            data.get('petni_master_job_id'),
+            data.get('warp_joining_job_id'),
+            data.get('harness_setup_log_id'),
+            data.get('warp_beam_production_log_id'),
+            data.get('card_puncher_job_id'),
+            data.get('pirn_winding_job_id'),
+            data.get('bobbin_winder_job_card_id'),
+            factory_node_id,
+            operator_id,
+            data.get('assigned_weaver_id'),
+            data.get('saree_production_id'),
+            data.get('loom_operating_speed_ppm'),
+            data.get('warp_let_off_tension_cn'),
+            data.get('weft_insertion_feeder_profile', 'DUAL_FEEDER_SILK_GROUND_PLUS_ZARI_MICRO_TENSION'),
+            data.get('dynamic_ppi_control_mode', 'AUTOMATED_MULTI_DENSITY_BODY_PALLU_SWITCH'),
+            data.get('on_loom_defect_category', 'NONE_ZERO_DEFECTS'),
+            data.get('zari_catch_selvage_status', 'PERFECT_CATCH_SMOOTH_EDGE'),
+            data.get('saree_section_phase', 'PALLU_HIGH_DENSITY'),
+            data.get('saree_length_measured_meters'),
+            data.get('saree_piece_clearance_status', 'PASSED_GRADE_A_QUALITY'),
+            data.get('weaver_approval_state', 'WEAVING_IN_PROGRESS'),
+            data.get('saree_production_order_no'),
+            data.get('reed_width_inches'),
+            data.get('picks_per_inch_ppi'),
+            data.get('first_pick_sample_status', 'APPROVED_FLAWLESS'),
+            data.get('shuttle_setup_mode', 'SINGLE_SHUTTLE'),
+            data.get('allocated_weft_silk_lot_no'),
+            data.get('allocated_zari_lot_no'),
+            data.get('issued_zari_weight_gm'),
+            data.get('loom_rpm'),
+            data.get('target_ppi'),
+            data.get('efficiency_percent'),
+            data.get('target_output_yards_per_hour'),
+            data.get('actual_output_yards'),
+            data.get('low_efficiency_alert', False),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        job_row = cur.fetchone()
+        job_id = job_row['id']
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(job_id),
+            'production_run_id': job_row['production_run_id'],
+            'status': 'WEAVING_IN_PROGRESS',
+            'message': 'Master weaver job created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/master-weaver/jobs', methods=['GET'])
+@jwt_required()
+def list_master_weaver_jobs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT mwj.id, mwj.production_run_id, mwj.loom_id,
+                   mwj.saree_production_id, mwj.loom_operating_speed_ppm,
+                   mwj.warp_let_off_tension_cn, mwj.weft_insertion_feeder_profile,
+                   mwj.dynamic_ppi_control_mode, mwj.on_loom_defect_category,
+                   mwj.zari_catch_selvage_status, mwj.saree_section_phase,
+                   mwj.saree_length_measured_meters, mwj.saree_piece_clearance_status,
+                   mwj.weaver_approval_state, mwj.shuttle_setup_mode,
+                   mwj.reed_width_inches, mwj.picks_per_inch_ppi,
+                   mwj.first_pick_sample_status, mwj.issued_zari_weight_gm,
+                   mwj.loom_rpm, mwj.efficiency_percent,
+                   mwj.target_output_yards_per_hour, mwj.actual_output_yards,
+                   mwj.low_efficiency_alert, mwj.status, mwj.certificate_hash,
+                   mwj.auto_assigned_routing, mwj.created_at,
+                   dm.design_master_id
+            FROM master_weaver_jobs mwj
+            LEFT JOIN design_masters dm ON mwj.design_master_id = dm.id
+            WHERE mwj.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY mwj.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(jobs),
+            'jobs': [
+                {
+                    'id': str(j['id']),
+                    'production_run_id': j['production_run_id'],
+                    'loom_id': j['loom_id'],
+                    'design_master_id': j['design_master_id'],
+                    'saree_production_id': j['saree_production_id'],
+                    'loom_operating_speed_ppm': j['loom_operating_speed_ppm'],
+                    'warp_let_off_tension_cn': j['warp_let_off_tension_cn'],
+                    'weft_insertion_feeder_profile': j['weft_insertion_feeder_profile'],
+                    'dynamic_ppi_control_mode': j['dynamic_ppi_control_mode'],
+                    'on_loom_defect_category': j['on_loom_defect_category'],
+                    'zari_catch_selvage_status': j['zari_catch_selvage_status'],
+                    'saree_section_phase': j['saree_section_phase'],
+                    'saree_length_measured_meters': j['saree_length_measured_meters'],
+                    'saree_piece_clearance_status': j['saree_piece_clearance_status'],
+                    'weaver_approval_state': j['weaver_approval_state'],
+                    'shuttle_setup_mode': j['shuttle_setup_mode'],
+                    'reed_width_inches': j['reed_width_inches'],
+                    'picks_per_inch_ppi': j['picks_per_inch_ppi'],
+                    'first_pick_sample_status': j['first_pick_sample_status'],
+                    'issued_zari_weight_gm': j['issued_zari_weight_gm'],
+                    'loom_rpm': j['loom_rpm'],
+                    'efficiency_percent': j['efficiency_percent'],
+                    'target_output_yards_per_hour': j['target_output_yards_per_hour'],
+                    'actual_output_yards': j['actual_output_yards'],
+                    'low_efficiency_alert': j['low_efficiency_alert'],
+                    'status': j['status'],
+                    'certificate_hash': j['certificate_hash'],
+                    'auto_assigned_routing': j['auto_assigned_routing'],
+                    'created_at': j['created_at'].isoformat() if j['created_at'] else None
+                }
+                for j in jobs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/master-weaver/jobs/<job_id>', methods=['GET'])
+@jwt_required()
+def get_master_weaver_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT mwj.*, dm.design_master_id
+            FROM master_weaver_jobs mwj
+            LEFT JOIN design_masters dm ON mwj.design_master_id = dm.id
+            WHERE mwj.id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not job:
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        return jsonify({
+            'id': str(job['id']),
+            'production_run_id': job['production_run_id'],
+            'loom_id': job['loom_id'],
+            'design_master_id': job['design_master_id'],
+            'saree_production_id': job['saree_production_id'],
+            'loom_operating_speed_ppm': job['loom_operating_speed_ppm'],
+            'warp_let_off_tension_cn': job['warp_let_off_tension_cn'],
+            'weft_insertion_feeder_profile': job['weft_insertion_feeder_profile'],
+            'dynamic_ppi_control_mode': job['dynamic_ppi_control_mode'],
+            'on_loom_defect_category': job['on_loom_defect_category'],
+            'zari_catch_selvage_status': job['zari_catch_selvage_status'],
+            'saree_section_phase': job['saree_section_phase'],
+            'saree_length_measured_meters': job['saree_length_measured_meters'],
+            'saree_piece_clearance_status': job['saree_piece_clearance_status'],
+            'weaver_approval_state': job['weaver_approval_state'],
+            'shuttle_setup_mode': job['shuttle_setup_mode'],
+            'reed_width_inches': job['reed_width_inches'],
+            'picks_per_inch_ppi': job['picks_per_inch_ppi'],
+            'first_pick_sample_status': job['first_pick_sample_status'],
+            'allocated_weft_silk_lot_no': job['allocated_weft_silk_lot_no'],
+            'allocated_zari_lot_no': job['allocated_zari_lot_no'],
+            'issued_zari_weight_gm': job['issued_zari_weight_gm'],
+            'loom_rpm': job['loom_rpm'],
+            'efficiency_percent': job['efficiency_percent'],
+            'target_output_yards_per_hour': job['target_output_yards_per_hour'],
+            'actual_output_yards': job['actual_output_yards'],
+            'low_efficiency_alert': job['low_efficiency_alert'],
+            'validation_errors': job['validation_errors'],
+            'validation_warnings': job['validation_warnings'],
+            'auto_assigned_routing': job['auto_assigned_routing'],
+            'status': job['status'],
+            'certificate_hash': job['certificate_hash']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/master-weaver/jobs/<job_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_master_weaver_job(job_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, production_run_id, status, validation_errors, weaver_approval_state
+            FROM master_weaver_jobs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['validation_errors'] and len(job['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify job with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(job_id, job['production_run_id'])
+        qr_tag_id = 'WEAVER-' + job['production_run_id']
+        
+        cur.execute("""
+            UPDATE master_weaver_jobs
+            SET status = 'SAREE_COMPLETED_PENDING_CUT',
+                certificate_hash = %s,
+                qr_tag_id = %s,
+                weaver_approval_state = 'SHIFT_HANDOVER_COMPLETE'
+            WHERE id = %s::uuid
+            RETURNING id, production_run_id, certificate_hash
+        """, (certificate_hash, qr_tag_id, job_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO master_weaver_certificates (
+                master_weaver_job_id, certificate_hash, qr_tag_id, production_run_id,
+                loom_id, saree_production_id, loom_operating_speed_ppm,
+                warp_let_off_tension_cn, weft_insertion_feeder_profile,
+                dynamic_ppi_control_mode, on_loom_defect_category,
+                zari_catch_selvage_status, saree_section_phase,
+                saree_length_measured_meters, saree_piece_clearance_status,
+                weaver_approval_state, shuttle_setup_mode,
+                reed_width_inches, picks_per_inch_ppi, first_pick_sample_status,
+                allocated_weft_silk_lot_no, allocated_zari_lot_no, issued_zari_weight_gm,
+                loom_rpm, efficiency_percent, target_output_yards_per_hour,
+                actual_output_yards, low_efficiency_alert,
+                auto_assigned_routing, master_weaver_employee_id, assigned_weaver_id,
+                approver_id, factory_node_id, certification_data
+            )
+            SELECT
+                pj.id,
+                pj.certificate_hash,
+                pj.qr_tag_id,
+                pj.production_run_id,
+                pj.loom_id,
+                pj.saree_production_id,
+                pj.loom_operating_speed_ppm,
+                pj.warp_let_off_tension_cn,
+                pj.weft_insertion_feeder_profile,
+                pj.dynamic_ppi_control_mode,
+                pj.on_loom_defect_category,
+                pj.zari_catch_selvage_status,
+                pj.saree_section_phase,
+                pj.saree_length_measured_meters,
+                pj.saree_piece_clearance_status,
+                pj.weaver_approval_state,
+                pj.shuttle_setup_mode,
+                pj.reed_width_inches,
+                pj.picks_per_inch_ppi,
+                pj.first_pick_sample_status,
+                pj.allocated_weft_silk_lot_no,
+                pj.allocated_zari_lot_no,
+                pj.issued_zari_weight_gm,
+                pj.loom_rpm,
+                pj.efficiency_percent,
+                pj.target_output_yards_per_hour,
+                pj.actual_output_yards,
+                pj.low_efficiency_alert,
+                pj.auto_assigned_routing,
+                pj.master_weaver_employee_id,
+                pj.assigned_weaver_id,
+                %s,
+                pj.factory_node_id,
+                jsonb_build_object(
+                    'production_run_id', pj.production_run_id,
+                    'loom_id', pj.loom_id,
+                    'saree_production_id', pj.saree_production_id,
+                    'loom_operating_speed_ppm', pj.loom_operating_speed_ppm,
+                    'warp_let_off_tension_cn', pj.warp_let_off_tension_cn,
+                    'shuttle_setup_mode', pj.shuttle_setup_mode,
+                    'reed_width_inches', pj.reed_width_inches,
+                    'picks_per_inch_ppi', pj.picks_per_inch_ppi,
+                    'first_pick_sample_status', pj.first_pick_sample_status,
+                    'loom_rpm', pj.loom_rpm,
+                    'efficiency_percent', pj.efficiency_percent,
+                    'target_output_yards_per_hour', pj.target_output_yards_per_hour,
+                    'actual_output_yards', pj.actual_output_yards,
+                    'low_efficiency_alert', pj.low_efficiency_alert
+                )
+            FROM master_weaver_jobs pj
+            WHERE pj.id = %s::uuid
+        """, (approver_id, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'production_run_id': result['production_run_id'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'SAREE_COMPLETED_PENDING_CUT',
+            'message': 'Master weaver job certified and saree completed pending cut'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/master-weaver/certificates', methods=['GET'])
+@jwt_required()
+def list_master_weaver_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT mwc.id, mwc.certificate_hash, mwc.qr_tag_id,
+                   mwc.production_run_id, mwc.loom_id,
+                   mwc.saree_production_id, mwc.loom_operating_speed_ppm,
+                   mwc.warp_let_off_tension_cn, mwc.weft_insertion_feeder_profile,
+                   mwc.dynamic_ppi_control_mode, mwc.on_loom_defect_category,
+                   mwc.zari_catch_selvage_status, mwc.saree_section_phase,
+                   mwc.saree_length_measured_meters, mwc.saree_piece_clearance_status,
+                   mwc.weaver_approval_state, mwc.shuttle_setup_mode,
+                   mwc.reed_width_inches, mwc.picks_per_inch_ppi,
+                   mwc.first_pick_sample_status, mwc.issued_zari_weight_gm,
+                   mwc.loom_rpm, mwc.efficiency_percent,
+                   mwc.target_output_yards_per_hour, mwc.actual_output_yards,
+                   mwc.low_efficiency_alert, mwc.auto_assigned_routing,
+                   mwc.status, mwc.certified_at,
+                   mwj.production_run_id
+            FROM master_weaver_certificates mwc
+            JOIN master_weaver_jobs mwj ON mwc.master_weaver_job_id = mwj.id
+            WHERE mwc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY mwc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'production_run_id': c['production_run_id'],
+                    'loom_id': c['loom_id'],
+                    'saree_production_id': c['saree_production_id'],
+                    'loom_operating_speed_ppm': c['loom_operating_speed_ppm'],
+                    'warp_let_off_tension_cn': c['warp_let_off_tension_cn'],
+                    'weft_insertion_feeder_profile': c['weft_insertion_feeder_profile'],
+                    'dynamic_ppi_control_mode': c['dynamic_ppi_control_mode'],
+                    'on_loom_defect_category': c['on_loom_defect_category'],
+                    'zari_catch_selvage_status': c['zari_catch_selvage_status'],
+                    'saree_section_phase': c['saree_section_phase'],
+                    'saree_length_measured_meters': c['saree_length_measured_meters'],
+                    'saree_piece_clearance_status': c['saree_piece_clearance_status'],
+                    'weaver_approval_state': c['weaver_approval_state'],
+                    'shuttle_setup_mode': c['shuttle_setup_mode'],
+                    'reed_width_inches': c['reed_width_inches'],
+                    'picks_per_inch_ppi': c['picks_per_inch_ppi'],
+                    'first_pick_sample_status': c['first_pick_sample_status'],
+                    'issued_zari_weight_gm': c['issued_zari_weight_gm'],
+                    'loom_rpm': c['loom_rpm'],
+                    'efficiency_percent': c['efficiency_percent'],
+                    'target_output_yards_per_hour': c['target_output_yards_per_hour'],
+                    'actual_output_yards': c['actual_output_yards'],
+                    'low_efficiency_alert': c['low_efficiency_alert'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR MASTER WEAVER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/master-weaver', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_master_weaver():
+    """
+    API plugin endpoint for sales team master weaver material processing forecast.
+    Returns forecasted weaving requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'shuttle_setup_mode': 'THREE_SHUTTLE_KORVAI_MANUAL_SPLIT',
+                    'weft_insertion_feeder_profile': 'DUAL_FEEDER_SILK_GROUND_PLUS_ZARI_MICRO_TENSION',
+                    'dynamic_ppi_control_mode': 'AUTOMATED_MULTI_DENSITY_BODY_PALLU_SWITCH',
+                    'estimated_production_runs': 3,
+                    'loom_operating_speed_ppm': 150,
+                    'picks_per_inch_ppi': 120,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'shuttle_setup_mode': 'THREE_SHUTTLE_KORVAI_MANUAL_SPLIT',
+                    'weft_insertion_feeder_profile': 'DUAL_FEEDER_SILK_GROUND_PLUS_ZARI_MICRO_TENSION',
+                    'dynamic_ppi_control_mode': 'AUTOMATED_MULTI_DENSITY_BODY_PALLU_SWITCH',
+                    'estimated_production_runs': 2,
+                    'loom_operating_speed_ppm': 145,
+                    'picks_per_inch_ppi': 110,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'design_code': 'MID-1536-STD-03',
+                    'shuttle_setup_mode': 'SINGLE_SHUTTLE',
+                    'weft_insertion_feeder_profile': 'STANDARD_SINGLE_FEEDER',
+                    'dynamic_ppi_control_mode': 'FIXED_SINGLE_PPI',
+                    'estimated_production_runs': 5,
+                    'loom_operating_speed_ppm': 200,
+                    'picks_per_inch_ppi': 90,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'WEAVER-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'design_code': 'KNC-2400-BR-09',
+                    'estimated_production_runs': 3,
+                    'loom_id': 'LOOM-2400-001',
+                    'shuttle_setup_mode': 'THREE_SHUTTLE_KORVAI_MANUAL_SPLIT'
+                },
+                {
+                    'lot_number': 'WEAVER-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'design_code': 'BNR-2400-KK-12',
+                    'estimated_production_runs': 2,
+                    'loom_id': 'LOOM-2400-002',
+                    'shuttle_setup_mode': 'THREE_SHUTTLE_KORVAI_MANUAL_SPLIT'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)

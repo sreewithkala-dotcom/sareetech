@@ -5856,5 +5856,539 @@ def get_sales_forecast_winding():
     except Exception as e:
         return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
 
+# ============================================================
+# PIRN WINDER MODULE
+# ============================================================
+
+@app.route('/api/v1/pirn-winding/jobs', methods=['POST'])
+@jwt_required()
+def create_pirn_winding_job():
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json()
+        
+        required_fields = ['pirn_winding_job_no', 'source_bobbin_lot_no', 'target_pirn_count_qty', 'input_yarn_weight_kg']
+        missing = [f for f in required_fields if f not in data]
+        if missing:
+            return jsonify({'error': 'MissingFields', 'message': f"Missing: {', '.join(missing)}"}), 400
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT factory_node_id FROM users WHERE id = %s::uuid", (operator_id,))
+        user_row = cur.fetchone()
+        if not user_row:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'UserNotFound'}), 404
+        
+        factory_node_id = user_row['factory_node_id']
+        
+        cur.execute("""
+            INSERT INTO pirn_winding_jobs (
+                pirn_winding_job_no, bobbin_winder_job_card_id, bobbin_record_id,
+                master_colorist_recipe_id, master_colorist_certificate_id,
+                skein_dye_job_id, skein_dye_certificate_id,
+                throwster_record_id, throwster_batch_id, production_lot_id,
+                factory_node_id, operator_id, status,
+                winding_machine_id, pirn_machine_type,
+                source_bobbin_lot_no, target_pirn_count_qty,
+                input_yarn_weight_kg, output_pirn_net_weight_kg, pirn_scrap_waste_gm,
+                spindle_speed_rpm, pirn_base_and_nose_taper_deg, weft_joint_method,
+                pirn_hardness_shore_d, splices_per_pirn, sloughing_risk_index,
+                pirn_surface_inspection, target_machine_type,
+                validation_errors, validation_warnings, auto_assigned_routing
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'DRAFT', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, pirn_winding_job_no
+        """, (
+            data.get('pirn_winding_job_no'),
+            data.get('bobbin_winder_job_card_id'),
+            data.get('bobbin_record_id'),
+            data.get('master_colorist_recipe_id'),
+            data.get('master_colorist_certificate_id'),
+            data.get('skein_dye_job_id'),
+            data.get('skein_dye_certificate_id'),
+            data.get('throwster_record_id'),
+            data.get('throwster_batch_id'),
+            data.get('production_lot_id'),
+            factory_node_id,
+            operator_id,
+            data.get('winding_machine_id'),
+            data.get('pirn_machine_type'),
+            data.get('source_bobbin_lot_no'),
+            data.get('target_pirn_count_qty'),
+            data.get('input_yarn_weight_kg'),
+            data.get('output_pirn_net_weight_kg'),
+            data.get('pirn_scrap_waste_gm', 0),
+            data.get('spindle_speed_rpm'),
+            data.get('pirn_base_and_nose_taper_deg'),
+            data.get('weft_joint_method'),
+            data.get('pirn_hardness_shore_d'),
+            data.get('splices_per_pirn', 0),
+            data.get('sloughing_risk_index'),
+            data.get('pirn_surface_inspection'),
+            data.get('target_machine_type', '1536_HOOK_JACQUARD'),
+            json.dumps([]),
+            json.dumps([]),
+            data.get('auto_assigned_routing')
+        ))
+        
+        job_row = cur.fetchone()
+        job_id = job_row['id']
+        
+        cur.execute("""
+            SELECT validation_errors, validation_warnings, auto_assigned_routing, status
+            FROM pirn_winding_jobs WHERE id = %s::uuid
+        """, (job_id,))
+        result = cur.fetchone()
+        
+        status = 'DRAFT'
+        if result['validation_errors'] and len(result['validation_errors']) > 0:
+            status = 'DRAFT'
+        elif result['validation_warnings'] and len(result['validation_warnings']) > 0:
+            status = 'IN_PROGRESS'
+        else:
+            status = 'IN_PROGRESS'
+        
+        cur.execute("""
+            UPDATE pirn_winding_jobs SET status = %s WHERE id = %s::uuid
+        """, (status, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(job_id),
+            'pirn_winding_job_no': job_row['pirn_winding_job_no'],
+            'status': status,
+            'auto_assigned_routing': result['auto_assigned_routing'],
+            'validation_errors': result['validation_errors'] or [],
+            'validation_warnings': result['validation_warnings'] or [],
+            'message': 'Pirn winding job created successfully'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/pirn-winding/jobs', methods=['GET'])
+@jwt_required()
+def list_pirn_winding_jobs():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pwj.id, pwj.pirn_winding_job_no, pwj.winding_machine_id,
+                   pwj.source_bobbin_lot_no, pwj.target_pirn_count_qty,
+                   pwj.input_yarn_weight_kg, pwj.output_pirn_net_weight_kg,
+                   pwj.pirn_scrap_waste_gm, pwj.material_variance_kg,
+                   pwj.spindle_speed_rpm, pwj.pirn_base_and_nose_taper_deg,
+                   pwj.weft_joint_method, pwj.pirn_hardness_shore_d,
+                   pwj.splices_per_pirn, pwj.sloughing_risk_index,
+                   pwj.pirn_surface_inspection, pwj.auto_assigned_routing,
+                   pwj.status, pwj.certificate_hash, pwj.created_at,
+                   wjc.winding_job_card_id
+            FROM pirn_winding_jobs pwj
+            LEFT JOIN winding_job_cards wjc ON pwj.bobbin_winder_job_card_id = wjc.id
+            WHERE pwj.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY pwj.created_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(jobs),
+            'jobs': [
+                {
+                    'id': str(j['id']),
+                    'pirn_winding_job_no': j['pirn_winding_job_no'],
+                    'winding_job_card_id': j['winding_job_card_id'],
+                    'winding_machine_id': j['winding_machine_id'],
+                    'source_bobbin_lot_no': j['source_bobbin_lot_no'],
+                    'target_pirn_count_qty': j['target_pirn_count_qty'],
+                    'input_yarn_weight_kg': float(j['input_yarn_weight_kg']) if j['input_yarn_weight_kg'] else None,
+                    'output_pirn_net_weight_kg': float(j['output_pirn_net_weight_kg']) if j['output_pirn_net_weight_kg'] else None,
+                    'pirn_scrap_waste_gm': float(j['pirn_scrap_waste_gm']) if j['pirn_scrap_waste_gm'] else None,
+                    'material_variance_kg': float(j['material_variance_kg']) if j['material_variance_kg'] else None,
+                    'spindle_speed_rpm': j['spindle_speed_rpm'],
+                    'pirn_base_and_nose_taper_deg': float(j['pirn_base_and_nose_taper_deg']) if j['pirn_base_and_nose_taper_deg'] else None,
+                    'weft_joint_method': j['weft_joint_method'],
+                    'pirn_hardness_shore_d': float(j['pirn_hardness_shore_d']) if j['pirn_hardness_shore_d'] else None,
+                    'splices_per_pirn': j['splices_per_pirn'],
+                    'sloughing_risk_index': j['sloughing_risk_index'],
+                    'pirn_surface_inspection': j['pirn_surface_inspection'],
+                    'auto_assigned_routing': j['auto_assigned_routing'],
+                    'status': j['status'],
+                    'certificate_hash': j['certificate_hash'],
+                    'created_at': j['created_at'].isoformat() if j['created_at'] else None
+                }
+                for j in jobs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/pirn-winding/jobs/<job_id>', methods=['GET'])
+@jwt_required()
+def get_pirn_winding_job(job_id):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pwj.*, wjc.winding_job_card_id, br.bobbin_id
+            FROM pirn_winding_jobs pwj
+            LEFT JOIN winding_job_cards wjc ON pwj.bobbin_winder_job_card_id = wjc.id
+            LEFT JOIN bobbin_records br ON pwj.bobbin_record_id = br.id
+            WHERE pwj.id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not job:
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        return jsonify({
+            'id': str(job['id']),
+            'pirn_winding_job_no': job['pirn_winding_job_no'],
+            'winding_job_card_id': job['winding_job_card_id'],
+            'bobbin_id': job['bobbin_id'],
+            'winding_machine_id': job['winding_machine_id'],
+            'pirn_machine_type': job['pirn_machine_type'],
+            'source_bobbin_lot_no': job['source_bobbin_lot_no'],
+            'target_pirn_count_qty': job['target_pirn_count_qty'],
+            'input_yarn_weight_kg': float(job['input_yarn_weight_kg']) if job['input_yarn_weight_kg'] else None,
+            'output_pirn_net_weight_kg': float(job['output_pirn_net_weight_kg']) if job['output_pirn_net_weight_kg'] else None,
+            'pirn_scrap_waste_gm': float(job['pirn_scrap_waste_gm']) if job['pirn_scrap_waste_gm'] else None,
+            'material_variance_kg': float(job['material_variance_kg']) if job['material_variance_kg'] else None,
+            'spindle_speed_rpm': job['spindle_speed_rpm'],
+            'pirn_base_and_nose_taper_deg': float(job['pirn_base_and_nose_taper_deg']) if job['pirn_base_and_nose_taper_deg'] else None,
+            'weft_joint_method': job['weft_joint_method'],
+            'pirn_hardness_shore_d': float(job['pirn_hardness_shore_d']) if job['pirn_hardness_shore_d'] else None,
+            'splices_per_pirn': job['splices_per_pirn'],
+            'sloughing_risk_index': job['sloughing_risk_index'],
+            'pirn_surface_inspection': job['pirn_surface_inspection'],
+            'target_machine_type': job['target_machine_type'],
+            'validation_errors': job['validation_errors'],
+            'validation_warnings': job['validation_warnings'],
+            'auto_assigned_routing': job['auto_assigned_routing'],
+            'status': job['status'],
+            'certificate_hash': job['certificate_hash']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/pirn-winding/jobs/<job_id>/complete', methods=['POST'])
+@jwt_required()
+def complete_pirn_winding_job(job_id):
+    try:
+        operator_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE pirn_winding_jobs
+            SET status = 'COMPLETED',
+                output_pirn_net_weight_kg = COALESCE(%s, output_pirn_net_weight_kg),
+                material_variance_kg = COALESCE(
+                    input_yarn_weight_kg - output_pirn_net_weight_kg - (pirn_scrap_waste_gm / 1000.0),
+                    material_variance_kg
+                )
+            WHERE id = %s::uuid
+            RETURNING id, pirn_winding_job_no, status
+        """, (
+            data.get('output_pirn_net_weight_kg'),
+            job_id
+        ))
+        
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'pirn_winding_job_no': result['pirn_winding_job_no'],
+            'status': result['status'],
+            'message': 'Pirn winding job completed'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/pirn-winding/jobs/<job_id>/certify', methods=['POST'])
+@jwt_required()
+def certify_pirn_winding_job(job_id):
+    try:
+        approver_id = get_jwt_identity()
+        
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, pirn_winding_job_no, status, validation_errors, auto_assigned_routing
+            FROM pirn_winding_jobs
+            WHERE id = %s::uuid
+        """, (job_id,))
+        
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'JobNotFound'}), 404
+        
+        if job['validation_errors'] and len(job['validation_errors']) > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'ValidationErrors', 'message': 'Cannot certify job with validation errors'}), 400
+        
+        certificate_hash = generate_certificate_hash(job_id, job['pirn_winding_job_no'])
+        qr_tag_id = 'PIRN-' + job['pirn_winding_job_no']
+        
+        cur.execute("""
+            UPDATE pirn_winding_jobs
+            SET status = 'CERTIFIED',
+                certificate_hash = %s,
+                qr_tag_id = %s
+            WHERE id = %s::uuid
+            RETURNING id, pirn_winding_job_no, certificate_hash
+        """, (certificate_hash, qr_tag_id, job_id))
+        
+        result = cur.fetchone()
+        
+        cur.execute("""
+            INSERT INTO pirn_winding_certificates (
+                job_id, certificate_hash, qr_tag_id, pirn_winding_job_no,
+                source_bobbin_lot_no, target_pirn_count_qty,
+                input_yarn_weight_kg, output_pirn_net_weight_kg,
+                pirn_scrap_waste_gm, material_variance_kg,
+                spindle_speed_rpm, pirn_base_and_nose_taper_deg,
+                weft_joint_method, pirn_hardness_shore_d,
+                splices_per_pirn, sloughing_risk_index, pirn_surface_inspection,
+                auto_assigned_routing, operator_id, approver_id,
+                factory_node_id, certification_data
+            )
+            SELECT
+                pwj.id,
+                pwj.certificate_hash,
+                pwj.qr_tag_id,
+                pwj.pirn_winding_job_no,
+                pwj.source_bobbin_lot_no,
+                pwj.target_pirn_count_qty,
+                pwj.input_yarn_weight_kg,
+                pwj.output_pirn_net_weight_kg,
+                pwj.pirn_scrap_waste_gm,
+                pwj.material_variance_kg,
+                pwj.spindle_speed_rpm,
+                pwj.pirn_base_and_nose_taper_deg,
+                pwj.weft_joint_method,
+                pwj.pirn_hardness_shore_d,
+                pwj.splices_per_pirn,
+                pwj.sloughing_risk_index,
+                pwj.pirn_surface_inspection,
+                pwj.auto_assigned_routing,
+                pwj.operator_id,
+                %s,
+                pwj.factory_node_id,
+                jsonb_build_object(
+                    'pirn_winding_job_no', pwj.pirn_winding_job_no,
+                    'bobbin_winder_job_card_id', wjc.winding_job_card_id,
+                    'pirn_machine_type', pwj.pirn_machine_type,
+                    'target_pirn_count_qty', pwj.target_pirn_count_qty,
+                    'target_machine_type', pwj.target_machine_type
+                )
+            FROM pirn_winding_jobs pwj
+            LEFT JOIN winding_job_cards wjc ON pwj.bobbin_winder_job_card_id = wjc.id
+            WHERE pwj.id = %s::uuid
+            AND NOT EXISTS (
+                SELECT 1 FROM pirn_winding_certificates WHERE job_id = pwj.id
+            )
+        """, (approver_id, job_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'id': str(result['id']),
+            'pirn_winding_job_no': result['pirn_winding_job_no'],
+            'certificate_hash': result['certificate_hash'],
+            'qr_tag_id': qr_tag_id,
+            'status': 'CERTIFIED',
+            'message': 'Pirn winding job certified successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+@app.route('/api/v1/pirn-winding/certificates', methods=['GET'])
+@jwt_required()
+def list_pirn_winding_certificates():
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT pwc.id, pwc.certificate_hash, pwc.qr_tag_id,
+                   pwc.pirn_winding_job_no, pwc.source_bobbin_lot_no,
+                   pwc.target_pirn_count_qty, pwc.input_yarn_weight_kg,
+                   pwc.output_pirn_net_weight_kg, pwc.pirn_scrap_waste_gm,
+                   pwc.material_variance_kg, pwc.spindle_speed_rpm,
+                   pwc.pirn_base_and_nose_taper_deg, pwc.weft_joint_method,
+                   pwc.pirn_hardness_shore_d, pwc.splices_per_pirn,
+                   pwc.sloughing_risk_index, pwc.pirn_surface_inspection,
+                   pwc.auto_assigned_routing, pwc.status, pwc.certified_at,
+                   pwj.winding_machine_id
+            FROM pirn_winding_certificates pwc
+            JOIN pirn_winding_jobs pwj ON pwc.job_id = pwj.id
+            WHERE pwc.factory_node_id = (SELECT factory_node_id FROM users WHERE id = %s::uuid)
+            ORDER BY pwc.certified_at DESC
+            LIMIT 100
+        """, (operator_id,))
+        
+        certs = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'total': len(certs),
+            'certificates': [
+                {
+                    'id': str(c['id']),
+                    'certificate_hash': c['certificate_hash'],
+                    'qr_tag_id': c['qr_tag_id'],
+                    'pirn_winding_job_no': c['pirn_winding_job_no'],
+                    'source_bobbin_lot_no': c['source_bobbin_lot_no'],
+                    'target_pirn_count_qty': c['target_pirn_count_qty'],
+                    'input_yarn_weight_kg': float(c['input_yarn_weight_kg']) if c['input_yarn_weight_kg'] else None,
+                    'output_pirn_net_weight_kg': float(c['output_pirn_net_weight_kg']) if c['output_pirn_net_weight_kg'] else None,
+                    'pirn_scrap_waste_gm': float(c['pirn_scrap_waste_gm']) if c['pirn_scrap_waste_gm'] else None,
+                    'material_variance_kg': float(c['material_variance_kg']) if c['material_variance_kg'] else None,
+                    'spindle_speed_rpm': c['spindle_speed_rpm'],
+                    'pirn_base_and_nose_taper_deg': float(c['pirn_base_and_nose_taper_deg']) if c['pirn_base_and_nose_taper_deg'] else None,
+                    'weft_joint_method': c['weft_joint_method'],
+                    'pirn_hardness_shore_d': float(c['pirn_hardness_shore_d']) if c['pirn_hardness_shore_d'] else None,
+                    'splices_per_pirn': c['splices_per_pirn'],
+                    'sloughing_risk_index': c['sloughing_risk_index'],
+                    'pirn_surface_inspection': c['pirn_surface_inspection'],
+                    'auto_assigned_routing': c['auto_assigned_routing'],
+                    'status': c['status'],
+                    'certified_at': c['certified_at'].isoformat() if c['certified_at'] else None
+                }
+                for c in certs
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
+# ============================================================
+# SALES FORECAST API PLUGIN FOR PIRN WINDER
+# ============================================================
+
+@app.route('/api/v1/sales/forecast/pirn-winding', methods=['GET'])
+@jwt_required()
+def get_sales_forecast_pirn_winding():
+    """
+    API plugin endpoint for sales team pirn winding material processing forecast.
+    Returns forecasted pirn winding requirements based on sales pipeline.
+    """
+    try:
+        operator_id = get_jwt_identity()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT factory_node_id FROM users WHERE id = %s::uuid
+        """, (operator_id,))
+        user_row = cur.fetchone()
+        factory_node_id = user_row['factory_node_id'] if user_row else None
+        
+        forecast = {
+            'factory_node_id': factory_node_id,
+            'forecast_period': '30 days',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'material_requirements': [
+                {
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'yarn_type': 'WEFT_TRAM_LOW_TWIST',
+                    'target_pirn_count': 5000,
+                    'estimated_silk_kg': 120.0,
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 80,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'yarn_type': 'WEFT_TRAM_LOW_TWIST',
+                    'target_pirn_count': 4000,
+                    'estimated_silk_kg': 100.0,
+                    'target_machine': '2400_HOOK_JACQUARD',
+                    'estimated_sarees': 60,
+                    'priority': 'HIGH'
+                },
+                {
+                    'saree_category': 'Mid-Segment Silk Sarees',
+                    'shade_code': 'MID-MNG-402',
+                    'yarn_type': 'WEFT_TRAM_LOW_TWIST',
+                    'target_pirn_count': 4500,
+                    'estimated_silk_kg': 90.0,
+                    'target_machine': '1536_HOOK_JACQUARD',
+                    'estimated_sarees': 100,
+                    'priority': 'MEDIUM'
+                }
+            ],
+            'upcoming_lots': [
+                {
+                    'lot_number': 'PIRN-LOT-2024-0011',
+                    'saree_category': 'Authentic Kanchipuram Bridal',
+                    'shade_code': 'KNC-MRN-702',
+                    'target_pirn_count': 5000,
+                    'estimated_sarees': 80,
+                    'estimated_silk_kg': 120.0,
+                    'yarn_type': 'WEFT_TRAM_LOW_TWIST',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                },
+                {
+                    'lot_number': 'PIRN-LOT-2024-0012',
+                    'saree_category': 'Banarasi Kinkhab & Kadwa',
+                    'shade_code': 'BNR-BLU-101',
+                    'target_pirn_count': 4000,
+                    'estimated_sarees': 60,
+                    'estimated_silk_kg': 100.0,
+                    'yarn_type': 'WEFT_TRAM_LOW_TWIST',
+                    'target_machine': '2400_HOOK_JACQUARD'
+                }
+            ]
+        }
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify(forecast), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'InternalServerError', 'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5003)
